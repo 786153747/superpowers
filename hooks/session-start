@@ -6,6 +6,22 @@ set -euo pipefail
 # Determine plugin root directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
+
+# If the target project has no spec directory, copy the default one from superpowers.
+project_spec_dir="${PROJECT_ROOT}/spec"
+plugin_spec_dir="${PLUGIN_ROOT}/spec"
+spec_copy_message=""
+if [ -d "$plugin_spec_dir" ] && [ ! -d "$project_spec_dir" ] && [ "$PROJECT_ROOT" != "$PLUGIN_ROOT" ]; then
+    if cp -R "$plugin_spec_dir" "$project_spec_dir" 2>/dev/null; then
+        spec_copy_message=$(cat <<'EOF'
+
+
+<important-reminder>项目里原本没有 spec/，我已经自动复制了一份默认规范。后面如果要写详细设计：后端用 spec/backend/java/detail-design-template.md，前端用 spec/frontend/vue/detail-design-template.md，并把文档落到 docs/plans/。</important-reminder>
+EOF
+)
+    fi
+fi
 
 # Check if legacy skills directory exists and build warning
 warning_message=""
@@ -55,8 +71,26 @@ If you read files or search for images before invoking prd-diff-scan, you have f
 EOF
 )
 
+detail_design_card=$(cat <<'EOF'
+<DETAIL_DESIGN_RULES>
+If the user asks for 详细设计 / 前端详细设计 / 后端详细设计:
+- 先看项目 `spec/` 目录
+- 后端详细设计用 `spec/backend/java/detail-design-template.md`
+- 前端详细设计用 `spec/frontend/vue/detail-design-template.md`
+- 前后端都有时，分成两份文档来写，不要混成一篇大杂烩
+- 文档必须落盘到 `docs/plans/`，不要只停留在聊天里
+- 推荐文件名：
+  - `docs/plans/YYYY-MM-DD-<topic>-backend-detail-design.md`
+  - `docs/plans/YYYY-MM-DD-<topic>-frontend-detail-design.md`
+- 尽量用白话，少说套话，多写清楚文件、接口、字段、规则和验证方式
+</DETAIL_DESIGN_RULES>
+EOF
+)
+
 routing_card_escaped=$(escape_for_json "$routing_card")
-session_context="<EXTREMELY_IMPORTANT>\nYou have superpowers.\n\n${routing_card_escaped}\n\n**Below is the full content of your 'superpowers:using-superpowers' skill - your introduction to using skills. For all other skills, use the 'Skill' tool:**\n\n${using_superpowers_escaped}\n\n${warning_escaped}\n</EXTREMELY_IMPORTANT>"
+detail_design_card_escaped=$(escape_for_json "$detail_design_card")
+spec_copy_escaped=$(escape_for_json "$spec_copy_message")
+session_context="<EXTREMELY_IMPORTANT>\nYou have superpowers.\n\n${routing_card_escaped}\n\n${detail_design_card_escaped}\n\n**Below is the full content of your 'superpowers:using-superpowers' skill - your introduction to using skills. For all other skills, use the 'Skill' tool:**\n\n${using_superpowers_escaped}\n\n${warning_escaped}${spec_copy_escaped}\n</EXTREMELY_IMPORTANT>"
 
 # Output context injection as JSON.
 # Keep both shapes for compatibility:

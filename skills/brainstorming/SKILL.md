@@ -11,13 +11,15 @@ Help turn ideas into fully formed designs and specs through natural collaborativ
 
 Start by understanding the current project context, then ask questions one at a time to refine the idea. Once you understand what you're building, present the design and get user approval.
 
+If the user explicitly wants **详细设计** and the project has templates under `spec/`, use the matching template when you save the final document.
+
 <HARD-GATE>
 Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design and the user has approved it. This applies to EVERY project regardless of perceived simplicity.
 </HARD-GATE>
 
 ## Restrictions
 
-- This skill can ONLY create `*-design.md` documents (in Step 6)
+- This skill can create `*-design.md` documents, and it may create `*-detail-design.md` when the user explicitly asks for detailed design
 - Do NOT create: `*-diff.md`, `*-plan.md`, `*-db-design.md` — these belong to other skills
 - **One step per turn**: complete one step, then STOP and wait for user to reply. Do NOT continue to the next step in the same turn.
 - Do NOT do the diff scan yourself. If diff.md is missing, stop and tell the user.
@@ -35,6 +37,7 @@ You MUST create a task for each step and complete them in order.
 
 - Check out the current project state (files, docs, recent commits)
 - Understand what the user wants to build
+- If `spec/index.md` exists, read it. If the user wants frontend/backend detailed design, also note the matching template path under `spec/`
 
 **After completing exploration, end your turn.** Present a brief summary of what you found and ask the user one clarifying question.
 
@@ -81,6 +84,7 @@ Do NOT create the diff document yourself. Do NOT continue. End your turn.
 
 - Scale each section to its complexity
 - Cover: architecture, components, data flow, error handling, testing
+- If this is a detailed-design request, align the sections with the matching template under `spec/`
 - Ask after each section whether it looks right so far
 
 **After presenting each section, STOP and wait for user feedback.** Only after user approves all sections, output:
@@ -91,8 +95,12 @@ Do NOT create the diff document yourself. Do NOT continue. End your turn.
 
 ### Step 6: Write design doc
 
-- Save the validated design to `docs/plans/YYYY-MM-DD-<topic>-design.md`
-- This is the ONLY document this skill creates. Do NOT create plan.md, db-design.md, or diff.md.
+- If this is a normal design, save it to `docs/plans/YYYY-MM-DD-<topic>-design.md`
+- If the user explicitly wants backend detailed design, use `spec/backend/java/detail-design-template.md` and save to `docs/plans/YYYY-MM-DD-<topic>-backend-detail-design.md`
+- If the user explicitly wants frontend detailed design, use `spec/frontend/vue/detail-design-template.md` and save to `docs/plans/YYYY-MM-DD-<topic>-frontend-detail-design.md`
+- If both frontend and backend are in scope, write two detail-design docs instead of merging them into one
+- Design docs must be written to disk. Do NOT leave them only in chat.
+- Do NOT create plan.md, db-design.md, or diff.md here.
 - Commit the design document to git
 
 → **CHECKPOINT**: "✅ 设计文档已保存到 `[路径]`。可以进入实施计划。"

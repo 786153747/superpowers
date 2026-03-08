@@ -49,6 +49,7 @@
 |----------|---------------------|---------------------|
 | `*-diff.md` | prd-diff-scan | brainstorming ❌ writing-plans ❌ |
 | `*-design.md` | brainstorming | prd-diff-scan ❌ writing-plans ❌ |
+| `*-detail-design.md` | brainstorming（用户明确要详细设计时） | prd-diff-scan ❌ writing-plans ❌ |
 | `*-plan.md` | writing-plans | brainstorming ❌ prd-diff-scan ❌ |
 | `*-db-design.md` | writing-plans | brainstorming ❌ prd-diff-scan ❌ |
 
@@ -102,6 +103,18 @@
 - 测试清单: `*-test-cases.md`
 - 实施计划: `*-plan.md`
 - 差异扫描: `*-diff.md`
+
+### 详细设计怎么写（白话版）
+
+- 用户要的是**后端详细设计**，就去看 `spec/backend/java/detail-design-template.md`
+- 用户要的是**前端详细设计**，就去看 `spec/frontend/vue/detail-design-template.md`
+- 前后端都要时，**分两份文档写**，不要混成一篇
+- 文档不能只写在聊天里，**必须落盘**到 `docs/plans/`
+- 推荐文件名：
+  - `docs/plans/YYYY-MM-DD-<主题>-backend-detail-design.md`
+  - `docs/plans/YYYY-MM-DD-<主题>-frontend-detail-design.md`
+- 写的时候尽量用白话，少讲空话，多写具体的文件、接口、字段、规则、验证方式
+- 如果项目里还没有 `spec/`，先补一份再继续；不要跳过模板直接自由发挥
 
 文档头部包含：
 
