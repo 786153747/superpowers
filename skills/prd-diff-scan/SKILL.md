@@ -33,7 +33,22 @@ description: "Use when user provides PRD, prototype, UI screenshot/image, or req
 只有以下情况才允许进入下一阶段：
 
 1. 本 skill 是由 `brainstorming` 明确作为前置步骤调用；或
-2. 用户在差异扫描完成后，明确要求继续进入设计/brainstorming。
+2. 用户在差异扫描完成后，明确要求继续进入设计/brainstorming；或
+3. 用户明确说明这是**自动测试 / 非交互**场景，并且明确授权：若无 blocker，差异扫描落盘后自动继续进入 brainstorming / 详细设计，无需逐轮等待确认。
+
+## 自动测试 / 非交互模式（窄例外）
+
+只有同时满足以下条件，才能启用这个模式：
+
+- 用户明确说这是自动测试、CI、批处理或非交互场景
+- 用户明确说：没有 blocker 时，默认采用推荐方案
+- 用户明确说：默认同意继续下一步、默认同意落盘
+
+启用后：
+
+- 步骤 7 落盘后，如果**没有未解决 blocker**，可以直接继续进入 brainstorming / 详细设计
+- 如果还有 blocker、关键信息缺失、PRD 与现状冲突无法自动决策，必须停止并把问题写清楚
+- 不能把“自动测试”理解成“可以忽略证据不足”
 
 ## 证据原则
 
@@ -303,6 +318,7 @@ description: "Use when user provides PRD, prototype, UI screenshot/image, or req
 
 - **Standalone 模式**（用户只要差异扫描）：输出保存路径后 `STOP`，等待用户下一步指令
 - **brainstorming 前置模式**：告知差异扫描已完成，可返回 `brainstorming` 继续后续设计
+- **自动测试 / 非交互模式**：若无未解决 blocker，差异扫描落盘后可直接继续进入 brainstorming / 详细设计
 
 ---
 

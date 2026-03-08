@@ -41,6 +41,8 @@ The user does **not** need to explicitly say "use prd-diff-scan". If they provid
 
 If the user later asks for **详细设计**, keep the same workflow order: `prd-diff-scan` first when PRD/UI is present, then `brainstorming`, then save the detailed design by following the matching template under `spec/`.
 
+If the user explicitly says this is an automated/non-interactive test and pre-approves the recommended path, the workflow order stays the same, but the agent may continue across confirmation gates until documents are written to disk.
+
 # Using Skills
 
 ## The Rule

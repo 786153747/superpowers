@@ -73,6 +73,7 @@ done
 
 # List of skill tests to run (fast unit tests)
 tests=(
+    "test-auto-detail-design-generation.sh"
     "test-detail-design-template.sh"
     "test-prd-ui-diff-scan.sh"
     "test-subagent-driven-development.sh"
