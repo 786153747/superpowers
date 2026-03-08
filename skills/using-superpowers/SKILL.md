@@ -17,6 +17,28 @@ This is not negotiable. This is not optional. You cannot rationalize your way ou
 
 **In other environments:** Check your platform's documentation for how skills are loaded.
 
+## Immediate Routing
+
+**Do this before ANY tool call.**
+
+If the user message contains any of these signals:
+
+- `PRD` / `需求文档` / `requirement doc`
+- `原型图` / `UI图` / `UI screenshot` / `prototype` / `截图`
+- `差异分析` / `差异扫描` / `页面核对` / `对照现状` / `compare PRD with UI`
+- explicit file paths such as `prd/...`, `docs/...-prd.md`, `ruoyi-ui/`, `src/`, or module directories that indicate “requirement path + implementation path”
+
+Then your **first action** must be:
+
+1. Invoke `Skill("superpowers:prd-diff-scan")`
+2. Do **NOT** use `Read`, `Glob`, `Grep`, `Task`, or `brainstorming` first
+3. Only after `*-diff.md` exists may you move to `brainstorming`
+
+If the user also asks for design or implementation in the same message, this routing still wins.
+Skipping this routing = workflow failure.
+
+The user does **not** need to explicitly say "use prd-diff-scan". If they provide a requirement file path plus a project/module path, you must infer `prd-diff-scan` automatically.
+
 # Using Skills
 
 ## The Rule
@@ -71,16 +93,25 @@ These thoughts mean STOP—you're rationalizing:
 | "I'll just do this one thing first" | Check BEFORE doing anything. |
 | "This feels productive" | Undisciplined action wastes time. Skills prevent this. |
 | "I know what that means" | Knowing the concept ≠ using the skill. Invoke it. |
+| "I'll read the PRD or look for screenshots first" | Wrong. `prd-diff-scan` must be invoked before `Read`/`Glob`. |
 
 ## Skill Priority
 
 When multiple skills could apply, use this order:
 
-1. **Process skills first** (brainstorming, debugging) - these determine HOW to approach the task
+1. **Process skills first** (brainstorming, debugging, prd-diff-scan) - these determine HOW to approach the task
 2. **Implementation skills second** (frontend-design, mcp-builder) - these guide execution
 
-"Let's build X" → brainstorming first, then implementation skills.
+"Let's build X" + has PRD → prd-diff-scan first, then brainstorming.
+"Let's build X" + no PRD → brainstorming directly.
 "Fix this bug" → debugging first, then domain-specific skills.
+"Analyze this PRD" → prd-diff-scan directly.
+"Compare PRD with UI screenshot / prototype" → prd-diff-scan directly.
+“对照 PRD 和 UI 图看看差异” → `prd-diff-scan` 直接优先。
+“按原型图核对页面 / 做页面差异分析 / 差异扫描” → `prd-diff-scan` 直接优先。
+“需求文档在 `prd/...`，UI 项目在 `ruoyi-ui/`” → 即使没点名 skill，也必须先走 `prd-diff-scan`。
+
+If the user mentions **PRD / 原型图 / UI图 / 截图 / 差异分析 / 页面核对 / 对照现状**, bias strongly toward `prd-diff-scan` before any design or implementation skill.
 
 ## Skill Types
 

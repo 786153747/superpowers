@@ -1,20 +1,15 @@
 {
   "name": "superpowers-dev",
-  "description": "Development marketplace for Superpowers core skills library",
+  "description": "Development marketplace for superpowers",
   "owner": {
-    "name": "Jesse Vincent",
-    "email": "jesse@fsck.com"
+    "name": "Custom"
   },
   "plugins": [
     {
       "name": "superpowers",
-      "description": "Core skills library for Claude Code: TDD, debugging, collaboration patterns, and proven techniques",
-      "version": "4.3.1",
-      "source": "./",
-      "author": {
-        "name": "Jesse Vincent",
-        "email": "jesse@fsck.com"
-      }
+      "description": "Superpowers with PRD diff scan - optimized for medium-capability models",
+      "version": "1.0.0",
+      "source": "./"
     }
   ]
 }

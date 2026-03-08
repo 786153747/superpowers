@@ -11,6 +11,20 @@ Write comprehensive implementation plans assuming the engineer has zero context 
 
 Assume they are a skilled developer, but know almost nothing about our toolset or problem domain. Assume they don't know good test design very well.
 
+## Prerequisites (HARD-GATE)
+
+Before writing any plan, you MUST verify prerequisite documents exist. Use Glob to check:
+
+1. **If a PRD / requirement doc was provided in this session:**
+   - Check: `docs/plans/*-diff.md`
+   - If missing: STOP. Output "❌ 缺少差异扫描文档。请先完成 brainstorming 中的 PRD 差异扫描步骤，生成 `docs/plans/*-diff.md` 后再来。" Do NOT proceed.
+
+2. **Design document:**
+   - Check: `docs/plans/*-design.md`
+   - If missing: STOP. Output "❌ 缺少设计文档。请先完成 brainstorming 中的设计确认步骤，生成 `docs/plans/*-design.md` 后再来。" Do NOT proceed.
+
+If both checks pass, read the design document and diff document to use as input for the plan.
+
 **Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
 
 **Context:** This should be run in a dedicated worktree (created by brainstorming skill).

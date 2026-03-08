@@ -32,7 +32,31 @@ escape_for_json() {
 
 using_superpowers_escaped=$(escape_for_json "$using_superpowers_content")
 warning_escaped=$(escape_for_json "$warning_message")
-session_context="<EXTREMELY_IMPORTANT>\nYou have superpowers.\n\n**Below is the full content of your 'superpowers:using-superpowers' skill - your introduction to using skills. For all other skills, use the 'Skill' tool:**\n\n${using_superpowers_escaped}\n\n${warning_escaped}\n</EXTREMELY_IMPORTANT>"
+
+routing_card=$(cat <<'EOF'
+<MANDATORY_FIRST_ACTION>
+Before ANY tool call, check the user's message for these signals:
+- PRD / 需求文档 / requirement doc
+- 原型图 / UI图 / UI screenshot / prototype / 截图
+- 差异分析 / 差异扫描 / 页面核对 / 对照现状 / compare PRD with UI
+
+If any signal appears, your FIRST action must be:
+1. Invoke Skill("superpowers:prd-diff-scan")
+2. Do NOT use Read, Glob, Grep, Task, or brainstorming first
+3. Only after docs/plans/*-diff.md exists may you continue to brainstorming
+
+This also applies when the user only provides paths, for example:
+- "需求文档在 prd/..."
+- "UI 项目在 ruoyi-ui/"
+- "按这个 PRD 对当前项目做差异分析"
+
+If you read files or search for images before invoking prd-diff-scan, you have failed the workflow.
+</MANDATORY_FIRST_ACTION>
+EOF
+)
+
+routing_card_escaped=$(escape_for_json "$routing_card")
+session_context="<EXTREMELY_IMPORTANT>\nYou have superpowers.\n\n${routing_card_escaped}\n\n**Below is the full content of your 'superpowers:using-superpowers' skill - your introduction to using skills. For all other skills, use the 'Skill' tool:**\n\n${using_superpowers_escaped}\n\n${warning_escaped}\n</EXTREMELY_IMPORTANT>"
 
 # Output context injection as JSON.
 # Keep both shapes for compatibility:
