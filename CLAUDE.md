@@ -104,7 +104,7 @@
 - 实施计划: `*-plan.md`
 - 差异扫描: `*-diff.md`
 
-### 详细设计怎么写（白话版）
+### 详细设计怎么写
 
 - 用户要的是**后端详细设计**，就去看 `spec/backend/java/detail-design-template.md`
 - 用户要的是**前端详细设计**，就去看 `spec/frontend/vue/detail-design-template.md`

@@ -13,6 +13,11 @@ Start by understanding the current project context, then ask questions one at a 
 
 If the user explicitly wants **详细设计** and the project has templates under `spec/`, use the matching template when you save the final document.
 
+In a PRD/UI-driven development-design workflow, treat detailed design as the default written output for every in-scope side:
+- Frontend is in scope when the input or diff mentions a UI project, page paths, prototypes/screenshots, page interactions, or frontend changes/blockers.
+- Backend is in scope when the input or diff mentions APIs, controllers/services/mappers, database work, SAP/mock integration, or backend changes/blockers.
+- If both sides are in scope and the user did not explicitly narrow scope, you MUST produce two detailed-design docs before any planning: one frontend doc and one backend doc.
+
 ## 自动测试 / 非交互模式（窄例外）
 
 默认仍然是**一步一轮、逐轮确认**。
@@ -38,6 +43,8 @@ If the user explicitly wants **详细设计** and the project has templates unde
 
 <HARD-GATE>
 Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design and the user has approved it. This applies to EVERY project regardless of perceived simplicity.
+
+Replies like `继续`, `下一步`, `往下走`, or answers to clarification questions do NOT count as design approval on their own. Outside explicit auto-test / non-interactive mode, you must still save the design docs, STOP, and wait for an explicit confirmation to enter `writing-plans`.
 </HARD-GATE>
 
 ## Restrictions
@@ -47,6 +54,7 @@ Do NOT invoke any implementation skill, write any code, scaffold any project, or
 - **One step per turn**: complete one step, then STOP and wait for user to reply. Do NOT continue to the next step in the same turn.
 - In explicit auto-test / non-interactive mode, you may combine steps after prerequisites are satisfied and no blockers remain.
 - Do NOT do the diff scan yourself. If diff.md is missing, stop and tell the user.
+- If both frontend and backend are in scope, Step 5 must present both sides and Step 6 must save two docs. Do NOT silently drop one side because it looks "already implemented".
 
 ---
 
@@ -115,6 +123,7 @@ In explicit auto-test / non-interactive mode, you may proceed with your recommen
 - Scale each section to its complexity
 - Cover: architecture, components, data flow, error handling, testing
 - If this is a detailed-design request, align the sections with the matching template under `spec/`
+- If both frontend and backend are in scope, present them as two separate sections/documents-to-be-written, not as one blended summary
 - Ask after each section whether it looks right so far
 
 **After presenting each section, STOP and wait for user feedback.** Only after user approves all sections, output:
@@ -128,9 +137,11 @@ In explicit auto-test / non-interactive mode, you may treat the user's pre-appro
 ### Step 6: Write design doc
 
 - If this is a normal design, save it to `docs/plans/YYYY-MM-DD-<topic>-design.md`
-- If the user explicitly wants backend detailed design, use `spec/backend/java/detail-design-template.md` and save to `docs/plans/YYYY-MM-DD-<topic>-backend-detail-design.md`
-- If the user explicitly wants frontend detailed design, use `spec/frontend/vue/detail-design-template.md` and save to `docs/plans/YYYY-MM-DD-<topic>-frontend-detail-design.md`
-- If both frontend and backend are in scope, write two detail-design docs instead of merging them into one
+- Determine scope before writing:
+  - Frontend in scope → use `spec/frontend/vue/detail-design-template.md` and save `docs/plans/YYYY-MM-DD-<topic>-frontend-detail-design.md`
+  - Backend in scope → use `spec/backend/java/detail-design-template.md` and save `docs/plans/YYYY-MM-DD-<topic>-backend-detail-design.md`
+- If both frontend and backend are in scope, you MUST write both detailed-design docs before ending the turn
+- If one side is intentionally out of scope, say so explicitly before writing and record that decision in the saved design output
 - Design docs must be written to disk. Do NOT leave them only in chat.
 - Do NOT create plan.md, db-design.md, or diff.md here.
 - Commit the design document to git
@@ -139,13 +150,16 @@ In explicit auto-test / non-interactive mode, you may treat the user's pre-appro
 
 **After saving, STOP.** Ask user: "设计文档已保存。是否现在进入实施计划（writing-plans）？"
 
+Do NOT create `*-plan.md`, invoke `writing-plans`, or start coding in the same turn unless this is explicit auto-test / non-interactive mode with prior user approval to continue automatically.
+
 In explicit auto-test / non-interactive mode, you may stop immediately after saving and report the saved paths.
 
 ---
 
 ### Step 7: Transition to implementation
 
-Only after user confirms → invoke the writing-plans skill.
+Only after user explicitly confirms the saved design docs are approved → invoke the writing-plans skill.
+If the user only says `继续` / `下一步`, treat that as permission to continue the current discussion, not as permission to create a plan or start implementation.
 Do NOT invoke any other skill. writing-plans is the ONLY next step.
 
 ---

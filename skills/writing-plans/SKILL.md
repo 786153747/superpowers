@@ -19,11 +19,23 @@ Before writing any plan, you MUST verify prerequisite documents exist. Use Glob 
    - Check: `docs/plans/*-diff.md`
    - If missing: STOP. Output "❌ 缺少差异扫描文档。请先完成 brainstorming 中的 PRD 差异扫描步骤，生成 `docs/plans/*-diff.md` 后再来。" Do NOT proceed.
 
-2. **Design document:**
-   - Check: `docs/plans/*-design.md`
-   - If missing: STOP. Output "❌ 缺少设计文档。请先完成 brainstorming 中的设计确认步骤，生成 `docs/plans/*-design.md` 后再来。" Do NOT proceed.
+2. **Read the diff document and determine scope before checking design docs:**
+   - Frontend is in scope when the diff or session mentions UI projects, page paths, prototypes/screenshots, page interactions, or frontend gaps/blockers.
+   - Backend is in scope when the diff or session mentions APIs, controllers/services/mappers, database work, SAP/mock integration, or backend gaps/blockers.
 
-If both checks pass, read the design document and diff document to use as input for the plan.
+3. **Required design documents:**
+   - Frontend in scope → require `docs/plans/*-frontend-detail-design.md` or a general `docs/plans/*-design.md` that explicitly covers frontend.
+   - Backend in scope → require `docs/plans/*-backend-detail-design.md` or a general `docs/plans/*-design.md` that explicitly covers backend.
+   - If both frontend and backend are in scope, both sides must be covered before planning. A single backend design doc is NOT enough.
+
+4. **If any required design document is missing:**
+   - STOP. Output a precise missing-doc message and do NOT proceed.
+   - If frontend is missing, tell the user to finish brainstorming and generate `docs/plans/*-frontend-detail-design.md`.
+   - If backend is missing, tell the user to finish brainstorming and generate `docs/plans/*-backend-detail-design.md`.
+
+If all required checks pass, read the design document(s) and diff document to use as input for the plan.
+
+Never treat a generic `继续` as approval to bypass the design gate. In normal interactive mode, planning starts only after the saved design docs have been explicitly approved.
 
 **Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
 

@@ -6,20 +6,25 @@ set -euo pipefail
 # Determine plugin root directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
 
-# If the target project has no spec directory, copy the default one from superpowers.
-project_spec_dir="${PROJECT_ROOT}/spec"
-plugin_spec_dir="${PLUGIN_ROOT}/spec"
+# Copy spec directory to project if it doesn't exist
+PROJECT_DIR="$(pwd)"
 spec_copy_message=""
-if [ -d "$plugin_spec_dir" ] && [ ! -d "$project_spec_dir" ] && [ "$PROJECT_ROOT" != "$PLUGIN_ROOT" ]; then
-    if cp -R "$plugin_spec_dir" "$project_spec_dir" 2>/dev/null; then
-        spec_copy_message=$(cat <<'EOF'
+if [ ! -d "${PROJECT_DIR}/spec" ]; then
+    if cp -r "${PLUGIN_ROOT}/spec" "${PROJECT_DIR}/"; then
+        spec_copy_message="\n\n<spec-notice>spec/ directory has been copied to your project: ${PROJECT_DIR}/spec</spec-notice>"
+    else
+        spec_copy_message="\n\n<spec-notice>WARNING: Failed to copy spec/ directory to ${PROJECT_DIR}/spec - please copy it manually from ${PLUGIN_ROOT}/spec</spec-notice>"
+    fi
+fi
 
-
-<important-reminder>项目里原本没有 spec/，我已经自动复制了一份默认规范。后面如果要写详细设计：后端用 spec/backend/java/detail-design-template.md，前端用 spec/frontend/vue/detail-design-template.md，并把文档落到 docs/plans/。</important-reminder>
-EOF
-)
+# Copy CLAUDE.md to project if it doesn't exist
+claudemd_copy_message=""
+if [ ! -f "${PROJECT_DIR}/CLAUDE.md" ]; then
+    if cp "${PLUGIN_ROOT}/CLAUDE.md" "${PROJECT_DIR}/CLAUDE.md"; then
+        claudemd_copy_message="\n\n<spec-notice>CLAUDE.md has been copied to your project: ${PROJECT_DIR}/CLAUDE.md</spec-notice>"
+    else
+        claudemd_copy_message="\n\n<spec-notice>WARNING: Failed to copy CLAUDE.md to ${PROJECT_DIR}/CLAUDE.md - please copy it manually from ${PLUGIN_ROOT}/CLAUDE.md</spec-notice>"
     fi
 fi
 
@@ -90,7 +95,8 @@ EOF
 routing_card_escaped=$(escape_for_json "$routing_card")
 detail_design_card_escaped=$(escape_for_json "$detail_design_card")
 spec_copy_escaped=$(escape_for_json "$spec_copy_message")
-session_context="<EXTREMELY_IMPORTANT>\nYou have superpowers.\n\n${routing_card_escaped}\n\n${detail_design_card_escaped}\n\n**Below is the full content of your 'superpowers:using-superpowers' skill - your introduction to using skills. For all other skills, use the 'Skill' tool:**\n\n${using_superpowers_escaped}\n\n${warning_escaped}${spec_copy_escaped}\n</EXTREMELY_IMPORTANT>"
+claudemd_copy_escaped=$(escape_for_json "$claudemd_copy_message")
+session_context="<EXTREMELY_IMPORTANT>\nYou have superpowers.\n\n${routing_card_escaped}\n\n${detail_design_card_escaped}\n\n**Below is the full content of your 'superpowers:using-superpowers' skill - your introduction to using skills. For all other skills, use the 'Skill' tool:**\n\n${using_superpowers_escaped}\n\n${warning_escaped}${spec_copy_escaped}${claudemd_copy_escaped}\n</EXTREMELY_IMPORTANT>"
 
 # Output context injection as JSON.
 # Keep both shapes for compatibility:
