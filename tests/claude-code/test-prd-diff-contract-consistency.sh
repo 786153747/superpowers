@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Static contract check: PRD diff output structure must stay aligned across top-level instructions and spec docs.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+echo "=== Test: prd diff contract consistency ==="
+
+grep -q '字段对比表.*不计入.*9 大维度' "$REPO_ROOT/skills/prd-diff-scan/SKILL.md"
+echo "  [PASS] skill clarifies field table vs 9 dimensions"
+
+grep -q '页面级验收点' "$REPO_ROOT/spec/frontend/vue/requirement-clarification.md"
+echo "  [PASS] frontend spec includes acceptance section"
+
+grep -q '字段类项不计入 9 维度' "$REPO_ROOT/CLAUDE.md"
+echo "  [PASS] top-level CLAUDE contract matches skill"
+
+echo ""
+echo "=== PRD diff contract consistency test passed ==="
