@@ -20,7 +20,7 @@ Before writing any plan, you MUST verify prerequisite documents exist. Use Glob 
    - If missing: STOP. Output "❌ 缺少差异扫描文档。请先完成 brainstorming 中的 PRD 差异扫描步骤，生成 `docs/plans/*-diff.md` 后再来。" Do NOT proceed.
 
 2. **Read the diff document and determine scope before checking design docs:**
-   - Frontend is in scope when the diff or session mentions UI projects, page paths, prototypes/screenshots, page interactions, or frontend gaps/blockers.
+   - Frontend is in scope when the diff or session mentions UI projects, page paths, page interactions, or frontend gaps/blockers.
    - Backend is in scope when the diff or session mentions APIs, controllers/services/mappers, database work, SAP/mock integration, or backend gaps/blockers.
 
 3. **Required design documents:**

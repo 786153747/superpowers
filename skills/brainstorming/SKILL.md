@@ -14,7 +14,7 @@ Start by understanding the current project context, then ask questions one at a 
 If the user explicitly wants **详细设计** and the project has templates under `spec/`, use the matching template when you save the final document.
 
 In a PRD/UI-driven development-design workflow, treat detailed design as the default written output for every in-scope side:
-- Frontend is in scope when the input or diff mentions a UI project, page paths, prototypes/screenshots, page interactions, or frontend changes/blockers.
+- Frontend is in scope when the input or diff mentions a UI project, page paths, page interactions, or frontend changes/blockers.
 - Backend is in scope when the input or diff mentions APIs, controllers/services/mappers, database work, SAP/mock integration, or backend changes/blockers.
 - If both sides are in scope and the user did not explicitly narrow scope, you MUST produce two detailed-design docs before any planning: one frontend doc and one backend doc.
 
@@ -79,7 +79,7 @@ In explicit auto-test / non-interactive mode, if the user already supplied the n
 
 ### Step 2: Check PRD diff scan prerequisite
 
-If no PRD / prototype / requirement doc was provided → skip to Step 3.
+If no PRD / requirement doc was provided → skip to Step 3.
 
 If user provided PRD or requirement doc:
 

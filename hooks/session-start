@@ -58,8 +58,7 @@ routing_card=$(cat <<'EOF'
 <MANDATORY_FIRST_ACTION>
 Before ANY tool call, check the user's message for these signals:
 - PRD / 需求文档 / requirement doc
-- 原型图 / UI图 / UI screenshot / prototype / 截图
-- 差异分析 / 差异扫描 / 页面核对 / 对照现状 / compare PRD with UI
+- 差异分析 / 差异扫描 / 页面核对 / 对照现状 / compare PRD with implementation
 
 If any signal appears, your FIRST action must be:
 1. Invoke Skill("superpowers:prd-diff-scan")
@@ -71,7 +70,7 @@ This also applies when the user only provides paths, for example:
 - "UI 项目在 ruoyi-ui/"
 - "按这个 PRD 对当前项目做差异分析"
 
-If you read files or search for images before invoking prd-diff-scan, you have failed the workflow.
+If you read files or search before invoking prd-diff-scan, you have failed the workflow.
 </MANDATORY_FIRST_ACTION>
 EOF
 )
