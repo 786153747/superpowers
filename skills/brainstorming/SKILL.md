@@ -223,7 +223,7 @@ In explicit auto-test / non-interactive mode, you may treat the user's pre-appro
 | 8.0 页面初始化 | **每个页面**的挂载行为（加载字典、初始默认值、自动查询） |
 | 8.1-8.4 按控件 | **每个页面**的每个交互控件 CXX 都要写，先写**业务场景**再写技术流程，含成功/失败/空态 |
 | 8.5 空态与异常 | 无数据和接口异常场景的展示与可操作控件 |
-| 10 自检清单 | 模板 Section 10 的 12 项检查全部标记 ✅ 才可保存 |
+| 10 自检清单 | 模板 Section 10 的 14 项检查全部标记 ✅ 才可保存 |
 
 以上任一 section 缺失或用占位文本糊弄 → 文档不合格，不得保存。
 
@@ -232,7 +232,7 @@ In explicit auto-test / non-interactive mode, you may treat the user's pre-appro
 保存 `*-frontend-detail-design.md` 前，必须：
 1. 填写模板 Section 10 自检清单，逐项标记 ✅ / ❌
 2. 如有任何 ❌ → 修正对应内容后重新检查
-3. 全部 12 项 ✅ → 方可执行 Write 保存文档
+3. 全部 14 项 ✅ → 方可执行 Write 保存文档
 
 #### 后端详细设计必填检查
 
@@ -251,16 +251,41 @@ In explicit auto-test / non-interactive mode, you may treat the user's pre-appro
 | 6.2 跨接口规则 | 只写状态机/数据权限注入等跨接口通用规则；单接口逻辑已在 3.2「业务逻辑」中写清 |
 | 7 查询 SQL | **每个查询接口**都有伪 SQL（主表/动态条件类型/排序），不需要完整 XML |
 | 10 前后端对齐 | 四张对齐表已填写（接口覆盖 + 请求参数 + 响应字段 + 枚举值） |
-| 自检清单 | 模板头部自检清单 10 项全部标记 ✅ 才可保存 |
+| 自检清单 | 模板头部自检清单 12 项全部标记 ✅ 才可保存 |
 
 以上任一 section 缺失或用占位文本糊弄 → 文档不合格，不得保存。
+
+#### 后端完整链路防护规则（致命级）
+
+**每个 Controller 必须有完整的下游链路**：Entity + DTO + Service + Mapper + XML + 伪 SQL。
+
+自检方式：列出 Section 3.1 接口清单中所有 Controller，逐个核对：
+
+| Controller | Entity (4.2) | QueryDTO (4.3) | Service (6.1) | Mapper (2) | XML (2) | 伪 SQL (7) |
+|------------|-------------|-----------------|--------------|------------|---------|------------|
+| XxxController | ✅/❌ | ✅/❌ | ✅/❌ | ✅/❌ | ✅/❌ | ✅/❌ |
+
+**任一 ❌ = 文档不合格**，必须补全后再保存。
+
+常见遗漏场景（必须警惕）：
+- Controller 接口定义了，但因为"TODO 对接外部系统"就跳过了 Entity/Service/Mapper — **禁止**。即使真实调用逻辑留空，编译所需的 Entity/Service/Mapper 必须定义
+- 多个 Controller 共用一个 Entity，但其中某个 Controller 的专用 DTO/Service 方法被遗漏 — **必须逐个检查**
+- Section 2 受影响模块表只列了部分 Controller 的 Service/Mapper — **必须与 3.1 接口清单 1:1 对齐**
+
+#### 前端 API 文件覆盖防护规则
+
+**每个不同的 API 基路径必须有对应的 API 文件**：
+
+检查前端控件矩阵（3.5）中所有「调用接口」列，提取不同的 API 基路径（如 `/order/xxx` 和 `/inventory/consignment/xxx` 是两个不同基路径）。每个基路径在 Section 2 受影响文件中都必须有对应的 API 文件。
+
+遗漏示例：控件矩阵中有 `GET /inventory/consignment/list`，但 Section 2 只列了 `api/order/index.ts` — 缺少 `api/inventory/index.ts`。
 
 #### 后端自检门禁
 
 保存 `*-backend-detail-design.md` 前，必须：
 1. 填写模板头部自检清单，逐项标记 ✅ / ❌
 2. 如有任何 ❌ → 修正对应内容后重新检查
-3. 全部 10 项 ✅ → 方可执行 Write 保存文档
+3. 全部 12 项 ✅ → 方可执行 Write 保存文档
 - Do NOT create plan.md, db-design.md, or diff.md here.
 - Commit the design document to git
 

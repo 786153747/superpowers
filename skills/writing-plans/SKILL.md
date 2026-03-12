@@ -51,6 +51,93 @@ Never treat a generic `继续` as approval to bypass the design gate. In normal 
 
 每个 Task 控制在 **30-60 行**以内。如果你写不下——说明你在写代码而不是写导航图。
 
+## 禁止占位符值
+
+Task 中**不得出现无法直接执行的占位符**。以下内容在 Plan 中出现 = 不合格：
+
+- SQL 中的 `parent_id = XXX`、`menu_id = ???`、`TODO_ID` 等占位 ID
+- 路径中的 `path/to/xxx`、`{{module}}`（模板变量未替换）
+- 业务规则中的"参考设计文档"但不给出具体 Section 编号
+
+如果某个值在 Plan 生成时无法确定（如菜单表 parent_id 需要查数据库），必须在 Task 的业务规则中写出**查询方式**：
+
+```
+业务规则:
+1. 先查询父菜单 ID：SELECT menu_id FROM sys_menu WHERE menu_name='后市场管理' AND menu_type='M'
+2. 用查询到的 menu_id 作为 parent_id 插入子菜单
+```
+
+## DTO 必须有对应 Task
+
+设计文档中定义的所有 DTO（查询参数 DTO、请求体 DTO）必须有明确的创建 Task。不能只在 Service/Controller Task 中引用 DTO 却没有创建它的 Task。
+
+自检：列出后端详细设计 Section 4.3 中所有 DTO → 每个 DTO 都能在 Plan 中找到"创建文件"项。
+
+## Task 切分维度（关键）
+
+**Task 的切分维度必须与详细设计文档的结构保持一致**，而不是按技术层（Entity → Mapper → Service → Controller）横切。
+
+### 纯后端：按接口（功能）维度切
+
+每个 Task 是一个**垂直切片**，包含该接口从 Entity 到 Controller 的完整链路：
+
+```
+Task 1: 建表（前置，只做一次）
+Task 2: 订单列表接口（Entity + Mapper + XML + Service + Controller）→ 可独立验证
+Task 3: 订单确认接口（Service 方法 + Controller 端点）→ 可独立验证
+Task 4: 发货记录查询接口（Entity + Mapper + XML + Service + Controller）→ 可独立验证
+Task 5: 寄售库存查询接口（Entity + Mapper + XML + Service + Controller）→ 可独立验证
+```
+
+**优势**：每个 Task 完成后立即可验证；不会出现"Controller 写了但 Service/Mapper 遗漏"的断层。
+
+**注意**：如果多个接口共用同一个 Entity，在第一个用到它的 Task 里创建，后续 Task 注明"Entity 已在 Task N 创建"。
+
+### 纯前端：按页面维度切
+
+每个 Task 对应一个页面，改完即可在浏览器验证：
+
+```
+Task 1: myOrder.vue — 补按钮 + 权限控制
+Task 2: orderConfirm.vue — 替换 Mock API + 联调
+Task 3: deliveryRecord.vue — 替换 Mock API + 联调
+Task 4: consignmentInventory.vue — 替换 Mock API + 联调
+Task 5: 路由配置 + 菜单权限
+```
+
+### 前后端都有：按接口切，每个 Task 同时包含前后端
+
+```
+Task 1: 建表（前置）
+Task 2: 订单列表接口（后端 Entity→Controller 全链路 + 前端 API + 页面联调）
+Task 3: 订单确认接口（后端 Service 方法 + Controller + 前端按钮联调）
+Task 4: 寄售库存查询接口（后端全链路 + 前端页面联调）
+```
+
+### 禁止按技术层横切
+
+以下切法**不合格**：
+
+```
+Task 2: Entity（Order + DeliveryRecord + Inventory）   ← 3 个模块的 Entity 混在一起
+Task 3: Mapper（Order + DeliveryRecord）                ← Inventory 的 Mapper 漏了
+Task 7: Controller（Order + DeliveryRecord + Inventory）← Inventory 没有 Service 可注入
+```
+
+为什么不合格：
+- 一个模块的代码散落在多个 Task 中，容易遗漏某一层
+- 执行到 Controller 时才发现 Service/Mapper 不存在，无法编译
+- 无法逐步验证，必须所有 Task 完成后才能联调
+
+### 完整性自检
+
+Plan 生成后，必须自检：**设计文档中每个独立模块（Controller / 页面）在 Plan 里是否有完整的 Task 覆盖**。
+
+自检方式：
+1. 列出后端详细设计中所有 Controller → 每个 Controller 都有对应 Task，且 Task 内包含完整的 Entity/Mapper/Service 链路
+2. 列出前端详细设计中所有页面 → 每个页面都有对应 Task
+3. 如有遗漏，补充 Task 后再保存
+
 ## Plan Document Header
 
 **Every plan MUST start with this header:**
@@ -190,7 +277,19 @@ public class Order extends BaseEntity {
 **提交**: `git commit -m "feat: 创建订单库存领域模型"`
 ```
 
-还有一种不合格：
+还有一种不合格——**按技术层横切导致模块断层**：
+
+```markdown
+### Task 3: Mapper 接口（Order + DeliveryRecord）
+### Task 7: Controller（Order + DeliveryRecord + ConsignmentInventory）
+```
+
+为什么不合格：
+- Task 3 只创建了 Order 和 DeliveryRecord 的 Mapper，ConsignmentInventory 的 Mapper 被遗漏
+- Task 7 的 ConsignmentInventoryController 注入 Service 时编译失败，因为没有任何 Task 创建它的 Service/Mapper
+- 应改为按接口维度切：每个模块的全链路放在同一个 Task 里
+
+还有一种不合格——**省略 Task**：
 
 ```markdown
 ### Task 5-12（省略，按设计文档实现）
@@ -207,6 +306,23 @@ public class Order extends BaseEntity {
 - 每个 Task 30-60 行，禁止省略任何 Task
 - DRY, YAGNI, TDD, frequent commits
 - 设计文档里已有的内容用 Section 引用，不重复
+- 禁止占位符值（XXX、???、TODO_ID）
+- 每个 DTO 都有创建 Task
+
+## 落盘前自检（必须执行）
+
+Plan 保存前必须逐项自检：
+
+| # | 检查项 | 通过？ |
+|---|--------|-------|
+| 1 | 后端详细设计中每个 Controller → Plan 中有完整的垂直切片 Task（Entity + DTO + Mapper + Service + Controller） | ✅/❌ |
+| 2 | 前端详细设计中每个页面 → Plan 中有对应 Task | ✅/❌ |
+| 3 | 后端详细设计 Section 4.3 中每个 DTO → Plan 中有创建文件项 | ✅/❌ |
+| 4 | Plan 中无占位符值（`XXX`、`???`、`TODO_ID`、未替换的 `{{xx}}`） | ✅/❌ |
+| 5 | diff.md 中每个差异 Dx → Plan 中有对应 Task 处理 | ✅/❌ |
+| 6 | 参考文件路径全部为真实存在的文件（用 Glob 验证） | ✅/❌ |
+
+任一项为 ❌ → 补全后再保存。
 
 ## Execution Handoff
 

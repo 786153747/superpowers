@@ -23,6 +23,8 @@
 | 8 | Section 6.1 方法清单覆盖 3.1 中每个接口 | |
 | 9 | Section 7 每个查询接口都有伪 SQL | |
 | 10 | Section 10 前后端对齐四张表已填写 | |
+| 11 | **完整链路**：3.1 中每个 Controller 在 4.1/4.2 有 Entity、4.3 有 QueryDTO、6.1 有 Service 方法、2 有 Mapper + XML、7 有伪 SQL（逐个 Controller 核对，任一缺失 = ❌） | |
+| 12 | **DTO 文件路径**：4.3 中每个 DTO 都标注了 Java 文件路径（放哪个包、叫什么名字） | |
 
 ## 1. 背景与目标
 
