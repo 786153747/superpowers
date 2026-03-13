@@ -35,6 +35,29 @@ digraph when_to_use {
 - Compilation gate + two-stage review after each task: compile first, then spec compliance, then code quality
 - Faster iteration (no human-in-loop between tasks)
 
+## Controller Role Boundaries
+
+CRITICAL: The controller (you) is an orchestrator, NOT an implementer.
+
+### Controller MUST:
+- Read plan, extract tasks, create TodoWrite
+- Dispatch implementer subagent per task (via Agent tool)
+- Answer subagent questions
+- Run compilation check (controller runs build command directly)
+- Dispatch spec reviewer subagent (via Agent tool)
+- Dispatch code quality reviewer subagent (via Agent tool)
+- Output gate evidence block before marking each task complete
+- Update plan.md task status and index.md progress
+
+### Controller MUST NOT:
+- Write implementation code (that's the implementer subagent's job)
+- Review code itself and claim it replaces subagent review
+- Mark a task complete without all 3 gates passing
+- Skip dispatching any subagent (even if "code looks fine")
+- Proceed to next task with open review issues
+
+If you catch yourself writing implementation code instead of dispatching a subagent, STOP. You are violating the controller role boundary.
+
 ## The Process
 
 ```dot
@@ -95,6 +118,48 @@ digraph process {
 - `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
 - `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
 
+## Hard Gates (Non-Negotiable)
+
+CRITICAL: These gates are sequential. Each MUST pass before proceeding to the next. Skipping ANY gate = process failure.
+
+### Gate 1: Compilation
+- Controller runs build command directly (no subagent)
+- MUST see actual build output with exit 0
+- Failure → dispatch implementer subagent to fix → re-compile
+
+### Gate 2: Spec Compliance
+- MUST dispatch spec-reviewer subagent via Agent tool
+- Controller reviewing code itself does NOT satisfy this gate
+- Subagent must independently read code and verify against design docs
+- Use `./spec-reviewer-prompt.md` template
+- Failure → implementer subagent fixes → re-dispatch spec reviewer
+
+### Gate 3: Code Quality
+- MUST dispatch code-quality-reviewer subagent via Agent tool
+- Only after Gate 2 passes
+- Controller reviewing code itself does NOT satisfy this gate
+- Use `./code-quality-reviewer-prompt.md` template
+- Failure → implementer subagent fixes → re-dispatch code quality reviewer
+
+### Gate Evidence Block (Mandatory Output)
+
+Before marking ANY task complete, output this block. Missing this block = task is NOT complete.
+
+```
+### Task N Gate Evidence
+| Gate | Status | Evidence |
+|------|--------|----------|
+| Implementation | ✅/❌ | subagent dispatched: [yes/no], report: [summary] |
+| Compilation | ✅/❌ | command: [cmd], exit code: [0/non-zero] |
+| Spec Review | ✅/❌ | subagent dispatched: [yes/no], verdict: [pass/fail + issues] |
+| Code Quality | ✅/❌ | subagent dispatched: [yes/no], verdict: [pass/fail + issues] |
+
+All gates ✅ → Task N COMPLETE
+Any gate ❌ → Task N remains IN PROGRESS
+```
+
+Any row with "subagent dispatched: no" = gate NOT satisfied, regardless of any other claim.
+
 ## Example Workflow
 
 ```
@@ -129,6 +194,16 @@ Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
 
 [Get git SHAs, dispatch code quality reviewer]
 Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
+
+### Task 1 Gate Evidence
+| Gate | Status | Evidence |
+|------|--------|----------|
+| Implementation | ✅ | subagent dispatched: yes, report: Implemented install-hook command, 5/5 tests passing |
+| Compilation | ✅ | command: `npm run build`, exit code: 0 |
+| Spec Review | ✅ | subagent dispatched: yes, verdict: pass - all requirements met |
+| Code Quality | ✅ | subagent dispatched: yes, verdict: pass - clean code, good tests |
+
+All gates ✅ → Task 1 COMPLETE
 
 [Mark Task 1 complete]
 
@@ -215,6 +290,8 @@ Done!
 ## Red Flags
 
 **Never:**
+- **Write implementation code as controller** (you are the orchestrator, not the implementer — dispatch a subagent)
+- **Mark a task complete without outputting the Gate Evidence Block** (no evidence block = not complete)
 - Start implementation on main/master branch without explicit user consent
 - Skip reviews (spec compliance OR code quality)
 - Proceed with unfixed issues
@@ -244,6 +321,27 @@ Done!
 - Dispatch fix subagent with specific instructions
 - Don't try to fix manually (context pollution)
 
+### Known Failure Modes (from real incidents)
+
+**Failure Mode 1: Controller becomes implementer**
+The controller read existing code, fixed compilation errors, wrote new files, compiled successfully, and declared all tasks complete. NO subagents were dispatched — not for implementation, not for spec review, not for code quality review. The controller did everything itself and skipped all review gates.
+
+Why it happened: The SKILL.md described the process but didn't enforce it. The controller took a shortcut.
+
+How to detect: If you're writing implementation code (not build commands), you've become the implementer. STOP and dispatch a subagent instead.
+
+**Failure Mode 2: Compilation-only quality gate**
+The controller ran `mvn install -DskipTests`, saw it pass, and declared all tasks complete. Compilation passing only proves syntax is correct — it says nothing about business logic, spec compliance, or code quality.
+
+Why it happened: The controller treated "compiles" as "done" and skipped the two review stages entirely.
+
+How to detect: If your gate evidence block only has Compilation filled in, you've skipped 2 of 3 gates.
+
+**Failure Mode 3: No plan status updates**
+The controller completed work but never updated `plan.md` task status table or `index.md` progress table. There's no record of what was done.
+
+How to detect: After completing a task, if you haven't written to plan.md and index.md, the task tracking is broken.
+
 ## Integration
 
 **Required workflow skills:**
@@ -251,6 +349,7 @@ Done!
 - **superpowers:writing-plans** - Creates the plan this skill executes
 - **superpowers:requesting-code-review** - Code review template for reviewer subagents
 - **superpowers:finishing-a-development-branch** - Complete development after all tasks
+- **superpowers:verification-before-completion** - REQUIRED: Evidence before any completion claims. Applies to each gate.
 
 **Subagents should use:**
 - **superpowers:test-driven-development** - Subagents follow TDD for each task

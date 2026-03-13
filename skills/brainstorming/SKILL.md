@@ -204,7 +204,6 @@ Design documents are organized by **page** inside a **task directory**:
 docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan 创建）
   index.md                               # 主索引（本步骤创建）
   diff.md                                # 已存在
-  shared-backend-detail-design.md        # 跨页面共享设计（可选）
   <page-slug>/                           # 页面子目录
     frontend-detail-design.md
     backend-detail-design.md
@@ -214,7 +213,6 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 
 1. **任务根目录**：从已有的 `diff.md` 所在目录推断。如果 `diff.md` 位于 `docs/plans/YYYY-MM-DD-<topic>/diff.md`，则任务根目录为 `docs/plans/YYYY-MM-DD-<topic>/`。如果不存在 diff.md（无 PRD 场景），则创建 `docs/plans/YYYY-MM-DD-<topic>/`。
 2. **页面清单**：从 diff 文档的受影响页面清单或用户提供的需求中提取。每个页面对应一个 kebab-case 的子目录名（page-slug）。
-3. **识别共享资源**：检查哪些实体、DB 表、API 被多个页面使用。如果有跨页面共享的后端资源，需要在任务根目录创建 `shared-backend-detail-design.md`。
 
 #### 6.1 按页面保存设计文件
 
@@ -232,10 +230,13 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
      - 接口清单（Section 3）覆盖前端控件矩阵（3.5）中所有「调用接口」列出现的接口，不得遗漏
      - 每个接口的请求参数 / 返回结构与前端类型设计（Section 6）保持一致
      - 如果前端控件矩阵出现了后端模板里没有的接口场景（如导出、批量操作），后端也必须补上
-- **跨页面共享资源**（多个页面使用的实体、DB 表、公共 API）：
-  - 写入任务根目录的 `shared-backend-detail-design.md`
-  - 各页面的后端设计引用共享设计：`参见 ../shared-backend-detail-design.md 第 X 节`
-  - 如果只有一个页面，不需要 shared 文件，所有内容都写在该页面的后端设计中
+- **后端详细设计的自包含规则**：
+  - 每份 `backend-detail-design.md` 必须是**独立可读**的完整文档
+  - 跨页面共享的实体、DB 表、公共 API 设计**在每个用到它的页面的后端设计中重复包含**
+  - **不创建** `shared-backend-detail-design.md`
+  - 如果多个页面用同一张表，每个页面的后端设计都要包含该表的完整字段定义（Section 5.1）
+  - 如果多个页面用同一个 Entity，每个页面的后端设计都要包含该 Entity 的完整字段定义（Section 4.2）
+  - 相似页面的后端设计：**复制**完整内容后**修改**差异部分，不要写"同 xxx 页面"
 - If one side is intentionally out of scope, say so explicitly before writing and record that decision in the saved design output
 - Design docs must be written to disk. Do NOT leave them only in chat.
 
@@ -257,7 +258,6 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 
 | 页面 Slug | 页面名称 | 前端设计 | 后端设计 | Plan | 设计状态 | 实施状态 |
 |-----------|---------|---------|---------|------|---------|---------|
-| shared | 共享基础设施 | — | [link](./shared-backend-detail-design.md) | — | 已完成 | 未开始 |
 | <page-slug> | <页面名> | [link](./<page-slug>/frontend-detail-design.md) | [link](./<page-slug>/backend-detail-design.md) | — | 已完成 | 未开始 |
 
 ## 页面-API 映射
@@ -271,8 +271,45 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 - `Plan` 列此时为 `—`，由 writing-plans 填充
 - `设计状态` 标记为 `已完成`（设计文件刚保存完）
 - `实施状态` 标记为 `未开始`
-- 如果没有跨页面共享资源，不写 shared 行
 - 页面-API 映射从各页面的后端设计接口清单中提取
+
+#### 按页面拆分时的独立性规则（致命级）
+
+每份 `frontend-detail-design.md` **必须是独立可读、独立可执行的完整文档**。开发者只看这一份文档就能完成该页面的前端开发，不需要打开其他页面的设计文档。
+
+**禁止跨页面引用**（以下写法全部禁止）：
+
+- ❌ "同 myOrder 页面"
+- ❌ "同我的订单"
+- ❌ "同上一个页面"
+- ❌ "参见 ../my-order/frontend-detail-design.md"
+- ❌ 任何指向其他页面 frontend-detail-design.md 的引用
+
+**唯一允许的引用**：
+
+- ✅ 引用 `diff.md` 中的差异决议
+
+**相似页面的处理方式**：
+
+如果页面 B 和页面 A 结构相似（如订单台账 vs 我的订单），正确做法是：
+1. **复制** A 的完整内容到 B 的文档中
+2. **删除** B 不需要的部分（如工具栏按钮）
+3. **修改** B 特有的部分（如权限、数据范围）
+4. 最终 B 的文档是完整的、自包含的
+
+错误做法是写"同 A"——这让 B 的文档变成了 A 的附录，失去了拆分的意义。
+
+**自检方式**：对每份 frontend-detail-design.md 执行 `grep -c "同.*页面\|同.*myOrder\|同 my" <file>`。计数 > 0 = 不合格。
+
+#### 控件矩阵格式规范（每个页面都必须遵守）
+
+控件矩阵（Section 3.5）的格式在所有页面中保持一致，不得因页面简单就删减列：
+
+1. **控件编号**：必须使用 `CXX` 格式（C01、C02、...），从 C01 开始，按页面独立编号
+2. **矩阵表头**：必须包含 8 列 `控件 ID | 控件名称 | 类型 | 业务说明 | 触发事件 | 效果描述 | 影响的控件 | 调用接口`
+3. **CXX 编号一致性**：3.3 组合图、3.4 交互图、3.5 控件矩阵、Section 8 交互规则中使用相同的 CXX 编号引用同一个控件
+4. **控件状态条件子表**：每个页面必须有，格式为 `控件 ID | 权限字符串 | 显示条件 | 禁用条件 | 默认值`
+5. **空态与异常（Section 8.5）**：必须使用表格格式，覆盖：空列表、列表接口失败、弹窗详情接口失败、弹窗提交失败、导出失败、字典加载失败（按页面实际情况裁剪不适用的行，但格式必须是表格）
 
 #### 前端详细设计必填检查
 
@@ -287,7 +324,7 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 | 8.0 页面初始化 | **每个页面**的挂载行为（加载字典、初始默认值、自动查询） |
 | 8.1-8.4 按控件 | **每个页面**的每个交互控件 CXX 都要写，先写**业务场景**再写技术流程，含成功/失败/空态 |
 | 8.5 空态与异常 | 无数据和接口异常场景的展示与可操作控件 |
-| 10 自检清单 | 模板 Section 10 的 15 项检查全部标记 ✅ 才可保存 |
+| 10 自检清单 | 模板 Section 10 的 18 项检查全部标记 ✅ 才可保存 |
 
 以上任一 section 缺失或用占位文本糊弄 → 文档不合格，不得保存。
 
@@ -305,7 +342,7 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 保存 `*-frontend-detail-design.md` 前，必须：
 1. 填写模板 Section 10 自检清单，逐项标记 ✅ / ❌
 2. 如有任何 ❌ → 修正对应内容后重新检查
-3. 全部 15 项 ✅ → 方可执行 Write 保存文档
+3. 全部 18 项 ✅ → 方可执行 Write 保存文档
 
 #### 后端详细设计必填检查
 

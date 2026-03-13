@@ -49,9 +49,8 @@
 | `index.md` | 任务根目录 | brainstorming | writing-plans（填充 plan 链接和执行进度）、executing-plans（更新状态） |
 | `frontend-detail-design.md` | `<page>/` 页面子目录 | brainstorming | — |
 | `backend-detail-design.md` | `<page>/` 页面子目录 | brainstorming | — |
-| `shared-backend-detail-design.md` | 任务根目录（跨页面共享） | brainstorming | — |
 | `plan.md` | `<page>/` 页面子目录 | writing-plans | executing-plans（更新任务状态） |
-| `shared-plan.md` | 任务根目录（跨页面共享） | writing-plans | executing-plans（更新任务状态） |
+| `shared-plan.md` | 任务根目录（跨页面共享基础设施） | writing-plans | executing-plans（更新任务状态） |
 | `*-db-design.md` | 任务根目录 | writing-plans | — |
 
 违反此规则 = 流程失败，必须回退。
@@ -109,8 +108,7 @@
 docs/plans/YYYY-MM-DD-<主题>/           # 任务根目录
   index.md                               # 主索引（页面清单 + 页面-API映射 + 执行状态）
   diff.md                                # PRD 差异扫描
-  shared-backend-detail-design.md        # 跨页面共享设计（可选）
-  shared-plan.md                         # 跨页面共享 plan（可选）
+  shared-plan.md                         # 跨页面共享基础设施 plan（可选，如建表/菜单）
   <page-slug>/                           # 页面子目录（kebab-case）
     frontend-detail-design.md
     backend-detail-design.md
@@ -118,8 +116,8 @@ docs/plans/YYYY-MM-DD-<主题>/           # 任务根目录
 ```
 
 - **prd-diff-scan** 创建任务目录和 `diff.md`
-- **brainstorming** 创建页面子目录、各页面设计文件、`shared-backend-detail-design.md`（如有共享资源）、`index.md`
-- **writing-plans** 在各页面子目录中生成 `plan.md`，在任务根目录生成 `shared-plan.md`（如有），并更新 `index.md`
+- **brainstorming** 创建页面子目录、各页面设计文件、`index.md`
+- **writing-plans** 在各页面子目录中生成 `plan.md`，在任务根目录生成 `shared-plan.md`（如有共享基础设施），并更新 `index.md`
 - **executing-plans** 通过 `index.md` 找到待执行页面，执行后更新 `plan.md` 中的任务状态和 `index.md` 中的页面状态
 
 ### 详细设计怎么写
@@ -129,7 +127,7 @@ docs/plans/YYYY-MM-DD-<主题>/           # 任务根目录
 - 前后端都要时，**分两份文档写**，不要混成一篇
 - 文档不能只写在聊天里，**必须落盘**
 - 按页面维度拆分：每个页面子目录下分别保存 `frontend-detail-design.md` 和 `backend-detail-design.md`
-- 跨多个页面使用的实体/DB 表/公共 API 设计放在任务根目录的 `shared-backend-detail-design.md`
+- 每份后端详细设计必须自包含：跨页面共享的实体/DB 表/公共 API 设计在每个用到它的页面的后端详细设计中**重复包含**，不创建 shared 文件
 - 写的时候尽量用白话，少讲空话，多写具体的文件、接口、字段、规则、验证方式
 - 如果项目里还没有 `spec/`，先补一份再继续；不要跳过模板直接自由发挥
 

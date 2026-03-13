@@ -16,8 +16,8 @@ Task tool (general-purpose):
 
     ## Detail Design Documents
 
-    [Provide paths to frontend-detail-design.md, backend-detail-design.md,
-     shared-backend-detail-design.md as applicable]
+    [Provide paths to frontend-detail-design.md, backend-detail-design.md
+     for the relevant page]
 
     ## What Implementer Claims They Built
 

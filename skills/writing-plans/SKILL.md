@@ -149,7 +149,7 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 
 1. 读取 `index.md` 获取页面清单和页面-API 映射
 2. 读取 `diff.md` 获取差异和已确认决议
-3. 如果存在 `shared-backend-detail-design.md` → 生成 `shared-plan.md`（DB 建表、共享实体/DTO、路由/菜单配置）
+3. 检查是否有跨页面共享的基础设施任务（建表、菜单配置等）→ 如有则生成 `shared-plan.md`（参考第一个页面的 backend-detail-design.md 中的 DB 表定义和共享实体）
 4. **对每个页面**（按 index.md 页面清单顺序）：
    - 读取该页面的 `frontend-detail-design.md` 和 `backend-detail-design.md`
    - 生成 `<page-slug>/plan.md`
@@ -175,7 +175,6 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 **Design Docs:**
 - 前端详细设计: `./<page-slug>/frontend-detail-design.md`
 - 后端详细设计: `./<page-slug>/backend-detail-design.md`
-- 共享设计: `./shared-backend-detail-design.md`（如有）
 
 **Master Index:** `./index.md`
 
@@ -191,11 +190,13 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 
 ### shared-plan.md 的内容
 
-`shared-plan.md` 通常包含以下前置任务：
-- DB 表创建（建表 SQL）
-- 共享 Entity / DTO 创建
+`shared-plan.md` 包含跨页面只需执行一次的基础设施任务：
+- DB 表创建（建表 SQL，参考任意页面的 backend-detail-design.md Section 5.1）
+- 共享 Entity / DTO 创建（参考任意页面的 backend-detail-design.md Section 4.2/4.3）
 - 路由配置和菜单 SQL
 - 其他跨页面共享基础设施
+
+注意：虽然每个页面的后端详细设计都包含完整的共享实体/DB 表定义（自包含原则），但建表和创建 Entity 只需在 shared-plan.md 中执行一次，后续页面的 plan.md 注明"Entity 已在 shared-plan Task N 创建"。
 
 ### 更新 index.md
 
