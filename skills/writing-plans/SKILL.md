@@ -18,24 +18,29 @@ Plan 的目标是让一个**有开发能力但不了解项目**的模型，通�
 Before writing any plan, you MUST verify prerequisite documents exist. Use Glob to check:
 
 1. **If a PRD / requirement doc was provided in this session:**
-   - Check: `docs/plans/*-diff.md`
-   - If missing: STOP. Output "❌ 缺少差异扫描文档。请先完成 brainstorming 中的 PRD 差异扫描步骤，生成 `docs/plans/*-diff.md` 后再来。" Do NOT proceed.
+   - Check: `docs/plans/*/diff.md`
+   - If missing: STOP. Output "❌ 缺少差异扫描文档。请先完成 prd-diff-scan，生成 `docs/plans/<task>/diff.md` 后再来。" Do NOT proceed.
 
-2. **Read the diff document and determine scope before checking design docs:**
+2. **Read the diff document and verify freshness before checking design docs:**
+   - diff 文档必须包含 `原型目录`
+   - 如果 diff 文档记录 `Git 仓库根目录 != 无`，则必须同时记录 `当前原型 Commit ID` 和 `当前原型 Commit 时间`
+   - 如果 diff 文档记录了 Git 信息，使用 diff 文档中的 `原型目录` 执行 `git -C <原型目录> log -1 --format="%H%n%cI"` 读取当前 HEAD；若与 diff 文档中的 `当前原型 Commit ID` 不一致：STOP。输出 "❌ 差异扫描文档已过期。请先重新执行 `prd-diff-scan`，更新 diff 文档后再来。"
+   - 只有在 diff 文档通过完整性和新鲜度检查后，才能继续判断范围
    - Frontend is in scope when the diff or session mentions UI projects, page paths, page interactions, or frontend gaps/blockers.
    - Backend is in scope when the diff or session mentions APIs, controllers/services/mappers, database work, SAP/mock integration, or backend gaps/blockers.
 
-3. **Required design documents:**
-   - Frontend in scope → require `docs/plans/*-frontend-detail-design.md` or a general `docs/plans/*-design.md` that explicitly covers frontend.
-   - Backend in scope → require `docs/plans/*-backend-detail-design.md` or a general `docs/plans/*-design.md` that explicitly covers backend.
-   - If both frontend and backend are in scope, both sides must be covered before planning. A single backend design doc is NOT enough.
+3. **Check index.md and design documents:**
+   - 读取任务根目录下的 `index.md`（与 diff.md 同目录）
+   - 按 index.md 的页面清单逐个检查设计文件是否存在：
+     - Frontend in scope → 每个页面子目录下需有 `frontend-detail-design.md`
+     - Backend in scope → 每个页面子目录下需有 `backend-detail-design.md`
+   - If both frontend and backend are in scope, both sides must be covered for all pages before planning.
 
 4. **If any required design document is missing:**
-   - STOP. Output a precise missing-doc message and do NOT proceed.
-   - If frontend is missing, tell the user to finish brainstorming and generate `docs/plans/*-frontend-detail-design.md`.
-   - If backend is missing, tell the user to finish brainstorming and generate `docs/plans/*-backend-detail-design.md`.
+   - STOP. Output a precise missing-doc message listing which pages lack which design docs, and do NOT proceed.
+   - Tell the user to finish brainstorming for the missing pages/sides.
 
-If all required checks pass, read the design document(s) and diff document to use as input for the plan.
+If all required checks pass, read the design document(s), diff document, and index.md to use as input for the plan.
 
 Never treat a generic `继续` as approval to bypass the design gate. In normal interactive mode, planning starts only after the saved design docs have been explicitly approved.
 
@@ -43,7 +48,7 @@ Never treat a generic `继续` as approval to bypass the design gate. In normal 
 
 **Context:** This should be run in a dedicated worktree (created by brainstorming skill).
 
-**Save plans to:** `docs/plans/YYYY-MM-DD-<feature-name>.md`
+**Save plans to:** Per-page plan files inside the task directory (see Plan Generation Flow below).
 
 ## 完整性规则
 
@@ -138,27 +143,91 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 2. 列出前端详细设计中所有页面 → 每个页面都有对应 Task
 3. 如有遗漏，补充 Task 后再保存
 
-## Plan Document Header
+## Plan Generation Flow（按页面生成 plan）
 
-**Every plan MUST start with this header:**
+### 流程概述
+
+1. 读取 `index.md` 获取页面清单和页面-API 映射
+2. 读取 `diff.md` 获取差异和已确认决议
+3. 如果存在 `shared-backend-detail-design.md` → 生成 `shared-plan.md`（DB 建表、共享实体/DTO、路由/菜单配置）
+4. **对每个页面**（按 index.md 页面清单顺序）：
+   - 读取该页面的 `frontend-detail-design.md` 和 `backend-detail-design.md`
+   - 生成 `<page-slug>/plan.md`
+5. 更新 `index.md`：填充 Plan 列链接、添加执行进度表和执行顺序
+
+### 每个 plan.md 的格式
+
+每个页面的 `plan.md` 顶部必须包含任务状态表（由 executing-plans 更新状态）：
 
 ```markdown
-# [Feature Name] Implementation Plan
+# <页面名称> Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** [One sentence describing what this builds]
+**Goal:** [一句话描述本页面构建什么]
+
+**Page:** <page-slug> (part of <task-name> feature)
 
 **Architecture:** [2-3 sentences about approach]
 
 **Tech Stack:** [Key technologies/libraries]
 
 **Design Docs:**
-- 前端详细设计: `docs/plans/YYYY-MM-DD-xxx-frontend-detail-design.md`
-- 后端详细设计: `docs/plans/YYYY-MM-DD-xxx-backend-detail-design.md`
+- 前端详细设计: `./<page-slug>/frontend-detail-design.md`
+- 后端详细设计: `./<page-slug>/backend-detail-design.md`
+- 共享设计: `./shared-backend-detail-design.md`（如有）
+
+**Master Index:** `./index.md`
+
+## 任务状态
+
+| 任务 | 描述 | 状态 | 完成时间 |
+|------|------|------|---------|
+| Task 1 | [描述] | 未开始 | — |
+| Task 2 | [描述] | 未开始 | — |
 
 ---
 ```
+
+### shared-plan.md 的内容
+
+`shared-plan.md` 通常包含以下前置任务：
+- DB 表创建（建表 SQL）
+- 共享 Entity / DTO 创建
+- 路由配置和菜单 SQL
+- 其他跨页面共享基础设施
+
+### 更新 index.md
+
+所有 plan.md 生成完毕后，更新 `index.md`：
+
+1. **页面清单**的 Plan 列：从 `—` 更新为实际链接
+2. **新增执行进度表**：
+
+```markdown
+## 执行进度
+
+| 页面 Slug | 总任务数 | 已完成 | 实施状态 |
+|-----------|---------|-------|---------|
+| shared | N | 0 | 未开始 |
+| <page-slug> | N | 0 | 未开始 |
+```
+
+3. **新增执行顺序**：
+
+```markdown
+## 执行顺序
+
+> shared 最先执行，之后按依赖关系排列。
+
+1. `shared-plan.md` — [描述]（无依赖）
+2. `<page1>/plan.md` — [描述]（依赖 shared）
+3. `<page2>/plan.md` — [描述]（依赖 shared + page1）
+```
+
+## Plan Document Header (for each page plan)
+
+**Every page plan MUST start with the header shown in Plan Generation Flow above.**
 
 ## Task Structure（核心）
 
@@ -326,9 +395,21 @@ Plan 保存前必须逐项自检：
 
 ## Execution Handoff
 
-After saving the plan, offer execution choice:
+After saving all page plans and updating index.md, offer execution choice:
 
-**"Plan complete and saved to `docs/plans/<filename>.md`. Two execution options:**
+**"Plan complete. Page plans saved to:**
+
+```
+docs/plans/<task>/
+  shared-plan.md (N tasks)
+  <page1>/plan.md (N tasks)
+  <page2>/plan.md (N tasks)
+  ...
+
+Master index updated: docs/plans/<task>/index.md
+```
+
+**Two execution options:**
 
 **1. Subagent-Driven (this session)** - I dispatch fresh subagent per task, review between tasks, fast iteration
 

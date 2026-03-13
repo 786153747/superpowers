@@ -63,7 +63,7 @@ Before ANY tool call, check the user's message for these signals:
 If any signal appears, your FIRST action must be:
 1. Invoke Skill("superpowers:prd-diff-scan")
 2. Do NOT use Read, Glob, Grep, Task, or brainstorming first
-3. Only after docs/plans/*-diff.md exists may you continue to brainstorming
+3. Only after docs/plans/*/diff.md exists may you continue to brainstorming
 
 This also applies when the user only provides paths, for example:
 - "需求文档在 prd/..."
@@ -82,10 +82,10 @@ If the user asks for 详细设计 / 前端详细设计 / 后端详细设计:
 - 后端详细设计用 `spec/backend/java/detail-design-template.md`
 - 前端详细设计用 `spec/frontend/vue/detail-design-template.md`
 - 前后端都有时，分成两份文档来写，不要混成一篇大杂烩
-- 文档必须落盘到 `docs/plans/`，不要只停留在聊天里
-- 推荐文件名：
-  - `docs/plans/YYYY-MM-DD-<topic>-backend-detail-design.md`
-  - `docs/plans/YYYY-MM-DD-<topic>-frontend-detail-design.md`
+- 文档必须落盘到 `docs/plans/YYYY-MM-DD-<topic>/` 任务目录下，不要只停留在聊天里
+- 按页面维度拆分：每个页面子目录下分别保存 frontend-detail-design.md 和 backend-detail-design.md
+  - `docs/plans/YYYY-MM-DD-<topic>/<page-slug>/backend-detail-design.md`
+  - `docs/plans/YYYY-MM-DD-<topic>/<page-slug>/frontend-detail-design.md`
 - 尽量用白话，少说套话，多写清楚文件、接口、字段、规则和验证方式
 - 前端详细设计以下 section 为必填，不得跳过：
   - 3.2-3.4 三张 Mermaid 依赖图（页面导航、页面-控件组合、控件交互关系）

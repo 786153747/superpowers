@@ -6,7 +6,7 @@
 ## 需求输入
 
 - **PRD**: `[PRD 文档路径]`
-- **前端详细设计**: `docs/plans/YYYY-MM-DD-<topic>-frontend-detail-design.md`
+- **前端详细设计**: `./frontend-detail-design.md`
 - **项目规范**: `spec/index.md`（如有）
 
 ## 自检清单（写之前先看，写完再核）

@@ -83,12 +83,15 @@ If no PRD / requirement doc was provided → skip to Step 3.
 
 If user provided PRD or requirement doc:
 
-1. Use Glob to check if `docs/plans/*-diff.md` exists
-2. If exists → Read the diff document, then **验证完整性**：
+1. Use Glob to check if `docs/plans/*/diff.md` exists
+2. If exists → Read the diff document, then **验证完整性与新鲜度**：
+   - diff 文档是否包含 `原型目录`
+   - 如果 diff 文档记录 `Git 仓库根目录 != 无`，则必须同时记录 `当前原型 Commit ID` 和 `当前原型 Commit 时间`
+   - 如果 diff 文档记录了 Git 信息，使用 diff 文档中的 `原型目录` 执行 `git -C <原型目录> log -1 --format="%H%n%cI"` 读取当前 HEAD；若当前 HEAD 与 diff 文档中的 `当前原型 Commit ID` 不一致 → **STOP**，告知用户先重新执行 `prd-diff-scan` 更新 diff
    - 每个 PRD 页面是否都有 5 维度对比（UI 可视要素 + 控件矩阵 + 字段对比 + 9 维度 + 验收点）
    - 差异清单 Dx 是否覆盖了对比表中所有「差异」行
    - 建议决议是否逐项覆盖了所有 Dx 和 Bx
-   - 如果不完整 → **STOP**，告知用户差异扫描不完整，需重新执行 `prd-diff-scan`
+   - 如果不完整或 Git 基线已过期 → **STOP**，告知用户差异扫描不完整或已过期，需重新执行 `prd-diff-scan`
    - 如果完整 → 提取差异决议表中所有「⏳ 待确认」的 Dx 和 Bx 条目，统计待确认总数，告知用户"Step 3 将逐项确认这 N 项差异和 Blockers"，然后 proceed to Step 3
 3. If NOT exists → **STOP. End your turn immediately.** Output only this:
 
@@ -193,22 +196,83 @@ In explicit auto-test / non-interactive mode, you may treat the user's pre-appro
 
 ---
 
-### Step 6: Write design doc
+### Step 6: Write design doc (per-page directory structure)
 
-- If this is a normal design, save it to `docs/plans/YYYY-MM-DD-<topic>-design.md`
+Design documents are organized by **page** inside a **task directory**:
+
+```
+docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan 创建）
+  index.md                               # 主索引（本步骤创建）
+  diff.md                                # 已存在
+  shared-backend-detail-design.md        # 跨页面共享设计（可选）
+  <page-slug>/                           # 页面子目录
+    frontend-detail-design.md
+    backend-detail-design.md
+```
+
+#### 6.0 确定任务根目录和页面清单
+
+1. **任务根目录**：从已有的 `diff.md` 所在目录推断。如果 `diff.md` 位于 `docs/plans/YYYY-MM-DD-<topic>/diff.md`，则任务根目录为 `docs/plans/YYYY-MM-DD-<topic>/`。如果不存在 diff.md（无 PRD 场景），则创建 `docs/plans/YYYY-MM-DD-<topic>/`。
+2. **页面清单**：从 diff 文档的受影响页面清单或用户提供的需求中提取。每个页面对应一个 kebab-case 的子目录名（page-slug）。
+3. **识别共享资源**：检查哪些实体、DB 表、API 被多个页面使用。如果有跨页面共享的后端资源，需要在任务根目录创建 `shared-backend-detail-design.md`。
+
+#### 6.1 按页面保存设计文件
+
 - Determine scope before writing:
-  - Frontend in scope → use `spec/frontend/vue/detail-design-template.md` and save `docs/plans/YYYY-MM-DD-<topic>-frontend-detail-design.md`
-  - Backend in scope → use `spec/backend/java/detail-design-template.md` and save `docs/plans/YYYY-MM-DD-<topic>-backend-detail-design.md`
-- If both frontend and backend are in scope, you MUST write both detailed-design docs before ending the turn
-- **前后端都在范围内时的写入顺序**：
-  1. **先写前端** `*-frontend-detail-design.md`，通过下方「前端详细设计必填检查」
-  2. **再写后端** `*-backend-detail-design.md`，后端文档必须：
-     - 在「需求输入」里引用前端详细设计文档路径（如 `前端详细设计: docs/plans/YYYY-MM-DD-<topic>-frontend-detail-design.md`）
+  - Frontend in scope → use `spec/frontend/vue/detail-design-template.md`
+  - Backend in scope → use `spec/backend/java/detail-design-template.md`
+- **对每个页面**，创建页面子目录并保存设计文件：
+  - Frontend in scope → save `<task>/<page-slug>/frontend-detail-design.md`
+  - Backend in scope → save `<task>/<page-slug>/backend-detail-design.md`
+- If both frontend and backend are in scope, you MUST write both detailed-design docs for each page before moving to the next page
+- **前后端都在范围内时的写入顺序**（依赖链：`原型图/PRD → 前端详细设计 → 后端详细设计`）：
+  1. **先写前端** `<page-slug>/frontend-detail-design.md`，字段必须逐项对照 `diff.md` 中 PRD 字段对比表（前端是原型的唯一翻译层），通过下方「前端详细设计必填检查」和「原型字段覆盖规则」
+  2. **再写后端** `<page-slug>/backend-detail-design.md`，后端只对齐前端、不再独立对照原型，后端文档必须：
+     - 在「需求输入」里引用同目录下的前端详细设计文档路径（如 `前端详细设计: ./frontend-detail-design.md`）
      - 接口清单（Section 3）覆盖前端控件矩阵（3.5）中所有「调用接口」列出现的接口，不得遗漏
      - 每个接口的请求参数 / 返回结构与前端类型设计（Section 6）保持一致
      - 如果前端控件矩阵出现了后端模板里没有的接口场景（如导出、批量操作），后端也必须补上
+- **跨页面共享资源**（多个页面使用的实体、DB 表、公共 API）：
+  - 写入任务根目录的 `shared-backend-detail-design.md`
+  - 各页面的后端设计引用共享设计：`参见 ../shared-backend-detail-design.md 第 X 节`
+  - 如果只有一个页面，不需要 shared 文件，所有内容都写在该页面的后端设计中
 - If one side is intentionally out of scope, say so explicitly before writing and record that decision in the saved design output
 - Design docs must be written to disk. Do NOT leave them only in chat.
+
+#### 6.2 创建 index.md
+
+所有页面的设计文件保存完毕后，在任务根目录创建 `index.md`：
+
+```markdown
+# <功能名称> — 实施索引
+
+## 元信息
+
+- **创建日期**: YYYY-MM-DD
+- **PRD**: `<prd路径>`
+- **任务根目录**: `docs/plans/YYYY-MM-DD-<topic>/`
+- **技术栈**: [如 Vue 3 + Spring Boot + MySQL]
+
+## 页面清单
+
+| 页面 Slug | 页面名称 | 前端设计 | 后端设计 | Plan | 设计状态 | 实施状态 |
+|-----------|---------|---------|---------|------|---------|---------|
+| shared | 共享基础设施 | — | [link](./shared-backend-detail-design.md) | — | 已完成 | 未开始 |
+| <page-slug> | <页面名> | [link](./<page-slug>/frontend-detail-design.md) | [link](./<page-slug>/backend-detail-design.md) | — | 已完成 | 未开始 |
+
+## 页面-API 映射
+
+| 页面 | API 路径 | Method | Controller | 是否共享 |
+|------|---------|--------|------------|---------|
+| <page-slug> | /api/path | GET/POST | XxxController | 是/否 |
+```
+
+说明：
+- `Plan` 列此时为 `—`，由 writing-plans 填充
+- `设计状态` 标记为 `已完成`（设计文件刚保存完）
+- `实施状态` 标记为 `未开始`
+- 如果没有跨页面共享资源，不写 shared 行
+- 页面-API 映射从各页面的后端设计接口清单中提取
 
 #### 前端详细设计必填检查
 
@@ -223,16 +287,25 @@ In explicit auto-test / non-interactive mode, you may treat the user's pre-appro
 | 8.0 页面初始化 | **每个页面**的挂载行为（加载字典、初始默认值、自动查询） |
 | 8.1-8.4 按控件 | **每个页面**的每个交互控件 CXX 都要写，先写**业务场景**再写技术流程，含成功/失败/空态 |
 | 8.5 空态与异常 | 无数据和接口异常场景的展示与可操作控件 |
-| 10 自检清单 | 模板 Section 10 的 14 项检查全部标记 ✅ 才可保存 |
+| 10 自检清单 | 模板 Section 10 的 15 项检查全部标记 ✅ 才可保存 |
 
 以上任一 section 缺失或用占位文本糊弄 → 文档不合格，不得保存。
+
+#### 原型字段覆盖规则（前端详细设计的字段权威来源）
+
+前端详细设计是**原型图/PRD 字段的唯一翻译层**，后端详细设计只需对齐前端，不再独立对照原型。因此前端设计必须保证字段与原型完全一致：
+
+1. 写 Section 6（类型设计）和 Section 3.5（控件矩阵）时，必须**逐字段对照** `diff.md` 中的 PRD 字段对比表
+2. PRD 中列出的字段不得遗漏（除非 diff 差异决议明确标记「不做」）
+3. PRD 中没有的字段不得凭空新增（后端审计字段如 createTime/delFlag 由后端设计补充，不算前端新增）
+4. 字段名称、类型、业务含义必须与 PRD 描述一致；如有重命名，需在字段备注中注明「PRD 原名: xxx」
 
 #### 自检门禁
 
 保存 `*-frontend-detail-design.md` 前，必须：
 1. 填写模板 Section 10 自检清单，逐项标记 ✅ / ❌
 2. 如有任何 ❌ → 修正对应内容后重新检查
-3. 全部 14 项 ✅ → 方可执行 Write 保存文档
+3. 全部 15 项 ✅ → 方可执行 Write 保存文档
 
 #### 后端详细设计必填检查
 
@@ -287,9 +360,9 @@ In explicit auto-test / non-interactive mode, you may treat the user's pre-appro
 2. 如有任何 ❌ → 修正对应内容后重新检查
 3. 全部 12 项 ✅ → 方可执行 Write 保存文档
 - Do NOT create plan.md, db-design.md, or diff.md here.
-- Commit the design document to git
+- Commit the design documents to git
 
-→ **CHECKPOINT**: "✅ 设计文档已保存到 `[路径]`。可以进入实施计划。"
+→ **CHECKPOINT**: "✅ 设计文档已按页面保存到 `docs/plans/YYYY-MM-DD-<topic>/` 目录，index.md 已创建。"
 
 **After saving, STOP.** Ask user: "设计文档已保存。是否现在进入实施计划（writing-plans）？"
 

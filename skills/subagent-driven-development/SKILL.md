@@ -5,9 +5,9 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Subagent-Driven Development
 
-Execute plan by dispatching fresh subagent per task, with two-stage review after each: spec compliance review first, then code quality review.
+Execute plan by dispatching fresh subagent per task, with compilation gate + two-stage review after each: compilation check first, then spec compliance review, then code quality review.
 
-**Core principle:** Fresh subagent per task + two-stage review (spec then quality) = high quality, fast iteration
+**Core principle:** Fresh subagent per task + compilation gate + two-stage review (spec then quality) = high quality, fast iteration
 
 ## When to Use
 
@@ -32,7 +32,7 @@ digraph when_to_use {
 **vs. Executing Plans (parallel session):**
 - Same session (no context switch)
 - Fresh subagent per task (no context pollution)
-- Two-stage review after each task: spec compliance first, then code quality
+- Compilation gate + two-stage review after each task: compile first, then spec compliance, then code quality
 - Faster iteration (no human-in-loop between tasks)
 
 ## The Process
@@ -47,6 +47,9 @@ digraph process {
         "Implementer subagent asks questions?" [shape=diamond];
         "Answer questions, provide context" [shape=box];
         "Implementer subagent implements, tests, commits, self-reviews" [shape=box];
+        "Run compilation check (controller, no subagent)" [shape=box style=filled fillcolor=lightyellow];
+        "Compilation passes?" [shape=diamond];
+        "Implementer subagent fixes compilation errors" [shape=box];
         "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [shape=box];
         "Spec reviewer subagent confirms code matches spec?" [shape=diamond];
         "Implementer subagent fixes spec gaps" [shape=box];
@@ -66,7 +69,11 @@ digraph process {
     "Implementer subagent asks questions?" -> "Answer questions, provide context" [label="yes"];
     "Answer questions, provide context" -> "Dispatch implementer subagent (./implementer-prompt.md)";
     "Implementer subagent asks questions?" -> "Implementer subagent implements, tests, commits, self-reviews" [label="no"];
-    "Implementer subagent implements, tests, commits, self-reviews" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)";
+    "Implementer subagent implements, tests, commits, self-reviews" -> "Run compilation check (controller, no subagent)";
+    "Run compilation check (controller, no subagent)" -> "Compilation passes?";
+    "Compilation passes?" -> "Implementer subagent fixes compilation errors" [label="no"];
+    "Implementer subagent fixes compilation errors" -> "Run compilation check (controller, no subagent)" [label="re-compile"];
+    "Compilation passes?" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [label="yes"];
     "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" -> "Spec reviewer subagent confirms code matches spec?";
     "Spec reviewer subagent confirms code matches spec?" -> "Implementer subagent fixes spec gaps" [label="no"];
     "Implementer subagent fixes spec gaps" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [label="re-review"];
@@ -93,9 +100,10 @@ digraph process {
 ```
 You: I'm using Subagent-Driven Development to execute this plan.
 
-[Read plan file once: docs/plans/feature-plan.md]
-[Extract all 5 tasks with full text and context]
-[Create TodoWrite with all tasks]
+[Read index.md: docs/plans/<task>/index.md]
+[Read first page plan: docs/plans/<task>/shared-plan.md or <page>/plan.md]
+[Extract all tasks from current page plan with full text and context]
+[Create TodoWrite with current page tasks]
 
 Task 1: Hook installation script
 
@@ -112,6 +120,9 @@ Implementer: "Got it. Implementing now..."
   - Added tests, 5/5 passing
   - Self-review: Found I missed --force flag, added it
   - Committed
+
+[Run compilation check - controller runs build command directly]
+Compilation: ✅ Build successful
 
 [Dispatch spec compliance reviewer]
 Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
@@ -133,10 +144,13 @@ Implementer:
   - Self-review: All good
   - Committed
 
+[Run compilation check]
+Compilation: ✅ Build successful
+
 [Dispatch spec compliance reviewer]
 Spec reviewer: ❌ Issues:
-  - Missing: Progress reporting (spec says "report every 100 items")
-  - Extra: Added --json flag (not requested)
+  - D1 (Requirements): Missing progress reporting (spec says "report every 100 items")
+  - D1 (Requirements): Extra - Added --json flag (not requested)
 
 [Implementer fixes issues]
 Implementer: Removed --json flag, added progress reporting
@@ -185,7 +199,9 @@ Done!
 
 **Quality gates:**
 - Self-review catches issues before handoff
+- Compilation gate: code must compile before any review (hard gate, no subagent)
 - Two-stage review: spec compliance, then code quality
+- Spec compliance checks: business logic vs detailed design, backend↔frontend params, SQL↔backend fields
 - Review loops ensure fixes actually work
 - Spec compliance prevents over/under-building
 - Code quality ensures implementation is well-built
@@ -210,6 +226,7 @@ Done!
 - Skip review loops (reviewer found issues = implementer fixes = review again)
 - Let implementer self-review replace actual review (both are needed)
 - **Start code quality review before spec compliance is ✅** (wrong order)
+- **Start spec compliance review before compilation passes** (wrong order)
 - Move to next task while either review has open issues
 
 **If subagent asks questions:**

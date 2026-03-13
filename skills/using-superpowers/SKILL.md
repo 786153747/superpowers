@@ -31,7 +31,7 @@ Then your **first action** must be:
 
 1. Invoke `Skill("superpowers:prd-diff-scan")`
 2. Do **NOT** use `Read`, `Glob`, `Grep`, `Task`, or `brainstorming` first
-3. Only after `*-diff.md` exists may you move to `brainstorming`
+3. Only after `docs/plans/*/diff.md` exists may you move to `brainstorming`
 
 If the user also asks for design or implementation in the same message, this routing still wins.
 Skipping this routing = workflow failure.

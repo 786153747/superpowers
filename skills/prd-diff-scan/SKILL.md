@@ -26,7 +26,7 @@ description: "Use when user provides PRD or requirement docs, or asks for 差异
 此时只允许输出类似 checkpoint：
 
 ```
-✅ 差异扫描完成，文档已保存到 `docs/plans/YYYY-MM-DD-<主题>-diff.md`。
+✅ 差异扫描完成，文档已保存到 `docs/plans/YYYY-MM-DD-<主题>/diff.md`。
 如需继续设计，请明确要求进入 brainstorming。
 ```
 
@@ -56,6 +56,42 @@ description: "Use when user provides PRD or requirement docs, or asks for 差异
 - **PRD 中无法明确的逻辑**：接口、权限、数据流向、状态流转、默认值来源等，若无法从 PRD 文字中确认，标记为 `待确认` / `Blocker`
 - **不得脑补业务规则**：PRD 没写的，不能自行补全
 
+## Git 基线与增量刷新
+
+当用户提供了 UI / 原型 / 实现目录（如 `ruoyi-ui/`、`src/views/**`）时，把它视为**原型目录**。在开始读取现有实现前，先判定该目录是否位于 Git 仓库中：
+
+- 优先使用 `git -C <原型目录> rev-parse --show-toplevel` 定位仓库根目录
+- 若成功，再使用 `git -C <原型目录> log -1 --format="%H%n%cI"` 读取当前 HEAD 的 commit id 和时间
+- 若失败、目录不在 Git 仓库中、或无法读取 HEAD，则记录为 `Git 仓库根目录: 无`、`当前原型 Commit ID: 无`、`当前原型 Commit 时间: 无`，并回退到**全量扫描**
+
+在读取源码前，必须检查 `docs/plans/*/diff.md` 中是否已有**同主题 / 同 PRD / 同原型目录**的旧 diff 文档，并判定本次模式：
+
+1. **全量扫描**
+   - 没有旧 diff
+   - 旧 diff 缺少 `原型目录` 或 Git 元数据
+   - 旧 diff 记录的 commit id 已不可达，无法确认是当前仓库历史
+   - PRD 路径 / 主题 / 原型目录发生变化，无法安全复用旧 diff
+   - 当前原型目录不在 Git 仓库中
+2. **直接复用**
+   - 旧 diff 完整
+   - 旧 diff 记录的 `当前原型 Commit ID` 与当前 HEAD 一致
+   - 且 PRD 路径 / 原型目录未变化
+   - 除非用户明确要求强制重扫，否则可直接复用旧 diff；如果需要重新落盘，可复制旧 diff，并保留相同的 Git 基线信息
+3. **增量刷新**
+   - 旧 diff 完整
+   - 当前原型目录位于 Git 仓库中
+   - 旧 diff 记录的 `当前原型 Commit ID` 与当前 HEAD 不一致
+   - 且旧 diff 记录的 commit 仍然是当前 HEAD 的祖先提交
+
+增量刷新时必须遵守以下规则：
+
+- 只允许把 `git diff --name-only <旧Commit>..HEAD -- <原型目录>` 命中的原型文件作为**重新核对范围**
+- 只重新读取这些变更原型文件，并将它们映射到受影响页面 / 弹窗 / 抽屉 / 流程
+- 未受影响的页面可沿用旧 diff 中的已核对内容，不要对未变文件重新做全量扫描
+- 最终仍然要生成一份**新的完整 diff 文档**：未受影响页面沿用旧 diff，受影响页面重做步骤 4-6，并重新生成差异清单、Blockers、建议决议和落盘前自检
+- 如果 HEAD 已变化，但原型目录下没有任何变更文件，也要生成新的 diff 文档，明确写出“自 `<旧Commit>` 以来原型目录无变更文件”，并把 `当前原型 Commit ID / 时间` 更新到最新值
+- 如果旧 diff 中无法解析 commit id，或 `git merge-base --is-ancestor <旧Commit> HEAD` / `git diff` 失败，则回退到**全量扫描**
+
 ## 前置条件
 
 用户必须提供以下至少一项：
@@ -79,6 +115,16 @@ description: "Use when user provides PRD or requirement docs, or asks for 差异
 ## 需求输入
 - PRD: [文件路径]
 - 项目规范: [spec/index.md 或 "无"]
+
+## 比对基线
+- 原型目录: [文件路径或 "无"]
+- Git 仓库根目录: [路径或 "无"]
+- 当前原型 Commit ID: [SHA 或 "无"]
+- 当前原型 Commit 时间: [ISO 8601 或 "无"]
+- 上次 diff 文档: [路径或 "无"]
+- 上次 diff Commit ID: [SHA 或 "无"]
+- 比对模式: [全量扫描 / 直接复用 / 增量刷新]
+- 本次重检文件: [全部原型文件 / 文件列表 / 无变更]
 ```
 
 ---
@@ -86,6 +132,14 @@ description: "Use when user provides PRD or requirement docs, or asks for 差异
 ## 步骤 2：探索现有实现
 
 用 Agent（Explore 类型）或 Glob/Grep/Read 探索项目，找出与需求相关的现有代码。
+
+如果当前模式是**增量刷新**，这里的源码探索范围默认只包含：
+
+- `git diff --name-only <旧Commit>..HEAD -- <原型目录>` 命中的原型文件
+- 这些文件直接对应的页面 / 弹窗 / 抽屉 / 跳转流程
+- 为了更新差异清单 / Blockers / 建议决议而必须回读的旧 diff 内容
+
+不要把未命中的原型文件重新纳入全量核对范围；未受影响页面应从旧 diff 继承。
 
 必须了解：
 - 哪些页面 / 接口 / 表已存在
@@ -335,6 +389,7 @@ description: "Use when user provides PRD or requirement docs, or asks for 差异
 | 4 | Blocker 同步: 差异清单中「是否阻塞=是」共 __ 条 → Blockers 共 __ 条 Bx | [填入两个数字，必须相等；禁止多条阻塞差异归纳成一条 Bx] | ✅/❌ |
 | 5 | 建议决议覆盖: 决议表共 __ 行 ≥ Dx __ 条 + Bx __ 条 = __ | [填入数字并验算] | ✅/❌ |
 | 6 | 未核对项: 有 __ 个未核对的页面/维度，已标记为 Blocker: 是/否 | [填入数字] | ✅/❌ |
+| 7 | Git 基线: 原型 Git 为 [有/无]；已记录当前原型 Commit ID / 时间；增量刷新重检 __ 个文件 | [填入有/无 + 数字] | ✅/❌ |
 ```
 
 **自检格式要求**：
@@ -342,11 +397,28 @@ description: "Use when user provides PRD or requirement docs, or asks for 差异
 - 检查项 2 必须逐页展开，不得写"所有页面已完成"
 - 检查项 3 的左侧数字（对比表差异行总数）需要实际回看每张表逐行计数
 - 检查项 4 要求**阻塞差异数 = Blocker 数**，禁止把多条阻塞差异归纳成一条笼统 Blocker（如"后端完全缺失"不能合并 D3-D8 六条接口 Mock 差异）
+- 若原型目录位于 Git 仓库中，检查项 7 中的 `当前原型 Commit ID / 时间` 不得为空
 - 任何一项为 ❌ 时必须补全，补全后重新自检
 
 ### 保存
 
-把以上全部内容保存到 `docs/plans/YYYY-MM-DD-<主题>-diff.md`。
+保存内容中必须包含以下节；如果原型目录位于 Git 仓库中，这一节缺失 = diff 文档不合格：
+
+```md
+## 比对基线
+
+- PRD: [路径]
+- 原型目录: [路径]
+- Git 仓库根目录: [路径或 "无"]
+- 当前原型 Commit ID: [SHA 或 "无"]
+- 当前原型 Commit 时间: [ISO 8601 或 "无"]
+- 上次 diff 文档: [路径或 "无"]
+- 上次 diff Commit ID: [SHA 或 "无"]
+- 比对模式: [全量扫描 / 直接复用 / 增量刷新]
+- 本次重检文件: [全部原型文件 / 文件列表 / 无变更]
+```
+
+把以上全部内容保存到 `docs/plans/YYYY-MM-DD-<主题>/diff.md`。保存前需先创建任务目录 `docs/plans/YYYY-MM-DD-<主题>/`（如果不存在）。
 
 差异扫描结果必须落盘，不能只存在于聊天记录中。
 
@@ -401,6 +473,8 @@ description: "Use when user provides PRD or requirement docs, or asks for 差异
 - 落盘前自检只写"✅ 12 个差异项""✅ 已完成"而没有填入实际数字和逐页展开 — 自检必须展示具体数量对比，不得笼统标 ✅
 - 页面 2-4 的控件矩阵、字段对比、9 维度表格全部填「待核对」「需核对实现」，但自检声称维度完整 ✅ — 「待核对」不等于「已完成」，文件存在但未读取源码就不能写对比表
 - 只读了 3 个页面源码就落盘，剩余 4 个页面用「待核对」占位 — 必须读取所有页面源码后才能落盘
+- 原型目录位于 Git 仓库中，但 diff 文档没有记录 `当前原型 Commit ID` 和 `当前原型 Commit 时间` — Git 基线缺失，后续无法判断 diff 是否过期
+- 旧 diff 的 commit 已落后于当前原型 HEAD，却仍然直接复用旧 diff — 旧 diff 已过期，必须重新生成
 
 ---
 
@@ -415,7 +489,8 @@ description: "Use when user provides PRD or requirement docs, or asks for 差异
 - **建议决议表逐项覆盖所有 Dx 和 Bx**（不得用笼统总结替代）
 - 未核对项已列出并标记为 Blocker
 - Blockers 已列出
-- 落盘前自检 6 项全部通过
-- 结果已保存到 `docs/plans/` 目录
+- 落盘前自检 7 项全部通过
+- 若原型目录位于 Git 仓库中，文档已记录 `原型目录`、`Git 仓库根目录`、`当前原型 Commit ID`、`当前原型 Commit 时间`
+- 结果已保存到 `docs/plans/YYYY-MM-DD-<主题>/diff.md`
 
 如果用户未要求继续，完成后必须停止并等待。

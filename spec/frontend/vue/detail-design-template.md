@@ -325,4 +325,5 @@ graph LR
 | 12 | 8.5 空态与异常表已覆盖：空列表、接口失败、弹窗失败、导出失败、字典失败 | |
 | 13 | **API 文件覆盖**：3.5 控件矩阵中出现的每个不同 API 基路径，在 Section 2 受影响文件中都有对应的 API 文件（如 `/order/xxx` 和 `/inventory/xxx` 是两个基路径，需要两个 API 文件） | |
 | 14 | **类型覆盖**：Section 5 接口清单中每个不同的返回实体类型，在 Section 6 类型设计中都有定义（如接口返回 `Order`、`DeliveryRecord`、`ConsignmentInventory` 三种类型，Section 6 必须都有） | |
+| 15 | **原型字段覆盖**：对照 `diff.md` 中 PRD 字段对比表，Section 6 类型设计的实体字段、Section 3.5 控件矩阵的筛选/表格/表单字段，必须与 PRD 要求的字段**逐项覆盖**——PRD 中有的字段不得遗漏，PRD 中没有的字段不得凭空新增（后端独有的审计字段如 createTime/delFlag 除外）。如有 diff.md 差异决议明确「不做」的字段，标注跳过原因即可 | |
 ```

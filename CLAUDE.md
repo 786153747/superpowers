@@ -22,7 +22,7 @@
 
 ### Skill 路由（收到用户消息后先检查）
 
-用户提供了 PRD / 需求文档，且 `docs/plans/*-diff.md` 不存在？→ **必须先调 `prd-diff-scan`**，不管用户要求什么（即使用户说"用 brainstorming"）。
+用户提供了 PRD / 需求文档，且 `docs/plans/*/diff.md` 不存在？→ **必须先调 `prd-diff-scan`**，不管用户要求什么（即使用户说"用 brainstorming"）。
 
 用户**不需要显式点名** `prd-diff-scan`。只要消息里出现以下任一类信息，也必须自动进入 `prd-diff-scan`：
 
@@ -41,15 +41,18 @@
 
 ### 文档创建权限
 
-每种文档只能由对应的 skill 创建：
+文档按**任务目录**组织：`docs/plans/YYYY-MM-DD-<主题>/`。每种文档只能由对应的 skill 创建或更新：
 
-| 文档类型 | 只能由此 skill 创建 | 其他 skill 禁止创建 |
-|----------|---------------------|---------------------|
-| `*-diff.md` | prd-diff-scan | brainstorming ❌ writing-plans ❌ |
-| `*-design.md` | brainstorming | prd-diff-scan ❌ writing-plans ❌ |
-| `*-detail-design.md` | brainstorming（用户明确要详细设计时） | prd-diff-scan ❌ writing-plans ❌ |
-| `*-plan.md` | writing-plans | brainstorming ❌ prd-diff-scan ❌ |
-| `*-db-design.md` | writing-plans | brainstorming ❌ prd-diff-scan ❌ |
+| 文档类型 | 位置 | 创建 | 更新 |
+|----------|------|------|------|
+| `diff.md` | 任务根目录 | prd-diff-scan | — |
+| `index.md` | 任务根目录 | brainstorming | writing-plans（填充 plan 链接和执行进度）、executing-plans（更新状态） |
+| `frontend-detail-design.md` | `<page>/` 页面子目录 | brainstorming | — |
+| `backend-detail-design.md` | `<page>/` 页面子目录 | brainstorming | — |
+| `shared-backend-detail-design.md` | 任务根目录（跨页面共享） | brainstorming | — |
+| `plan.md` | `<page>/` 页面子目录 | writing-plans | executing-plans（更新任务状态） |
+| `shared-plan.md` | 任务根目录（跨页面共享） | writing-plans | executing-plans（更新任务状态） |
+| `*-db-design.md` | 任务根目录 | writing-plans | — |
 
 违反此规则 = 流程失败，必须回退。
 
@@ -61,7 +64,10 @@
 
 - 必须先做 PRD / 现状差异扫描，再谈设计
 - 对比方式统一为 **PRD ↔ 当前实现** 双方对比
-- 差异扫描结果保存到 `docs/plans/YYYY-MM-DD-<主题>-diff.md`
+- 差异扫描结果保存到 `docs/plans/YYYY-MM-DD-<主题>/diff.md`（prd-diff-scan 负责创建任务目录）
+- 如果原型 / 实现目录位于 Git 仓库中，diff 文档必须记录 `原型目录`、`Git 仓库根目录`、`当前原型 Commit ID`、`当前原型 Commit 时间`
+- 如果已有 diff 文档，但其中记录的 `当前原型 Commit ID` 落后于原型目录当前 HEAD，必须重新执行 `prd-diff-scan`；重检范围仅限于旧 commit 之后发生变化的原型文件
+- 如果没有旧 diff、旧 diff 缺少 Git 基线、或旧 commit 不可达，则回退到全量扫描
 - 有 Blocker 未解决时，不得进入设计或实现
 - “建议决议”必须**逐项对应**差异清单中的每个 Dx 和 Blockers 中的每个 Bx，每项都需要用户单独确认后才能成为”差异决议”；不得只写几条笼统建议来概括所有差异
 - PRD 中无法明确的数据来源、状态流转、权限、接口行为，不得脑补，必须标记为 `Blocker/待确认`
@@ -77,7 +83,8 @@
 7. **差异清单 + Blockers**
 8. **差异清单完整性**：步骤 4/5 对比表中每个「差异/缺失/新增」行都必须对应差异清单中的一个 Dx，不得遗漏
 9. **建议决议逐项覆盖**：每个 Dx 和 Bx 都有对应的建议处理方案（表格形式），供用户逐项确认
-10. **用 Write 工具保存到 `docs/plans/` 目录**（不能只输出在聊天中）
+10. **Git 基线信息**（如果原型目录位于 Git 仓库中）：`原型目录` + `Git 仓库根目录` + `当前原型 Commit ID` + `当前原型 Commit 时间`
+11. **用 Write 工具保存到 `docs/plans/YYYY-MM-DD-<主题>/diff.md`**（不能只输出在聊天中）
 
 ### 不合格的差异扫描（禁止）：
 
@@ -96,23 +103,33 @@
 
 ## 3. 文档规则
 
-所有设计、计划、测试、审查文档统一放在 `docs/plans/`：
+所有设计、计划、测试、审查文档统一放在 `docs/plans/` 下的**任务目录**中：
 
-- 详细设计: `*-detail-design.md`
-- 数据库设计: `*-db-design.md`
-- 测试清单: `*-test-cases.md`
-- 实施计划: `*-plan.md`
-- 差异扫描: `*-diff.md`
+```
+docs/plans/YYYY-MM-DD-<主题>/           # 任务根目录
+  index.md                               # 主索引（页面清单 + 页面-API映射 + 执行状态）
+  diff.md                                # PRD 差异扫描
+  shared-backend-detail-design.md        # 跨页面共享设计（可选）
+  shared-plan.md                         # 跨页面共享 plan（可选）
+  <page-slug>/                           # 页面子目录（kebab-case）
+    frontend-detail-design.md
+    backend-detail-design.md
+    plan.md
+```
+
+- **prd-diff-scan** 创建任务目录和 `diff.md`
+- **brainstorming** 创建页面子目录、各页面设计文件、`shared-backend-detail-design.md`（如有共享资源）、`index.md`
+- **writing-plans** 在各页面子目录中生成 `plan.md`，在任务根目录生成 `shared-plan.md`（如有），并更新 `index.md`
+- **executing-plans** 通过 `index.md` 找到待执行页面，执行后更新 `plan.md` 中的任务状态和 `index.md` 中的页面状态
 
 ### 详细设计怎么写
 
 - 用户要的是**后端详细设计**，就去看 `spec/backend/java/detail-design-template.md`
 - 用户要的是**前端详细设计**，就去看 `spec/frontend/vue/detail-design-template.md`
 - 前后端都要时，**分两份文档写**，不要混成一篇
-- 文档不能只写在聊天里，**必须落盘**到 `docs/plans/`
-- 推荐文件名：
-  - `docs/plans/YYYY-MM-DD-<主题>-backend-detail-design.md`
-  - `docs/plans/YYYY-MM-DD-<主题>-frontend-detail-design.md`
+- 文档不能只写在聊天里，**必须落盘**
+- 按页面维度拆分：每个页面子目录下分别保存 `frontend-detail-design.md` 和 `backend-detail-design.md`
+- 跨多个页面使用的实体/DB 表/公共 API 设计放在任务根目录的 `shared-backend-detail-design.md`
 - 写的时候尽量用白话，少讲空话，多写具体的文件、接口、字段、规则、验证方式
 - 如果项目里还没有 `spec/`，先补一份再继续；不要跳过模板直接自由发挥
 
@@ -145,7 +162,7 @@
 
 - 没有 blocker 时，默认采用推荐方案
 - 默认同意继续下一步
-- 默认同意把文档落盘到 `docs/plans/`
+- 默认同意把文档落盘到 `docs/plans/YYYY-MM-DD-<主题>/`
 
 则允许把原本要逐轮确认的步骤串起来执行，直接产出并落盘文档。
 
