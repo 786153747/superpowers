@@ -15,19 +15,30 @@ Plan 的目标是让一个**有开发能力但不了解项目**的模型，通�
 
 ## Prerequisites (HARD-GATE)
 
-Before writing any plan, you MUST verify prerequisite documents exist. Use Glob to check:
+Before writing any plan, follow this decision tree in order. Stop at the first ⛔.
 
-1. **If a PRD / requirement doc was provided in this session:**
-   - Check: `docs/plans/*/diff.md`
-   - If missing: STOP. Output "❌ 缺少差异扫描文档。请先完成 prd-diff-scan，生成 `docs/plans/<task>/diff.md` 后再来。" Do NOT proceed.
-
-2. **Read the diff document and verify freshness before checking design docs:**
-   - diff 文档必须包含 `原型目录`
-   - 如果 diff 文档记录 `Git 仓库根目录 != 无`，则必须同时记录 `当前原型 Commit ID` 和 `当前原型 Commit 时间`
-   - 如果 diff 文档记录了 Git 信息，使用 diff 文档中的 `原型目录` 执行 `git -C <原型目录> log -1 --format="%H%n%cI"` 读取当前 HEAD；若与 diff 文档中的 `当前原型 Commit ID` 不一致：STOP。输出 "❌ 差异扫描文档已过期。请先重新执行 `prd-diff-scan`，更新 diff 文档后再来。"
-   - 只有在 diff 文档通过完整性和新鲜度检查后，才能继续判断范围
-   - Frontend is in scope when the diff or session mentions UI projects, page paths, page interactions, or frontend gaps/blockers.
-   - Backend is in scope when the diff or session mentions APIs, controllers/services/mappers, database work, SAP/mock integration, or backend gaps/blockers.
+```
+Q1: 本次 session 提供了 PRD / 需求文档？
+  否 → 跳到 Q4（无 PRD 场景）
+  是 ↓
+Q2: docs/plans/*/diff.md 存在？
+  否 → ⛔ STOP: "❌ 缺少差异扫描文档。请先完成 prd-diff-scan，生成 docs/plans/<task>/diff.md 后再来。"
+  是 ↓
+Q3: diff 文档新鲜度检查：
+  3a: diff 文档包含「原型目录」字段？
+    否 → ⛔ STOP: "❌ diff 文档缺少原型目录字段，请重新运行 prd-diff-scan。"
+    是 ↓
+  3b: diff 文档的「Git 仓库根目录」= "无"？
+    是 → 跳到 Q4（无 Git，无需验证新鲜度）
+    否 ↓
+  3c: 执行 git -C <原型目录> log -1 --format="%H"，结果 == diff 文档「当前原型 Commit ID」？
+    是 → 继续 Q4
+    否 → ⛔ STOP: "❌ 差异扫描文档已过期。请先重新执行 prd-diff-scan，更新 diff 文档后再来。"
+Q4: 确定范围：
+  - Frontend in scope：diff 或 session 提到 UI 项目 / 页面路径 / 页面交互 / 前端 gaps
+  - Backend in scope：diff 或 session 提到 API / controller/service/mapper / DB / SAP / 后端 gaps
+  - 两侧都在范围内且用户未明确缩小范围 → 先写前端 plan，再写后端 plan
+```
 
 3. **Check index.md and design documents:**
    - 读取任务根目录下的 `index.md`（与 diff.md 同目录）
@@ -248,6 +259,11 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 - Create: `exact/path/to/NewFile.java`
 - Modify: `exact/path/to/existing.java` — 添加 XXX 方法
 - Test: `exact/path/to/test/NewFileTest.java`
+- Copy: `src/views/xxx/detail.vue` ← 原型新增，开发项目不存在（diff F2）
+- Overwrite: `src/views/xxx/index.vue` ← 原型修改，开发项目无本地改动（diff F3）
+- Merge: `src/views/xxx/list.vue` ← 原型修改，开发项目有本地改动（diff F1）
+  - 原型变更要点: [从 diff 中摘要原型改了什么]
+  - 保留: [开发项目本地改动中需保留的部分]
 
 **业务规则**:
 1. [用自然语言描述规则，一条一行]
@@ -268,14 +284,14 @@ git commit -m "feat: [描述]"
 
 ### Task 6 要素说明
 
-| 要素 | 作用 | 弱模型为什么需要 |
-|------|------|-----------------|
-| **参考文件** | 执行者先读真实代码，学到 import、基类、注解、命名规范 | 比抄 plan 里的代码更可靠，不会出现 import 错误 |
-| **设计文档引用** | 字段、接口、规则已在详细设计中，不重复 | 减少 plan 体积，避免 plan 和 design 不一致 |
-| **业务规则** | 自然语言描述 WHAT，执行者翻译成 HOW | 弱模型翻译规则比理解 200 行代码更可靠 |
-| **创建/修改文件** | 精确路径，不猜测 | 消除路径歧义 |
-| **验证步骤** | 机械检查，明确的"完成"信号 | 执行者知道什么时候可以标 completed |
-| **依赖关系** | 防止跳步 | 避免引用不存在的类/表 |
+| 要素 | 作用 |
+|------|------|
+| **参考文件** | 执行者先读真实代码，学到 import、基类、注解、命名规范 |
+| **设计文档引用** | 字段、接口、规则已在详细设计中，不重复 |
+| **业务规则** | 自然语言描述 WHAT，执行者翻译成 HOW |
+| **创建/修改文件** | 精确路径，不猜测；涉及原型文件时标注合并策略（Copy/Overwrite/Merge）和 diff 编号（Fx） |
+| **验证步骤** | 机械检查，明确的"完成"信号 |
+| **依赖关系** | 防止跳步 |
 
 ### 什么可以写在 Task 里
 
@@ -283,6 +299,7 @@ git commit -m "feat: [描述]"
 - 关键的非显而易见的技术要点（如"用 `@Transactional` 包裹状态更新和发货记录创建"）
 - 特殊的数据结构或算法描述（如"内存分页：先全量查询 SAP，再 subList 截取"）
 - 验证命令和预期输出
+- 原型文件合并策略（Copy/Overwrite/Merge）和对应的 diff 变更文件清单编号（Fx）
 
 ### 什么不要写在 Task 里
 
@@ -314,11 +331,6 @@ public class Order extends BaseEntity {
 }
 ​```
 ```
-
-为什么不合格：
-- 把完整代码塞进 plan 浪费 context，导致后续 Task 被省略
-- getter/setter 是样板代码，不需要出现在 plan 里
-- 字段列表在设计文档 Section 4.2 已经定义，不应重复
 
 **合格的写法**：
 
@@ -354,20 +366,11 @@ public class Order extends BaseEntity {
 ### Task 7: Controller（Order + DeliveryRecord + ConsignmentInventory）
 ```
 
-为什么不合格：
-- Task 3 只创建了 Order 和 DeliveryRecord 的 Mapper，ConsignmentInventory 的 Mapper 被遗漏
-- Task 7 的 ConsignmentInventoryController 注入 Service 时编译失败，因为没有任何 Task 创建它的 Service/Mapper
-- 应改为按接口维度切：每个模块的全链路放在同一个 Task 里
-
 还有一种不合格——**省略 Task**：
 
 ```markdown
 ### Task 5-12（省略，按设计文档实现）
 ```
-
-为什么不合格：
-- 跳过了 8 个 Task，执行者无法工作
-- 省略的原因是前面的 Task 写了太多代码占满了 context
 
 ## Remember
 - 精确的文件路径

@@ -8,11 +8,11 @@
 
 修改仓库文件时，按以下顺序执行：
 
-1. **prd-diff-scan** — PRD 差异扫描（有 PRD/需求文档时必做，单独执行）
+1. **prd-diff-scan** — PRD 差异扫描 + 变更文件清单（有 PRD/需求文档时必做，单独执行）
 2. **brainstorming** — 需求澄清 + 设计确认（读取已有的 diff 文档）
-3. **writing-plans** — 拆分实施计划
-4. **实现** — 按计划逐步编码
-5. **审查** — 代码审查
+3. **writing-plans** — 拆分实施计划（含文件合并策略标注）
+4. **executing-plans** — 按计划逐步编码（含原型文件合并：Copy / Overwrite / Merge）
+5. **审查 + 收尾** — 代码审查 + 完成分支
 
 **每一步单独执行**，确认输出合格后再进入下一步。不要在一个 skill 里完成多个阶段。
 
@@ -184,3 +184,39 @@ brainstorming 的每个 Step 完成后，必须**停下来等用户回复**，�
 - 不顺手修无关问题
 - 不引入与当前任务无关的重构
 - 先写测试、再写实现（TDD）
+
+---
+
+## 6. 执行阶段的集成规则
+
+使用 `superpowers:executing-plans` 或 `superpowers:subagent-driven-development` 执行计划时，必须集成以下技能：
+
+### 开始前
+
+- **必须** 调用 `superpowers:using-git-worktrees` 创建隔离工作区
+- 不得在 main/master 上直接实现
+
+### 执行中
+
+- 涉及原型文件合并时，按 diff.md 变更文件清单中的合并策略执行（Copy / Overwrite / Merge）
+
+**`executing-plans` 模式**（人工审查为主）：
+- 每批次（默认 3 个任务）完成后暂停，等待用户审查
+- 每个页面完成后 **必须** 调用 `superpowers:requesting-code-review` 请求代码审查
+- 收到审查反馈时 **必须** 按 `superpowers:receiving-code-review` 的规则处理
+
+**`subagent-driven-development` 模式**（内置自动审查）：
+- 已内置 3 道硬门禁（编译 → 规格审查子 agent → 质量审查子 agent），**不需要** 额外调用 `requesting-code-review`
+- 所有 task 完成后会自动派遣最终代码审查子 agent
+
+### 完成前
+
+- 所有任务完成后 **必须** 调用 `superpowers:verification-before-completion` 运行验证
+- 验证通过后 **必须** 调用 `superpowers:finishing-a-development-branch` 完成分支
+
+### 禁止
+
+- 跳过 worktree 直接在当前目录编码
+- 批次完成后不等审查就继续下一批
+- 未跑验证就声称任务完成
+- 未调用 finishing-a-development-branch 就结束工作

@@ -214,14 +214,59 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 1. **任务根目录**：从已有的 `diff.md` 所在目录推断。如果 `diff.md` 位于 `docs/plans/YYYY-MM-DD-<topic>/diff.md`，则任务根目录为 `docs/plans/YYYY-MM-DD-<topic>/`。如果不存在 diff.md（无 PRD 场景），则创建 `docs/plans/YYYY-MM-DD-<topic>/`。
 2. **页面清单**：从 diff 文档的受影响页面清单或用户提供的需求中提取。每个页面对应一个 kebab-case 的子目录名（page-slug）。
 
-#### 6.1 按页面保存设计文件
+#### 6.1 按页面保存设计文件（每页一轮，逐页推进）
+
+<TOKEN-BUDGET-RULE>
+每份前端详细设计 300-500 行，每份后端详细设计 300-500 行。4 个页面 × 2 份 = 8 份文档 ≈ 3000+ 行。
+一次性输出全部页面**必然**导致输出截断或质量崩塌。因此 Step 6 按页面拆分为多轮。
+
+**上下文警戒线**：当前对话累计输出超过 60k tokens 时，立即输出以下内容并停止：
+```
+[CONTEXT-RESET] 上下文接近上限。请开启新对话，粘贴以下内容继续：
+- 任务目录: <路径>
+- 当前进度: 第 X / 共 Y 个页面，下一步: <动作>
+```
+等待用户在新对话中确认后再继续。
+</TOKEN-BUDGET-RULE>
 
 - Determine scope before writing:
   - Frontend in scope → use `spec/frontend/vue/detail-design-template.md`
   - Backend in scope → use `spec/backend/java/detail-design-template.md`
-- **对每个页面**，创建页面子目录并保存设计文件：
-  - Frontend in scope → save `<task>/<page-slug>/frontend-detail-design.md`
-  - Backend in scope → save `<task>/<page-slug>/backend-detail-design.md`
+
+**每轮只处理一个页面。** 对当前页面：
+
+**Step 6a：前端详细设计**（Frontend in scope 时执行）
+1. 创建页面子目录
+2. 写入并保存 `<task>/<page-slug>/frontend-detail-design.md`
+3. 前端完成后输出自包含确认：
+   ```
+   ⚠️ 自包含确认 [前端 <page-slug>]：
+   - 此文档能否不依赖其他页面独立执行？Y/N
+   - 控件矩阵已覆盖所有调用接口？Y/N
+   - 字段逐项对照 diff.md PRD 字段对比表？Y/N
+   ```
+   三项全 Y 才能继续，否则补全后重新确认。
+
+**Step 6b：后端详细设计**（Backend in scope 时执行，必须在 6a 之后）
+4. 写入并保存 `<task>/<page-slug>/backend-detail-design.md`
+5. 后端完成后输出自包含确认：
+   ```
+   ⚠️ 自包含确认 [后端 <page-slug>]：
+   - 此文档能否不依赖其他页面独立执行？Y/N
+   - 接口清单覆盖前端控件矩阵所有「调用接口」？Y/N
+   - 请求参数/返回结构与前端类型设计一致？Y/N
+   ```
+   三项全 Y 才能继续，否则补全后重新确认。
+
+**页面完成**
+6. 输出 checkpoint：`"✅ 页面 <page-slug> 设计已保存（第 X / 共 Y 个页面）"`
+7. **如果还有更多页面 → STOP，等用户确认后继续下一个页面**
+8. **如果是最后一个页面 → 继续到 6.2 创建 index.md**
+
+> Step 6 会跨越多个对话轮次（每个页面一轮）。这是设计性决策，不违反"每步一轮"规则——Step 6 是一个**多轮步骤**，类似 Step 3 的分批确认机制。
+
+In explicit auto-test / non-interactive mode, you may write all pages in one turn if the user has pre-approved.
+
 - If both frontend and backend are in scope, you MUST write both detailed-design docs for each page before moving to the next page
 - **前后端都在范围内时的写入顺序**（依赖链：`原型图/PRD → 前端详细设计 → 后端详细设计`）：
   1. **先写前端** `<page-slug>/frontend-detail-design.md`，字段必须逐项对照 `diff.md` 中 PRD 字段对比表（前端是原型的唯一翻译层），通过下方「前端详细设计必填检查」和「原型字段覆盖规则」
@@ -399,9 +444,9 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 - Do NOT create plan.md, db-design.md, or diff.md here.
 - Commit the design documents to git
 
-→ **CHECKPOINT**: "✅ 设计文档已按页面保存到 `docs/plans/YYYY-MM-DD-<topic>/` 目录，index.md 已创建。"
+→ **CHECKPOINT**: "✅ 全部 Y 个页面的设计文档已保存到 `docs/plans/YYYY-MM-DD-<topic>/` 目录，index.md 已创建。"
 
-**After saving, STOP.** Ask user: "设计文档已保存。是否现在进入实施计划（writing-plans）？"
+**After saving index.md, STOP.** Ask user: "设计文档已保存。是否现在进入实施计划（writing-plans）？"
 
 Do NOT create `*-plan.md`, invoke `writing-plans`, or start coding in the same turn unless this is explicit auto-test / non-interactive mode with prior user approval to continue automatically.
 
