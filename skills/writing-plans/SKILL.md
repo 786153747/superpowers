@@ -1,6 +1,6 @@
 ---
 name: writing-plans
-description: Use when you have a spec or requirements for a multi-step task, before touching code
+description: "Use ONLY after brainstorming has produced saved design docs (frontend/backend-detail-design.md) and index.md. Never use directly from PRD/requirements — those must go through prd-diff-scan → brainstorming first."
 ---
 
 # Writing Plans
@@ -19,41 +19,33 @@ Before writing any plan, follow this decision tree in order. Stop at the first �
 
 ```
 Q1: 本次 session 提供了 PRD / 需求文档？
-  否 → 跳到 Q4（无 PRD 场景）
+  否 → 跳到 Q4
   是 ↓
 Q2: docs/plans/*/diff.md 存在？
-  否 → ⛔ STOP: "❌ 缺少差异扫描文档。请先完成 prd-diff-scan，生成 docs/plans/<task>/diff.md 后再来。"
+  否 → ⛔ STOP: "❌ 缺少差异扫描文档。请先完成 prd-diff-scan。"
   是 ↓
-Q3: diff 文档新鲜度检查：
-  3a: diff 文档包含「原型目录」字段？
-    否 → ⛔ STOP: "❌ diff 文档缺少原型目录字段，请重新运行 prd-diff-scan。"
-    是 ↓
-  3b: diff 文档的「Git 仓库根目录」= "无"？
-    是 → 跳到 Q4（无 Git，无需验证新鲜度）
-    否 ↓
-  3c: 执行 git -C <原型目录> log -1 --format="%H"，结果 == diff 文档「当前原型 Commit ID」？
-    是 → 继续 Q4
-    否 → ⛔ STOP: "❌ 差异扫描文档已过期。请先重新执行 prd-diff-scan，更新 diff 文档后再来。"
-Q4: 确定范围：
-  - Frontend in scope：diff 或 session 提到 UI 项目 / 页面路径 / 页面交互 / 前端 gaps
-  - Backend in scope：diff 或 session 提到 API / controller/service/mapper / DB / SAP / 后端 gaps
-  - 两侧都在范围内且用户未明确缩小范围 → 先写前端 plan，再写后端 plan
+Q3: diff 文档有 Git 基线且 commit 一致？
+  （无 Git 基线 → 跳到 Q4）
+  （执行 git -C <原型目录> log -1 --format="%H"，与 diff 文档的 Commit ID 比对）
+  不一致 → ⛔ STOP: "❌ diff 文档已过期，请重新执行 prd-diff-scan。"
+  一致 ↓
+Q4: index.md 和设计文件完整？（无论有无 PRD，此步必做）
+  用 Glob 检查 docs/plans/*/index.md 是否存在
+  不存在 → ⛔ STOP: "❌ 缺少 index.md。请先完成 brainstorming 生成设计文档。"
+  存在 → 读取 index.md → 按页面清单检查：
+  - Frontend in scope → 每个页面需有 frontend-detail-design.md
+  - Backend in scope → 每个页面需有 backend-detail-design.md
+  缺失 → ⛔ STOP: 列出缺失的页面和设计文件，要求先完成 brainstorming
+  完整 ↓
+Q5: 确定范围：
+  - Frontend in scope：diff 或 session 提到 UI / 页面 / 前端 gaps
+  - Backend in scope：diff 或 session 提到 API / DB / 后端 gaps
+  - 两侧都在范围内且用户未缩小范围 → 先写前端 plan 再写后端 plan
 ```
 
-3. **Check index.md and design documents:**
-   - 读取任务根目录下的 `index.md`（与 diff.md 同目录）
-   - 按 index.md 的页面清单逐个检查设计文件是否存在：
-     - Frontend in scope → 每个页面子目录下需有 `frontend-detail-design.md`
-     - Backend in scope → 每个页面子目录下需有 `backend-detail-design.md`
-   - If both frontend and backend are in scope, both sides must be covered for all pages before planning.
+If all checks pass, read design document(s), diff document, and index.md as input.
 
-4. **If any required design document is missing:**
-   - STOP. Output a precise missing-doc message listing which pages lack which design docs, and do NOT proceed.
-   - Tell the user to finish brainstorming for the missing pages/sides.
-
-If all required checks pass, read the design document(s), diff document, and index.md to use as input for the plan.
-
-Never treat a generic `继续` as approval to bypass the design gate. In normal interactive mode, planning starts only after the saved design docs have been explicitly approved.
+Never treat a generic `继续` as approval to bypass the design gate.
 
 **Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
 
@@ -312,65 +304,32 @@ git commit -m "feat: [描述]"
 
 ## 反面示例
 
-以下 plan 输出**不合格**：
+**不合格：Task 里写完整代码**
 
 ```markdown
-### Task 2: 后端领域模型（Entity）
-
-Step 1: 创建 Order 实体类
-
+### Task 2: 后端领域模型
 ​```java
-package com.ruoyi.system.domain;
-// ... 100 行完整实现 ...
 public class Order extends BaseEntity {
-    private Long id;
-    private String orderNo;
-    // ... 30 个字段 ...
-    // ... 30 个 getter/setter ...
-    // ... toString ...
+    // ... 100 行完整实现 ...
 }
 ​```
 ```
 
-**合格的写法**：
+**合格：导航图 + 引用**
 
 ```markdown
-### Task 2: 后端领域模型（Entity）
+### Task 2: 后端领域模型
 
-**依赖**: Task 1（数据库表）
-
-**参考文件**:
-- Pattern: `com/ruoyi/system/domain/SysUser.java` — BaseEntity 继承、@Excel 注解
-- Design: `backend-detail-design.md` Section 4.2 — 字段定义
-
-**创建文件**:
-- `ruoyi-system/src/main/java/com/ruoyi/system/domain/Order.java`
-- `ruoyi-system/src/main/java/com/ruoyi/system/domain/DeliveryRecord.java`
-- `ruoyi-system/src/main/java/com/ruoyi/system/domain/Inventory.java`
-
-**业务规则**:
-1. Order 和 DeliveryRecord 继承 BaseEntity，Inventory 不继承（SAP 实时数据，不持久化）
-2. 所有金额/数量字段用 BigDecimal(13,3)
-3. 日期字段加 @JsonFormat(pattern="yyyy-MM-dd")，导出字段加 @Excel 注解
-4. isReturnOrder 用 Boolean 映射 TINYINT(1)
-
+**参考文件**: `com/ruoyi/system/domain/SysUser.java`（BaseEntity 继承、@Excel 注解）
+**设计**: `backend-detail-design.md` Section 4.2 — 字段定义
+**创建文件**: `.../domain/Order.java`, `.../domain/DeliveryRecord.java`
+**业务规则**: 金额用 BigDecimal(13,3)；日期加 @JsonFormat；isReturnOrder 用 Boolean
 **验证**: `mvn compile -q -pl ruoyi-system` → BUILD SUCCESS
-
-**提交**: `git commit -m "feat: 创建订单库存领域模型"`
 ```
 
-还有一种不合格——**按技术层横切导致模块断层**：
+**不合格：按技术层横切** → Task 3 写所有 Mapper，Task 7 写所有 Controller（模块断层，无法逐步验证）
 
-```markdown
-### Task 3: Mapper 接口（Order + DeliveryRecord）
-### Task 7: Controller（Order + DeliveryRecord + ConsignmentInventory）
-```
-
-还有一种不合格——**省略 Task**：
-
-```markdown
-### Task 5-12（省略，按设计文档实现）
-```
+**不合格：省略 Task** → `Task 5-12（省略，按设计文档实现）`
 
 ## Remember
 - 精确的文件路径
@@ -399,33 +358,17 @@ Plan 保存前必须逐项自检：
 
 ## Execution Handoff
 
-After saving all page plans and updating index.md, offer execution choice:
-
-**"Plan complete. Page plans saved to:**
+After saving all page plans and updating index.md:
 
 ```
-docs/plans/<task>/
-  shared-plan.md (N tasks)
-  <page1>/plan.md (N tasks)
-  <page2>/plan.md (N tasks)
+Plan complete. Page plans saved to:
+  docs/plans/<task>/shared-plan.md (N tasks)
+  docs/plans/<task>/<page1>/plan.md (N tasks)
   ...
-
 Master index updated: docs/plans/<task>/index.md
 ```
 
-**Two execution options:**
+Offer execution choice (详见 CLAUDE.md §1 执行模式选择):
 
-**1. Subagent-Driven (this session)** - I dispatch fresh subagent per task, review between tasks, fast iteration
-
-**2. Parallel Session (separate)** - Open new session with executing-plans, batch execution with checkpoints
-
-**Which approach?"**
-
-**If Subagent-Driven chosen:**
-- **REQUIRED SUB-SKILL:** Use superpowers:subagent-driven-development
-- Stay in this session
-- Fresh subagent per task + code review
-
-**If Parallel Session chosen:**
-- Guide them to open new session in worktree
-- **REQUIRED SUB-SKILL:** New session uses superpowers:executing-plans
+1. **Subagent-Driven (this session)** → `superpowers:subagent-driven-development`
+2. **Parallel Session (separate)** → `superpowers:executing-plans`

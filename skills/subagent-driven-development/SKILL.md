@@ -118,6 +118,20 @@ digraph process {
 - `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
 - `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
 
+## Subagent Model Policy
+
+Controller (you) runs on the user's chosen model (typically Opus). Subagents use **Sonnet** by default for cost efficiency:
+
+| Subagent | Model | Agent tool `model` param |
+|----------|-------|--------------------------|
+| Implementer | sonnet | `model: "sonnet"` |
+| Spec reviewer | sonnet | `model: "sonnet"` |
+| Code quality reviewer | sonnet | `model: "sonnet"` |
+
+**Dispatching时必须在 Agent 工具调用中显式传 `model: "sonnet"` 参数。** 不传则子 agent 继承 controller 的模型（Opus），浪费成本。
+
+如果用户明确要求子 agent 用其他模型（如 `opus`），按用户指定执行。
+
 ## Hard Gates (Non-Negotiable)
 
 CRITICAL: These gates are sequential. Each MUST pass before proceeding to the next. Skipping ANY gate = process failure.
@@ -147,18 +161,19 @@ Before marking ANY task complete, output this block. Missing this block = task i
 
 ```
 ### Task N Gate Evidence
-| Gate | Status | Evidence |
-|------|--------|----------|
-| Implementation | ✅/❌ | subagent dispatched: [yes/no], report: [summary] |
-| Compilation | ✅/❌ | command: [cmd], exit code: [0/non-zero] |
-| Spec Review | ✅/❌ | subagent dispatched: [yes/no], verdict: [pass/fail + issues] |
-| Code Quality | ✅/❌ | subagent dispatched: [yes/no], verdict: [pass/fail + issues] |
+| Gate | Status | Model | Evidence |
+|------|--------|-------|----------|
+| Implementation | ✅/❌ | sonnet | subagent dispatched: [yes/no], report: [summary] |
+| Compilation | ✅/❌ | — | command: [cmd], exit code: [0/non-zero] |
+| Spec Review | ✅/❌ | sonnet | subagent dispatched: [yes/no], verdict: [pass/fail + issues] |
+| Code Quality | ✅/❌ | sonnet | subagent dispatched: [yes/no], verdict: [pass/fail + issues] |
 
 All gates ✅ → Task N COMPLETE
 Any gate ❌ → Task N remains IN PROGRESS
 ```
 
 Any row with "subagent dispatched: no" = gate NOT satisfied, regardless of any other claim.
+Model column must reflect the actual `model` parameter passed to the Agent tool. Compilation has no model (controller runs it directly).
 
 ## Example Workflow
 
@@ -196,12 +211,12 @@ Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
 Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
 
 ### Task 1 Gate Evidence
-| Gate | Status | Evidence |
-|------|--------|----------|
-| Implementation | ✅ | subagent dispatched: yes, report: Implemented install-hook command, 5/5 tests passing |
-| Compilation | ✅ | command: `npm run build`, exit code: 0 |
-| Spec Review | ✅ | subagent dispatched: yes, verdict: pass - all requirements met |
-| Code Quality | ✅ | subagent dispatched: yes, verdict: pass - clean code, good tests |
+| Gate | Status | Model | Evidence |
+|------|--------|-------|----------|
+| Implementation | ✅ | sonnet | subagent dispatched: yes, report: Implemented install-hook command, 5/5 tests passing |
+| Compilation | ✅ | — | command: `npm run build`, exit code: 0 |
+| Spec Review | ✅ | sonnet | subagent dispatched: yes, verdict: pass - all requirements met |
+| Code Quality | ✅ | sonnet | subagent dispatched: yes, verdict: pass - clean code, good tests |
 
 All gates ✅ → Task 1 COMPLETE
 

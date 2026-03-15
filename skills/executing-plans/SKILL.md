@@ -59,6 +59,19 @@ Based on feedback:
   6. If all pages done → proceed to Step 5
 - Repeat until all pages complete
 
+### Resuming After Interruption
+
+If the session was interrupted (context compressed, window closed, new session):
+
+1. Read `index.md` — find the first page with `实施状态 = 进行中` or `未开始`
+2. If `进行中` → read that page's `plan.md` task status table:
+   - `已完成` tasks: skip, do NOT redo
+   - `进行中` task: check if the code changes exist on disk (use Glob/Read). If changes look complete, run verification; if incomplete or missing, re-execute the task
+   - `未开始` tasks: proceed normally
+3. If all pages `已完成` → proceed to Step 5
+
+Do NOT assume a fresh start. Always check existing progress first.
+
 ### Step 5: Complete Development
 
 After all tasks complete and verified:
