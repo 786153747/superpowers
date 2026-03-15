@@ -117,9 +117,49 @@ Task 5: 路由配置 + 菜单权限
 
 ```
 Task 1: 建表（前置）
-Task 2: 订单列表接口（后端 Entity→Controller 全链路 + 前端 API + 页面联调）
+Task 2: 订单列表接口（后端 Entity→Controller 全链路 + 前端 API 文件改造 + 页面联调）
 Task 3: 订单确认接口（后端 Service 方法 + Controller + 前端按钮联调）
 Task 4: 寄售库存查询接口（后端全链路 + 前端页面联调）
+Task N: 前端差异修复（diff D1/D5/D6 等前端独立差异，不涉及后端）
+```
+
+**每个后端接口 Task 必须同时包含前端联调步骤**：修改 API 文件（Mock → 真实接口）+ 页面中调用该接口的代码改动。
+
+### 前端独立差异 Task
+
+diff.md 中影响范围为"前端"且不依赖任何后端接口变更的差异（如固定列、默认值、导出格式、搜索字段修正），必须有独立的 Task 覆盖。不得因为"只是前端小改动"而省略。
+
+典型的前端独立差异 Task：
+```
+Task N: [页面名] 前端差异修复
+  创建/修改文件: myOrder.vue
+  业务规则:
+  1. D1: 表格固定列 — 序号/状态/订单编号/行项目/物料号/物料名称列添加 fixed="left"
+  2. D5: 发货默认数量 — el-input-number 默认值改为 row.remainingQuantity
+  3. D26: 确认弹窗补物料品牌列
+  验证: npm run build 无 TS 错误；浏览器验证固定列效果
+```
+
+### 复用接口的页面：不重复创建后端
+
+如果多个页面共用同一个后端接口（如订单台账和我的订单共用 `/order/list`），**后续页面的 plan 不得再创建独立的 Controller/Service/Mapper**。正确做法：
+
+```
+# 订单台账 plan
+
+Task 1: 前端差异修复（D16-D18 搜索字段修正 + D19 导出格式）
+  创建/修改文件: orderLedger.vue
+  业务规则:
+  1. D16: 公司名称改为文本输入（与 myOrder 一致）
+  2. D17: 高级搜索补充供应商证件号字段
+  3. D18: 高级搜索去掉重复的公司名称弹框，改为公司代码
+  4. D19: 导出改为 proxy.download + xlsx
+  注意: 后端接口复用 OrderController（my-order 阶段已实现），无额外后端开发
+```
+
+不合格的做法（重复造后端）：
+```
+Task 1: 创建 OrderLedgerMapper + IOrderLedgerService + OrderLedgerController ← 查同一张表，不需要独立 Mapper/Service
 ```
 
 ### 禁止按技术层横切
@@ -144,7 +184,9 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 自检方式：
 1. 列出后端详细设计中所有 Controller → 每个 Controller 都有对应 Task，且 Task 内包含完整的 Entity/Mapper/Service 链路
 2. 列出前端详细设计中所有页面 → 每个页面都有对应 Task
-3. 如有遗漏，补充 Task 后再保存
+3. **逐条扫描 diff.md 的 D1-D{N}** → 每个 Dx 都能在 Plan 中找到对应 Task。特别注意影响范围为"前端"的 Dx，这些经常被遗漏
+4. 检查 index.md 的 API 映射：如果多个页面共用同一接口（如"是否共享 = 是"），后续页面不得重复创建 Controller/Service/Mapper
+5. 如有遗漏，补充 Task 后再保存
 
 ## Plan Generation Flow（按页面生成 plan）
 
@@ -297,10 +339,12 @@ git commit -m "feat: [描述]"
 
 - 完整的类实现代码（参考文件 + 业务规则足够）
 - Getter/Setter/ToString 等样板代码
-- 完整的 SQL DDL（设计文档里已有）
+- 完整的 SQL DDL（设计文档里已有，用 `Design: backend-detail-design.md Section 5.1` 引用）
+- 完整的查询 SQL（设计文档 Section 7 已有，引用即可；Task 中只写关键的 WHERE 条件说明）
 - 完整的 MyBatis XML 映射文件
 - 完整的 import 列表（从参考文件学习）
 - 设计文档里已经写明的字段列表（直接引用 Section 编号）
+- **"同上"**：每个 Task 的参考文件必须列出完整路径，不得写"同上""同 Task 1"。执行者可能单独看某个 Task，看不到"上"是什么
 
 ## 反面示例
 
@@ -351,8 +395,11 @@ Plan 保存前必须逐项自检：
 | 2 | 前端详细设计中每个页面 → Plan 中有对应 Task | ✅/❌ |
 | 3 | 后端详细设计 Section 4.3 中每个 DTO → Plan 中有创建文件项 | ✅/❌ |
 | 4 | Plan 中无占位符值（`XXX`、`???`、`TODO_ID`、未替换的 `{{xx}}`） | ✅/❌ |
-| 5 | diff.md 中每个差异 Dx → Plan 中有对应 Task 处理 | ✅/❌ |
-| 6 | 参考文件路径全部为真实存在的文件（用 Glob 验证） | ✅/❌ |
+| 5 | diff.md 中每个差异 Dx → Plan 中有对应 Task 处理（**包括影响范围为"前端"的 Dx**，逐条核对不得遗漏） | ✅/❌ |
+| 6 | 参考文件路径全部为真实存在的文件（用 Glob 验证），**无"同上"** | ✅/❌ |
+| 7 | Task 中**无完整 SQL DDL / 查询 SQL**（应引用设计文档 Section 编号），每个 Task ≤ 60 行 | ✅/❌ |
+| 8 | index.md 页面清单**无重复行**（每个 page-slug 只出现一次） | ✅/❌ |
+| 9 | **共享接口去重**：index.md API 映射中标记"是否共享=是"的接口，后续页面 plan 不得重复创建 Controller/Service/Mapper | ✅/❌ |
 
 任一项为 ❌ → 补全后再保存。
 

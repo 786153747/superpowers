@@ -259,6 +259,7 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 - `设计状态` 标记为 `已完成`
 - `实施状态` 标记为 `未开始`
 - 页面-API 映射从各页面的后端设计接口清单中提取
+- **去重检查**：页面清单中每个 page-slug 只能出现一次。保存前逐行扫描，发现重复行必须删除
 
 - Do NOT create plan.md, db-design.md, or diff.md here.
 - Commit the design documents to git

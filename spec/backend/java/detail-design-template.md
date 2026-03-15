@@ -21,10 +21,11 @@
 | 6 | Section 4.3 查询参数 DTO 覆盖前端 queryParams 所有字段 | |
 | 7 | Section 5.1 表字段完整列出，无省略号 | |
 | 8 | Section 6.1 方法清单覆盖 3.1 中每个接口 | |
-| 9 | Section 7 每个查询接口都有伪 SQL | |
+| 9 | Section 7 每个查询接口都有伪 SQL，且**所有 SELECT 都包含 `del_flag='0'` 条件** | |
 | 10 | Section 10 前后端对齐四张表已填写 | |
 | 11 | **完整链路**：3.1 中每个 Controller 在 4.1/4.2 有 Entity、4.3 有 QueryDTO、6.1 有 Service 方法、2 有 Mapper + XML、7 有伪 SQL（逐个 Controller 核对，任一缺失 = ❌） | |
 | 12 | **DTO 文件路径**：4.3 中每个 DTO 都标注了 Java 文件路径（放哪个包、叫什么名字） | |
+| 13 | **逻辑删除**：6.2 已写明逻辑删除约定；3.2 DELETE 接口的业务逻辑是 `UPDATE SET del_flag` 而非物理 DELETE；7 中所有伪 SQL 都有 `del_flag='0'` | |
 
 ## 1. 背景与目标
 
@@ -53,6 +54,7 @@
 | 新增 | POST | `/{{module}}/{{resource}}` | `{{module}}:{{resource}}:add` | {{Xxx}}Controller |
 | 修改 | PUT | `/{{module}}/{{resource}}` | `{{module}}:{{resource}}:edit` | {{Xxx}}Controller |
 | 删除 | DELETE | `/{{module}}/{{resource}}/{ids}` | `{{module}}:{{resource}}:remove` | {{Xxx}}Controller |
+| 导出 | POST | `/{{module}}/{{resource}}/export` | `{{module}}:{{resource}}:export` | {{Xxx}}Controller |
 
 ### 3.2 接口详细定义
 
@@ -101,17 +103,40 @@
 ```
 confirm(ids):
 1. 校验 ids 不为空 → 抛「请选择待操作记录」
-2. 批量查询记录；过滤状态不为「待确认」的，收集错误消息统一返回
+2. 批量查询记录（WHERE id IN (...) AND del_flag='0'）；过滤状态不为「待确认」的，收集错误消息统一返回
 3. TODO: 调用外部接口（保留空实现）
-4. UPDATE 目标表 SET status='已确认', update_by=?, update_time=NOW() WHERE id IN (...)
+4. UPDATE 目标表 SET status='已确认', update_by=?, update_time=NOW() WHERE id IN (...) AND del_flag='0'
 5. 返回操作成功
 ```
+
+#### DELETE `/{{module}}/{{resource}}/{ids}`（删除示例）
+
+- **权限**: `@PreAuthorize("@ss.hasPermi('{{module}}:{{resource}}:remove')")`
+- **日志**: `@Log(title = "{{功能名称}}", businessType = BusinessType.DELETE)`
+
+**请求参数：** `ids`（路径参数，逗号分隔的 Long 数组）
+
+**响应结构：** `AjaxResult`（code=200, data=null）
+
+**业务逻辑：**
+
+```
+deleteByIds(ids):
+1. 校验 ids 不为空 → 抛「请选择待删除记录」
+2. 逻辑删除：UPDATE 目标表 SET del_flag='2', update_by=?, update_time=NOW() WHERE id IN (...) AND del_flag='0'
+3. 返回操作成功
+```
+
+> 若依默认使用逻辑删除（`del_flag='2'`），不做物理 DELETE。如有关联子表，需同步逻辑删除或校验是否有引用。
 
 ### 3.3 返回结构约定
 
 - 列表接口：`TableDataInfo`（包含 `rows` 和 `total`）
 - 普通接口：`AjaxResult`（包含 `code`、`msg`、`data`）
 - 导出接口：`void` 直接写 `HttpServletResponse`，返回 Excel 文件流
+  - 若依框架默认使用 `com.ruoyi.common.utils.poi.ExcelUtil`（基于 Apache POI），**不要用 EasyExcel**
+  - 用法：`ExcelUtil<T> util = new ExcelUtil<>(T.class); util.exportExcel(response, list, "sheet名");`
+  - Entity 字段加 `@Excel(name = "列名")` 注解标记需要导出的列
 
 ## 4. 领域模型
 
@@ -123,14 +148,18 @@ confirm(ids):
 
 ### 4.2 关键字段
 
-> 与前端类型设计逐字段对齐；后端独有字段（delFlag 等）也要列出；不得用省略号。
+> 与前端类型设计逐字段对齐；后端独有字段（delFlag、createBy、updateBy 等）也要列出；不得用省略号。
+> 继承 `BaseEntity` 的字段（createBy/createTime/updateBy/updateTime/remark）无需在 Entity 类中声明，但必须在此表中列出。
+> 需要导出的字段加 `@Excel(name = "列名")` 注解。
 
 | 字段 | Java 类型 | 数据库列名 | 说明 | 约束 | 对应前端字段 |
 | --- | --- | --- | --- | --- | --- |
 | `id` | `Long` | `id` | 主键 | 必填，自增 | `id` |
 | `status` | `String` | `status` | 状态 | 必填 | `status` |
 | `delFlag` | `String` | `del_flag` | 删除标志 | 默认 `'0'` | —（后端独有） |
+| `createBy` | `String` | `create_by` | 创建者 | 自动填充 | —（后端独有） |
 | `createTime` | `Date` | `create_time` | 创建时间 | 自动填充 | `createTime` |
+| `updateBy` | `String` | `update_by` | 更新者 | 自动填充 | —（后端独有） |
 | `updateTime` | `Date` | `update_time` | 更新时间 | 自动填充 | —（后端独有） |
 
 ### 4.3 DTO 设计
@@ -154,6 +183,7 @@ confirm(ids):
 
 > 每张表完整列出字段，不得用省略号。字段数多时用 DDL SQL。
 > 在此注明各表的默认值约定和删除策略（软删/物理删），无需在其他地方重复。
+> **日期字段类型**：业务日期（如下单日期、发货日期）推荐用 `date` 或 `datetime`，不要用 `varchar`。只有从外部系统原样存储的文本日期才用 `varchar`。
 
 | 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
@@ -171,7 +201,7 @@ confirm(ids):
 - **唯一约束**：（无则写「无」）
 - **常用查询索引**：
 - **默认值约定**：del_flag='0'，create_time/update_time 自动填充，其他特殊默认值在此列出
-- **删除策略**：软删（del_flag='1'）/ 物理删
+- **删除策略**：软删（del_flag='2'）/ 物理删
 
 ## 6. Service 设计
 
@@ -183,12 +213,19 @@ confirm(ids):
 | `select{{Entity}}ById` | 查询明细 | 否 | `GET /{id}` |
 | `insert{{Entity}}` | 新增 | 是/否 | `POST /` |
 | `update{{Entity}}` | 修改 | 是/否 | `PUT /` |
-| `delete{{Entity}}ByIds` | 删除 | 是/否 | `DELETE /{ids}` |
+| `delete{{Entity}}ByIds` | 逻辑删除 | 是/否 | `DELETE /{ids}` |
 
 ### 6.2 跨接口业务规则（补充）
 
 > 本节只写**跨接口通用规则**。单个接口的完整实现逻辑写在 3.2 对应接口的「业务逻辑」小节，不在这里重复。
-> 适合写：状态机流转图、数据权限注入规则、序号生成策略、并发控制方式。
+> 适合写：逻辑删除约定、状态机流转图、数据权限注入规则、序号生成策略、并发控制方式。
+
+#### 逻辑删除约定（若依默认）
+
+- **查询**：所有 SELECT 的 WHERE 条件必须包含 `del_flag = '0'`（包括 selectList、selectById、selectCount 等，无一例外）
+- **删除**：DELETE 接口实际执行 `UPDATE SET del_flag = '2'`，不做物理 DELETE
+- **唯一约束**：如果表有唯一索引（如 order_no），逻辑删除后该值仍然占用唯一约束；如需复用，需在删除时追加后缀（如 `_DEL_{id}`）或改用联合唯一索引包含 del_flag
+- **关联表**：主表逻辑删除时，关联子表需同步逻辑删除或校验无引用后再删
 
 #### 状态机（如有）
 
@@ -206,6 +243,7 @@ confirm(ids):
 ## 7. 查询 SQL
 
 > 每个查询接口写一条伪 SQL，说清主表、动态条件类型、排序。不需要写完整 XML。
+> **所有查询必须包含 `del_flag = '0'` 条件**，无一例外。
 
 #### select{{Entity}}List
 
@@ -215,6 +253,12 @@ SELECT * FROM {{table}} WHERE del_flag='0'
   AND fieldB LIKE #{fieldB}       -- 模糊匹配
   AND date >= #{dateStart}        -- 范围
 ORDER BY create_time DESC
+```
+
+#### select{{Entity}}ById
+
+```
+SELECT * FROM {{table}} WHERE id = #{id} AND del_flag='0'
 ```
 
 ## 8. 风险点与兼容性
