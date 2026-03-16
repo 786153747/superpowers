@@ -137,7 +137,6 @@ For each task:
 
 **禁止只更新状态列而不更新时间追踪字段。**
 
-
 ### Step 3: Report (with page context)
 When batch complete:
 - Show what was implemented
@@ -159,12 +158,91 @@ Based on feedback:
   6. If all pages done → proceed to Step 5
 - Repeat until all pages complete
 
+### Resuming After Interruption
+
+If the session was interrupted (context compressed, window closed, new session):
+
+1. Read `index.md` — find the first page with `实施状态 = 进行中` or `未开始`
+2. If `进行中` → read that page's `plan.md` task status table:
+   - `已完成` tasks: skip, do NOT redo
+   - `进行中` task: check if the code changes exist on disk (use Glob/Read). If changes look complete, run verification; if incomplete or missing, re-execute the task
+   - `未开始` tasks: proceed normally
+3. If all pages `已完成` → proceed to Step 5
+
+Do NOT assume a fresh start. Always check existing progress first.
+
 ### Step 5: Complete Development
 
 After all tasks complete and verified:
 - Announce: "I'm using the finishing-a-development-branch skill to complete this work."
 - **REQUIRED SUB-SKILL:** Use superpowers:finishing-a-development-branch
 - Follow that skill to verify tests, present options, execute choice
+
+## 原型文件合并规则
+
+当 Task 的「创建/修改文件」标注了合并策略（Copy / Overwrite / Merge）时，按以下方式执行。合并策略和 diff 编号（Fx）由 writing-plans 根据 diff.md 变更文件清单生成。
+
+### 合并模式判断（执行 Merge 任务前必读）
+
+读取 diff.md 比对基线中的 `上次 diff Commit ID`：
+
+- 不为"无" → 使用**三方合并**
+- 为"无" 或 `比对模式 = 全量扫描` → 使用**两方合并**
+
+### Copy（复制 + 适配）
+
+适用于：原型新增的文件，开发项目中不存在。
+
+1. 读取原型文件完整内容
+2. 检查开发项目的代码规范（import 路径、组件注册方式、API 调用方式、路由配置等）
+3. 适配后写入开发项目对应路径
+4. 验证：文件能正常编译/运行
+
+### Overwrite（直接覆盖）
+
+适用于：原型修改的文件，开发项目有对应文件但开发者未做本地修改（与旧原型一致）。
+
+1. 读取原型文件最新版本
+2. 直接写入开发项目对应路径
+3. 验证：文件能正常编译/运行
+
+### Merge（智能合并）
+
+适用于：原型修改的文件，开发项目有对应文件且开发者做了本地修改。
+
+根据是否有旧基线，分为**三方合并**和**两方合并**两种模式：
+
+#### 三方合并（有旧 Commit 时）
+
+diff.md 比对基线中的 `上次 diff Commit ID` 不为"无"时使用三方合并：
+
+1. 读取原型旧版本：`git -C <原型目录> show <旧Commit>:<文件相对路径>`
+2. 读取原型新版本：当前原型文件内容
+3. 读取开发项目当前文件
+4. 对比原型旧→新：理解原型改了什么（新增了哪些控件、修改了哪些字段、删除了什么）
+5. 把原型的改动应用到开发项目文件上，同时保留开发项目的本地改动（如权限控制、本地 API 封装、自定义样式等）
+6. 如果两边改动有冲突（改了同一区域），**停下来让用户决定**，不得自行拍板
+7. 验证：文件能正常编译/运行
+
+#### 两方合并（无旧 Commit / 全量扫描场景）
+
+diff.md 比对基线中 `上次 diff Commit ID` 为"无"或 `比对模式` 为"全量扫描"时，没有旧版本可做三方对比，降级为两方合并：
+
+1. 读取原型文件（当前版本）：作为**目标状态**
+2. 读取开发项目当前文件：作为**当前状态**
+3. 逐区域对比两个文件，识别差异
+4. 对于**只存在于原型**的内容（新控件、新字段、新逻辑）→ 合入开发项目文件
+5. 对于**只存在于开发项目**的内容（本地适配、自定义逻辑）→ 保留
+6. 对于**两边都有但不一致**的区域 → **停下来让用户决定**，展示两边差异让用户选择
+7. 验证：合并后文件能正常编译/运行
+
+> 两方合并比三方合并更保守：因为缺少旧基线，无法区分"原型新增"和"原型原有但开发项目删除"，所以对不确定的差异一律询问用户。
+
+### 无合并策略标注时
+
+如果 Task 的「创建/修改文件」没有标注合并策略（如纯后端 Task、非原型文件），按正常流程执行，不适用本规则。
+
+---
 
 ## When to Stop and Ask for Help
 

@@ -1,6 +1,6 @@
 ---
 name: writing-plans
-description: Use when you have a spec or requirements for a multi-step task, before touching code
+description: "Use ONLY after brainstorming has produced saved design docs (frontend/backend-detail-design.md) and index.md. Never use directly from PRD/requirements — those must go through prd-diff-scan → brainstorming first."
 ---
 
 # Writing Plans
@@ -15,34 +15,37 @@ Plan 的目标是让一个**有开发能力但不了解项目**的模型，通�
 
 ## Prerequisites (HARD-GATE)
 
-Before writing any plan, you MUST verify prerequisite documents exist. Use Glob to check:
+Before writing any plan, follow this decision tree in order. Stop at the first ⛔.
 
-1. **If a PRD / requirement doc was provided in this session:**
-   - Check: `docs/plans/*/diff.md`
-   - If missing: STOP. Output "❌ 缺少差异扫描文档。请先完成 prd-diff-scan，生成 `docs/plans/<task>/diff.md` 后再来。" Do NOT proceed.
+```
+Q1: 本次 session 提供了 PRD / 需求文档？
+  否 → 跳到 Q4
+  是 ↓
+Q2: docs/plans/*/diff.md 存在？
+  否 → ⛔ STOP: "❌ 缺少差异扫描文档。请先完成 prd-diff-scan。"
+  是 ↓
+Q3: diff 文档有 Git 基线且 commit 一致？
+  （无 Git 基线 → 跳到 Q4）
+  （执行 git -C <原型目录> log -1 --format="%H"，与 diff 文档的 Commit ID 比对）
+  不一致 → ⛔ STOP: "❌ diff 文档已过期，请重新执行 prd-diff-scan。"
+  一致 ↓
+Q4: index.md 和设计文件完整？（无论有无 PRD，此步必做）
+  用 Glob 检查 docs/plans/*/index.md 是否存在
+  不存在 → ⛔ STOP: "❌ 缺少 index.md。请先完成 brainstorming 生成设计文档。"
+  存在 → 读取 index.md → 按页面清单检查：
+  - Frontend in scope → 每个页面需有 frontend-detail-design.md
+  - Backend in scope → 每个页面需有 backend-detail-design.md
+  缺失 → ⛔ STOP: 列出缺失的页面和设计文件，要求先完成 brainstorming
+  完整 ↓
+Q5: 确定范围：
+  - Frontend in scope：diff 或 session 提到 UI / 页面 / 前端 gaps
+  - Backend in scope：diff 或 session 提到 API / DB / 后端 gaps
+  - 两侧都在范围内且用户未缩小范围 → 先写前端 plan 再写后端 plan
+```
 
-2. **Read the diff document and verify freshness before checking design docs:**
-   - diff 文档必须包含 `原型目录`
-   - 如果 diff 文档记录 `Git 仓库根目录 != 无`，则必须同时记录 `当前原型 Commit ID` 和 `当前原型 Commit 时间`
-   - 如果 diff 文档记录了 Git 信息，使用 diff 文档中的 `原型目录` 执行 `git -C <原型目录> log -1 --format="%H%n%cI"` 读取当前 HEAD；若与 diff 文档中的 `当前原型 Commit ID` 不一致：STOP。输出 "❌ 差异扫描文档已过期。请先重新执行 `prd-diff-scan`，更新 diff 文档后再来。"
-   - 只有在 diff 文档通过完整性和新鲜度检查后，才能继续判断范围
-   - Frontend is in scope when the diff or session mentions UI projects, page paths, page interactions, or frontend gaps/blockers.
-   - Backend is in scope when the diff or session mentions APIs, controllers/services/mappers, database work, SAP/mock integration, or backend gaps/blockers.
+If all checks pass, read design document(s), diff document, and index.md as input.
 
-3. **Check index.md and design documents:**
-   - 读取任务根目录下的 `index.md`（与 diff.md 同目录）
-   - 按 index.md 的页面清单逐个检查设计文件是否存在：
-     - Frontend in scope → 每个页面子目录下需有 `frontend-detail-design.md`
-     - Backend in scope → 每个页面子目录下需有 `backend-detail-design.md`
-   - If both frontend and backend are in scope, both sides must be covered for all pages before planning.
-
-4. **If any required design document is missing:**
-   - STOP. Output a precise missing-doc message listing which pages lack which design docs, and do NOT proceed.
-   - Tell the user to finish brainstorming for the missing pages/sides.
-
-If all required checks pass, read the design document(s), diff document, and index.md to use as input for the plan.
-
-Never treat a generic `继续` as approval to bypass the design gate. In normal interactive mode, planning starts only after the saved design docs have been explicitly approved.
+Never treat a generic `继续` as approval to bypass the design gate.
 
 **Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
 
@@ -90,6 +93,8 @@ Never treat a generic `继续` as approval to bypass the design gate. In normal 
 - **禁止只更新状态列而不更新时间追踪字段**
 
 ---
+
+## 完整性规则
 
 **禁止省略任何 Task。** 如果 plan 有 12 个 Task，文档必须包含 12 个完整 Task。禁止写 `（省略）`、`（结构类似）`、`（按设计文档创建）` 等占位文本来跳过 Task。
 
@@ -153,9 +158,49 @@ Task 5: 路由配置 + 菜单权限
 
 ```
 Task 1: 建表（前置）
-Task 2: 订单列表接口（后端 Entity→Controller 全链路 + 前端 API + 页面联调）
+Task 2: 订单列表接口（后端 Entity→Controller 全链路 + 前端 API 文件改造 + 页面联调）
 Task 3: 订单确认接口（后端 Service 方法 + Controller + 前端按钮联调）
 Task 4: 寄售库存查询接口（后端全链路 + 前端页面联调）
+Task N: 前端差异修复（diff D1/D5/D6 等前端独立差异，不涉及后端）
+```
+
+**每个后端接口 Task 必须同时包含前端联调步骤**：修改 API 文件（Mock → 真实接口）+ 页面中调用该接口的代码改动。
+
+### 前端独立差异 Task
+
+diff.md 中影响范围为"前端"且不依赖任何后端接口变更的差异（如固定列、默认值、导出格式、搜索字段修正），必须有独立的 Task 覆盖。不得因为"只是前端小改动"而省略。
+
+典型的前端独立差异 Task：
+```
+Task N: [页面名] 前端差异修复
+  创建/修改文件: myOrder.vue
+  业务规则:
+  1. D1: 表格固定列 — 序号/状态/订单编号/行项目/物料号/物料名称列添加 fixed="left"
+  2. D5: 发货默认数量 — el-input-number 默认值改为 row.remainingQuantity
+  3. D26: 确认弹窗补物料品牌列
+  验证: npm run build 无 TS 错误；浏览器验证固定列效果
+```
+
+### 复用接口的页面：不重复创建后端
+
+如果多个页面共用同一个后端接口（如订单台账和我的订单共用 `/order/list`），**后续页面的 plan 不得再创建独立的 Controller/Service/Mapper**。正确做法：
+
+```
+# 订单台账 plan
+
+Task 1: 前端差异修复（D16-D18 搜索字段修正 + D19 导出格式）
+  创建/修改文件: orderLedger.vue
+  业务规则:
+  1. D16: 公司名称改为文本输入（与 myOrder 一致）
+  2. D17: 高级搜索补充供应商证件号字段
+  3. D18: 高级搜索去掉重复的公司名称弹框，改为公司代码
+  4. D19: 导出改为 proxy.download + xlsx
+  注意: 后端接口复用 OrderController（my-order 阶段已实现），无额外后端开发
+```
+
+不合格的做法（重复造后端）：
+```
+Task 1: 创建 OrderLedgerMapper + IOrderLedgerService + OrderLedgerController ← 查同一张表，不需要独立 Mapper/Service
 ```
 
 ### 禁止按技术层横切
@@ -180,7 +225,9 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 自检方式：
 1. 列出后端详细设计中所有 Controller → 每个 Controller 都有对应 Task，且 Task 内包含完整的 Entity/Mapper/Service 链路
 2. 列出前端详细设计中所有页面 → 每个页面都有对应 Task
-3. 如有遗漏，补充 Task 后再保存
+3. **逐条扫描 diff.md 的 D1-D{N}** → 每个 Dx 都能在 Plan 中找到对应 Task。特别注意影响范围为"前端"的 Dx，这些经常被遗漏
+4. 检查 index.md 的 API 映射：如果多个页面共用同一接口（如"是否共享 = 是"），后续页面不得重复创建 Controller/Service/Mapper
+5. 如有遗漏，补充 Task 后再保存
 
 ## Plan Generation Flow（按页面生成 plan）
 
@@ -287,6 +334,11 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 - Create: `exact/path/to/NewFile.java`
 - Modify: `exact/path/to/existing.java` — 添加 XXX 方法
 - Test: `exact/path/to/test/NewFileTest.java`
+- Copy: `src/views/xxx/detail.vue` ← 原型新增，开发项目不存在（diff F2）
+- Overwrite: `src/views/xxx/index.vue` ← 原型修改，开发项目无本地改动（diff F3）
+- Merge: `src/views/xxx/list.vue` ← 原型修改，开发项目有本地改动（diff F1）
+  - 原型变更要点: [从 diff 中摘要原型改了什么]
+  - 保留: [开发项目本地改动中需保留的部分]
 
 **业务规则**:
 1. [用自然语言描述规则，一条一行]
@@ -307,14 +359,14 @@ git commit -m "feat: [描述]"
 
 ### Task 6 要素说明
 
-| 要素 | 作用 | 弱模型为什么需要 |
-|------|------|-----------------|
-| **参考文件** | 执行者先读真实代码，学到 import、基类、注解、命名规范 | 比抄 plan 里的代码更可靠，不会出现 import 错误 |
-| **设计文档引用** | 字段、接口、规则已在详细设计中，不重复 | 减少 plan 体积，避免 plan 和 design 不一致 |
-| **业务规则** | 自然语言描述 WHAT，执行者翻译成 HOW | 弱模型翻译规则比理解 200 行代码更可靠 |
-| **创建/修改文件** | 精确路径，不猜测 | 消除路径歧义 |
-| **验证步骤** | 机械检查，明确的"完成"信号 | 执行者知道什么时候可以标 completed |
-| **依赖关系** | 防止跳步 | 避免引用不存在的类/表 |
+| 要素 | 作用 |
+|------|------|
+| **参考文件** | 执行者先读真实代码，学到 import、基类、注解、命名规范 |
+| **设计文档引用** | 字段、接口、规则已在详细设计中，不重复 |
+| **业务规则** | 自然语言描述 WHAT，执行者翻译成 HOW |
+| **创建/修改文件** | 精确路径，不猜测；涉及原型文件时标注合并策略（Copy/Overwrite/Merge）和 diff 编号（Fx） |
+| **验证步骤** | 机械检查，明确的"完成"信号 |
+| **依赖关系** | 防止跳步 |
 
 ### 什么可以写在 Task 里
 
@@ -322,91 +374,47 @@ git commit -m "feat: [描述]"
 - 关键的非显而易见的技术要点（如"用 `@Transactional` 包裹状态更新和发货记录创建"）
 - 特殊的数据结构或算法描述（如"内存分页：先全量查询 SAP，再 subList 截取"）
 - 验证命令和预期输出
+- 原型文件合并策略（Copy/Overwrite/Merge）和对应的 diff 变更文件清单编号（Fx）
 
 ### 什么不要写在 Task 里
 
 - 完整的类实现代码（参考文件 + 业务规则足够）
 - Getter/Setter/ToString 等样板代码
-- 完整的 SQL DDL（设计文档里已有）
+- 完整的 SQL DDL（设计文档里已有，用 `Design: backend-detail-design.md Section 5.1` 引用）
+- 完整的查询 SQL（设计文档 Section 7 已有，引用即可；Task 中只写关键的 WHERE 条件说明）
 - 完整的 MyBatis XML 映射文件
 - 完整的 import 列表（从参考文件学习）
 - 设计文档里已经写明的字段列表（直接引用 Section 编号）
+- **"同上"**：每个 Task 的参考文件必须列出完整路径，不得写"同上""同 Task 1"。执行者可能单独看某个 Task，看不到"上"是什么
 
 ## 反面示例
 
-以下 plan 输出**不合格**：
+**不合格：Task 里写完整代码**
 
 ```markdown
-### Task 2: 后端领域模型（Entity）
-
-Step 1: 创建 Order 实体类
-
+### Task 2: 后端领域模型
 ​```java
-package com.ruoyi.system.domain;
-// ... 100 行完整实现 ...
 public class Order extends BaseEntity {
-    private Long id;
-    private String orderNo;
-    // ... 30 个字段 ...
-    // ... 30 个 getter/setter ...
-    // ... toString ...
+    // ... 100 行完整实现 ...
 }
 ​```
 ```
 
-为什么不合格：
-- 把完整代码塞进 plan 浪费 context，导致后续 Task 被省略
-- getter/setter 是样板代码，不需要出现在 plan 里
-- 字段列表在设计文档 Section 4.2 已经定义，不应重复
-
-**合格的写法**：
+**合格：导航图 + 引用**
 
 ```markdown
-### Task 2: 后端领域模型（Entity）
+### Task 2: 后端领域模型
 
-**依赖**: Task 1（数据库表）
-
-**参考文件**:
-- Pattern: `com/ruoyi/system/domain/SysUser.java` — BaseEntity 继承、@Excel 注解
-- Design: `backend-detail-design.md` Section 4.2 — 字段定义
-
-**创建文件**:
-- `ruoyi-system/src/main/java/com/ruoyi/system/domain/Order.java`
-- `ruoyi-system/src/main/java/com/ruoyi/system/domain/DeliveryRecord.java`
-- `ruoyi-system/src/main/java/com/ruoyi/system/domain/Inventory.java`
-
-**业务规则**:
-1. Order 和 DeliveryRecord 继承 BaseEntity，Inventory 不继承（SAP 实时数据，不持久化）
-2. 所有金额/数量字段用 BigDecimal(13,3)
-3. 日期字段加 @JsonFormat(pattern="yyyy-MM-dd")，导出字段加 @Excel 注解
-4. isReturnOrder 用 Boolean 映射 TINYINT(1)
-
+**参考文件**: `com/ruoyi/system/domain/SysUser.java`（BaseEntity 继承、@Excel 注解）
+**设计**: `backend-detail-design.md` Section 4.2 — 字段定义
+**创建文件**: `.../domain/Order.java`, `.../domain/DeliveryRecord.java`
+**业务规则**: 金额用 BigDecimal(13,3)；日期加 @JsonFormat；isReturnOrder 用 Boolean
 **验证**: `mvn compile -q -pl ruoyi-system` → BUILD SUCCESS
-
-**提交**: `git commit -m "feat: 创建订单库存领域模型"`
 ```
 
-还有一种不合格——**按技术层横切导致模块断层**：
+**不合格：按技术层横切** → Task 3 写所有 Mapper，Task 7 写所有 Controller（模块断层，无法逐步验证）
 
-```markdown
-### Task 3: Mapper 接口（Order + DeliveryRecord）
-### Task 7: Controller（Order + DeliveryRecord + ConsignmentInventory）
-```
-
-为什么不合格：
-- Task 3 只创建了 Order 和 DeliveryRecord 的 Mapper，ConsignmentInventory 的 Mapper 被遗漏
-- Task 7 的 ConsignmentInventoryController 注入 Service 时编译失败，因为没有任何 Task 创建它的 Service/Mapper
-- 应改为按接口维度切：每个模块的全链路放在同一个 Task 里
-
-还有一种不合格——**省略 Task**：
-
-```markdown
-### Task 5-12（省略，按设计文档实现）
-```
-
-为什么不合格：
-- 跳过了 8 个 Task，执行者无法工作
-- 省略的原因是前面的 Task 写了太多代码占满了 context
+**不合格：省略 Task** → `Task 5-12（省略，按设计文档实现）`
 
 ## Remember
 - 精确的文件路径
@@ -428,40 +436,27 @@ Plan 保存前必须逐项自检：
 | 2 | 前端详细设计中每个页面 → Plan 中有对应 Task | ✅/❌ |
 | 3 | 后端详细设计 Section 4.3 中每个 DTO → Plan 中有创建文件项 | ✅/❌ |
 | 4 | Plan 中无占位符值（`XXX`、`???`、`TODO_ID`、未替换的 `{{xx}}`） | ✅/❌ |
-| 5 | diff.md 中每个差异 Dx → Plan 中有对应 Task 处理 | ✅/❌ |
-| 6 | 参考文件路径全部为真实存在的文件（用 Glob 验证） | ✅/❌ |
+| 5 | diff.md 中每个差异 Dx → Plan 中有对应 Task 处理（**包括影响范围为"前端"的 Dx**，逐条核对不得遗漏） | ✅/❌ |
+| 6 | 参考文件路径全部为真实存在的文件（用 Glob 验证），**无"同上"** | ✅/❌ |
+| 7 | Task 中**无完整 SQL DDL / 查询 SQL**（应引用设计文档 Section 编号），每个 Task ≤ 60 行 | ✅/❌ |
+| 8 | index.md 页面清单**无重复行**（每个 page-slug 只出现一次） | ✅/❌ |
+| 9 | **共享接口去重**：index.md API 映射中标记"是否共享=是"的接口，后续页面 plan 不得重复创建 Controller/Service/Mapper | ✅/❌ |
 
 任一项为 ❌ → 补全后再保存。
 
 ## Execution Handoff
 
-After saving all page plans and updating index.md, offer execution choice:
-
-**"Plan complete. Page plans saved to:**
+After saving all page plans and updating index.md:
 
 ```
-docs/plans/<task>/
-  shared-plan.md (N tasks)
-  <page1>/plan.md (N tasks)
-  <page2>/plan.md (N tasks)
+Plan complete. Page plans saved to:
+  docs/plans/<task>/shared-plan.md (N tasks)
+  docs/plans/<task>/<page1>/plan.md (N tasks)
   ...
-
 Master index updated: docs/plans/<task>/index.md
 ```
 
-**Two execution options:**
+Offer execution choice (详见 CLAUDE.md §1 执行模式选择):
 
-**1. Subagent-Driven (this session)** - I dispatch fresh subagent per task, review between tasks, fast iteration
-
-**2. Parallel Session (separate)** - Open new session with executing-plans, batch execution with checkpoints
-
-**Which approach?"**
-
-**If Subagent-Driven chosen:**
-- **REQUIRED SUB-SKILL:** Use superpowers:subagent-driven-development
-- Stay in this session
-- Fresh subagent per task + code review
-
-**If Parallel Session chosen:**
-- Guide them to open new session in worktree
-- **REQUIRED SUB-SKILL:** New session uses superpowers:executing-plans
+1. **Subagent-Driven (this session)** → `superpowers:subagent-driven-development`
+2. **Parallel Session (separate)** → `superpowers:executing-plans`

@@ -25,7 +25,7 @@ If the user message contains any of these signals:
 
 - `PRD` / `需求文档` / `requirement doc`
 - `差异分析` / `差异扫描` / `页面核对` / `对照现状` / `compare PRD with implementation`
-- explicit file paths such as `prd/...`, `docs/...-prd.md`, `ruoyi-ui/`, `src/`, or module directories that indicate “requirement path + implementation path”
+- explicit file paths such as `prd/...`, `docs/...-prd.md`, `ruoyi-ui/`, `src/`, or module directories that indicate "requirement path + implementation path"
 
 Then your **first action** must be:
 
@@ -78,6 +78,29 @@ digraph skill_flow {
 }
 ```
 
+## Skill Priority
+
+When multiple skills could apply, use this order:
+
+1. **Process skills first** (brainstorming, debugging, prd-diff-scan) - these determine HOW to approach the task
+2. **Implementation skills second** (frontend-design, mcp-builder) - these guide execution
+
+"Let's build X" + has PRD → prd-diff-scan first, then brainstorming.
+"Let's build X" + no PRD → brainstorming directly.
+"Fix this bug" → debugging first, then domain-specific skills.
+"Analyze this PRD" → prd-diff-scan directly.
+"Compare PRD with current implementation" → prd-diff-scan directly.
+"对照 PRD 看看差异" → `prd-diff-scan` 直接优先。
+"做页面差异分析 / 差异扫描" → `prd-diff-scan` 直接优先。
+"需求文档在 `prd/...`，UI 项目在 `ruoyi-ui/`" → 即使没点名 skill，也必须先走 `prd-diff-scan`。
+
+"帮我出后端详细设计" → 在设计阶段使用 `spec/backend/java/detail-design-template.md` 并落盘。
+"帮我出前端详细设计" → 在设计阶段使用 `spec/frontend/vue/detail-design-template.md` 并落盘。
+
+**writing-plans 不是入口 skill。** 它只能在 brainstorming 产出设计文档之后使用。如果 `docs/plans/*/index.md` 不存在，不要选 writing-plans，应该先走 brainstorming。
+
+If the user mentions **PRD / 差异分析 / 页面核对 / 对照现状**, bias strongly toward `prd-diff-scan` before any design or implementation skill.
+
 ## Red Flags
 
 These thoughts mean STOP—you're rationalizing:
@@ -97,27 +120,6 @@ These thoughts mean STOP—you're rationalizing:
 | "This feels productive" | Undisciplined action wastes time. Skills prevent this. |
 | "I know what that means" | Knowing the concept ≠ using the skill. Invoke it. |
 | "I'll read the PRD first" | Wrong. `prd-diff-scan` must be invoked before `Read`/`Glob`. |
-
-## Skill Priority
-
-When multiple skills could apply, use this order:
-
-1. **Process skills first** (brainstorming, debugging, prd-diff-scan) - these determine HOW to approach the task
-2. **Implementation skills second** (frontend-design, mcp-builder) - these guide execution
-
-"Let's build X" + has PRD → prd-diff-scan first, then brainstorming.
-"Let's build X" + no PRD → brainstorming directly.
-"Fix this bug" → debugging first, then domain-specific skills.
-“Analyze this PRD” → prd-diff-scan directly.
-“Compare PRD with current implementation” → prd-diff-scan directly.
-“对照 PRD 看看差异” → `prd-diff-scan` 直接优先。
-“做页面差异分析 / 差异扫描” → `prd-diff-scan` 直接优先。
-“需求文档在 `prd/...`，UI 项目在 `ruoyi-ui/`” → 即使没点名 skill，也必须先走 `prd-diff-scan`。
-
-“帮我出后端详细设计” → 在设计阶段使用 `spec/backend/java/detail-design-template.md` 并落盘。
-“帮我出前端详细设计” → 在设计阶段使用 `spec/frontend/vue/detail-design-template.md` 并落盘。
-
-If the user mentions **PRD / 差异分析 / 页面核对 / 对照现状**, bias strongly toward `prd-diff-scan` before any design or implementation skill.
 
 ## Skill Types
 
