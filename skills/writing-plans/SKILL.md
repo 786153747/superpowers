@@ -346,8 +346,8 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 3. [边界情况和异常处理]
 
 **验证**:
-1. `mvn compile -q` → BUILD SUCCESS
-2. `mvn test -Dtest=XxxTest -pl module-name` → ALL PASS
+1. （编译延迟：`mvn compile` 在所有后端 Task 完成后统一执行，见 CLAUDE.md Rule 5，此处跳过）
+2. `mvn test -Dtest=XxxTest -pl module-name` → ALL PASS（如有单元测试）
 3. [其他验证步骤]
 
 **提交**:
@@ -409,7 +409,7 @@ public class Order extends BaseEntity {
 **设计**: `backend-detail-design.md` Section 4.2 — 字段定义
 **创建文件**: `.../domain/Order.java`, `.../domain/DeliveryRecord.java`
 **业务规则**: 金额用 BigDecimal(13,3)；日期加 @JsonFormat；isReturnOrder 用 Boolean
-**验证**: `mvn compile -q -pl ruoyi-system` → BUILD SUCCESS
+**验证**: （编译延迟，见 CLAUDE.md Rule 5）
 ```
 
 **不合格：按技术层横切** → Task 3 写所有 Mapper，Task 7 写所有 Controller（模块断层，无法逐步验证）
