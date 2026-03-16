@@ -2,12 +2,10 @@
 
 Use this template when dispatching a spec compliance reviewer subagent.
 
-**Purpose:** Verify implementer built what was requested (nothing more, nothing less), cross-layer consistency is correct, UI behavior matches design, error paths are covered, permissions are aligned end-to-end, and no cross-module side effects are introduced.
+**Purpose:** Verify implementer built what was requested (nothing more, nothing less), and cross-layer consistency is correct.
 
 ```
-Agent tool:
-  model: "sonnet"        # REQUIRED: pass as Agent tool `model` parameter
-  subagent_type: "general-purpose"
+Task tool (general-purpose):
   description: "Review spec compliance for Task N"
   prompt: |
     You are reviewing whether an implementation matches its specification.
@@ -83,7 +81,6 @@ Agent tool:
     - Are parameter types consistent (e.g., backend expects Long but frontend sends String)?
     - Are required/optional parameters consistent between frontend and backend?
     - Are enum values / dict codes consistent between frontend and backend?
-    - Dict data full-chain consistency: SQL (`sys_dict_data` entries) → backend constants/enums → frontend dict rendering (`<el-dict-tag>` / `<el-select>` with dict options) — all three layers must use the same `dict_type` and value set
     - Any parameter that backend defines but frontend never uses, or vice versa?
 
     ### Dimension 4: SQL Fields vs Backend Entity
@@ -97,56 +94,13 @@ Agent tool:
     - Any column in SQL that has no corresponding entity field, or vice versa?
     - Do MyBatis mapper XML column lists match the actual SQL table definition?
 
-    ### Dimension 5: Frontend UI Behavior vs Detail Design
-
-    Read the frontend detail design document and compare against actual frontend code:
-
-    - Does the form layout match the design (field order, grid/column arrangement, grouping)?
-    - Are required-field markers (`*`) and validation rules consistent with design (required/optional, length limits, format regex)?
-    - Are validation error messages displayed as designed?
-    - Do conditional show/hide rules work as designed (e.g., "hide button X when status = Y")?
-    - Do table columns match the design (column order, header text, formatting — date/currency/dict-tag rendering)?
-    - Are empty states, loading states, and disabled states handled as designed?
-
-    ### Dimension 6: Error Paths and Exception Handling
-
-    Verify error/exception scenarios are handled as designed, not just the happy path:
-
-    - Does the frontend show proper error messages when API returns errors?
-    - Does the backend return error codes/messages as specified in the design?
-    - Are boundary conditions handled (empty list, max-length input, concurrent operations)?
-    - Are delete/update operations on referenced data properly guarded (e.g., foreign key constraints, "in use" checks)?
-    - Are there edge cases the design explicitly mentions that the implementation missed?
-
-    ### Dimension 7: Route / Menu / Permission Full-Chain Consistency
-
-    For RuoYi projects, permissions span three layers that must be aligned:
-
-    - Menu SQL `perms` value → backend `@PreAuthorize("@ss.hasPermi('xxx')")` annotation → frontend `v-hasPermi="['xxx']"` directive — all three must use the exact same permission string
-    - Frontend route path → menu SQL `path` / `component` fields — must match
-    - Every button-level permission in the frontend must have a corresponding menu SQL record (type = button)
-    - New menus must have correct `parent_id`, `order_num`, `menu_type` in the SQL insert
-
-    ### Dimension 8: Cross-Module Side Effects
-
-    Check whether the implementation affects existing functionality outside the current task scope:
-
-    - If shared components/utils were modified, are other callers still working correctly?
-    - Do new routes/menus conflict with existing ones (duplicate paths, overlapping permission strings)?
-    - Do database schema changes (column add/rename/drop) break other modules' queries or mapper XML?
-    - Are shared resources (dict types, config keys, i18n keys) introduced without conflicting with existing ones?
-
     **Verify by reading code, not by trusting report.**
 
     Report:
-    - ✅ Spec compliant (if all 8 dimensions pass after code inspection)
+    - ✅ Spec compliant (if all 4 dimensions pass after code inspection)
     - ❌ Issues found: [list specifically per dimension, with file:line references]
       - D1 (Requirements): ...
       - D2 (Business Logic): ...
       - D3 (Backend↔Frontend): ...
       - D4 (SQL↔Backend): ...
-      - D5 (Frontend UI): ...
-      - D6 (Error Paths): ...
-      - D7 (Permission Chain): ...
-      - D8 (Side Effects): ...
 ```

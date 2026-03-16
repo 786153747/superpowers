@@ -3,55 +3,205 @@ name: using-superpowers
 description: Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response including clarifying questions
 ---
 
+<EXTREMELY-IMPORTANT>
+If you think there is even a 1% chance a skill might apply to what you are doing, you ABSOLUTELY MUST invoke the skill.
+
+IF A SKILL APPLIES TO YOUR TASK, YOU DO NOT HAVE A CHOICE. YOU MUST USE IT.
+
+This is not negotiable. This is not optional. You cannot rationalize your way out of this.
+</EXTREMELY-IMPORTANT>
+
+## How to Access Skills
+
+**In Claude Code:** Use the `Skill` tool. When you invoke a skill, its content is loaded and presented to you—follow it directly. Never use the Read tool on skill files.
+
+**In other environments:** Check your platform's documentation for how skills are loaded.
+
+## Immediate Routing
+
+**Do this before ANY tool call.**
+
+If the user message contains any of these signals:
+
+- `PRD` / `需求文档` / `requirement doc`
+- `差异分析` / `差异扫描` / `页面核对` / `对照现状` / `compare PRD with implementation`
+- explicit file paths such as `prd/...`, `docs/...-prd.md`, `ruoyi-ui/`, `src/`, or module directories that indicate “requirement path + implementation path”
+
+Then your **first action** must be:
+
+1. Invoke `Skill("superpowers:prd-diff-scan")`
+2. Do **NOT** use `Read`, `Glob`, `Grep`, `Task`, or `brainstorming` first
+3. Only after `docs/plans/*/diff.md` exists may you move to `brainstorming`
+
+If the user also asks for design or implementation in the same message, this routing still wins.
+Skipping this routing = workflow failure.
+
+The user does **not** need to explicitly say "use prd-diff-scan". If they provide a requirement file path plus a project/module path, you must infer `prd-diff-scan` automatically.
+
+If the user later asks for **详细设计**, keep the same workflow order: `prd-diff-scan` first when PRD is present, then `brainstorming`, then save the detailed design by following the matching template under `spec/`.
+
+If the user explicitly says this is an automated/non-interactive test and pre-approves the recommended path, the workflow order stays the same, but the agent may continue across confirmation gates until documents are written to disk.
+
 # Using Skills
 
 ## The Rule
 
-**Invoke relevant or requested skills BEFORE any response or action.** If a skill might apply (even partially), invoke it first. If it turns out to be wrong, you don't need to use it.
+**Invoke relevant or requested skills BEFORE any response or action.** Even a 1% chance a skill might apply means that you should invoke the skill to check. If an invoked skill turns out to be wrong for the situation, you don't need to use it.
 
-In Claude Code, use the `Skill` tool. When you invoke a skill, its content is loaded and presented to you—follow it directly. Never use the Read tool on skill files.
+```dot
+digraph skill_flow {
+    "User message received" [shape=doublecircle];
+    "About to EnterPlanMode?" [shape=doublecircle];
+    "Already brainstormed?" [shape=diamond];
+    "Invoke brainstorming skill" [shape=box];
+    "Might any skill apply?" [shape=diamond];
+    "Invoke Skill tool" [shape=box];
+    "Announce: 'Using [skill] to [purpose]'" [shape=box];
+    "Has checklist?" [shape=diamond];
+    "Create TodoWrite todo per item" [shape=box];
+    "Follow skill exactly" [shape=box];
+    "Respond (including clarifications)" [shape=doublecircle];
 
-## Immediate Routing
+    "About to EnterPlanMode?" -> "Already brainstormed?";
+    "Already brainstormed?" -> "Invoke brainstorming skill" [label="no"];
+    "Already brainstormed?" -> "Might any skill apply?" [label="yes"];
+    "Invoke brainstorming skill" -> "Might any skill apply?";
 
-**Do this before ANY tool call.** Routing rules are defined in CLAUDE.md §1. Key rules:
-
-- User provides PRD / requirement doc + `docs/plans/*/diff.md` doesn't exist → **must invoke `prd-diff-scan` first**
-- User provides PRD path or implementation directory → infer `prd-diff-scan` automatically
-- "帮我出详细设计" → follow the full workflow: prd-diff-scan (if PRD) → brainstorming → save design using spec template
-
-If the user also asks for design or implementation in the same message, routing still wins. Skipping routing = workflow failure.
-
-## Skill Priority
-
-When multiple skills could apply:
-
-1. **Process skills first** (prd-diff-scan, brainstorming, debugging) — determine HOW to approach
-2. **Implementation skills second** (executing-plans, subagent-driven-development) — guide execution
-
-Quick reference:
-
-| Signal | Skill |
-|--------|-------|
-| Has PRD / "差异分析" / "页面核对" | `prd-diff-scan` first |
-| "Let's build X" + no PRD | `brainstorming` directly |
-| "Fix this bug" | `systematic-debugging` first |
-| "帮我出后端详细设计" | `brainstorming` (uses `spec/backend/java/detail-design-template.md`) |
-| "帮我出前端详细设计" | `brainstorming` (uses `spec/frontend/vue/detail-design-template.md`) |
-| "写计划" / "拆任务" | `writing-plans` — **但必须先有 design docs 和 index.md** |
-
-**writing-plans 不是入口 skill。** 它只能在 brainstorming 产出设计文档之后使用。如果 `docs/plans/*/index.md` 不存在，不要选 writing-plans，应该先走 brainstorming。
+    "User message received" -> "Might any skill apply?";
+    "Might any skill apply?" -> "Invoke Skill tool" [label="yes, even 1%"];
+    "Might any skill apply?" -> "Respond (including clarifications)" [label="definitely not"];
+    "Invoke Skill tool" -> "Announce: 'Using [skill] to [purpose]'";
+    "Announce: 'Using [skill] to [purpose]'" -> "Has checklist?";
+    "Has checklist?" -> "Create TodoWrite todo per item" [label="yes"];
+    "Has checklist?" -> "Follow skill exactly" [label="no"];
+    "Create TodoWrite todo per item" -> "Follow skill exactly";
+}
+```
 
 ## Red Flags
 
-These thoughts mean STOP — you're rationalizing:
+These thoughts mean STOP—you're rationalizing:
 
 | Thought | Reality |
 |---------|---------|
 | "This is just a simple question" | Questions are tasks. Check for skills. |
+| "I need more context first" | Skill check comes BEFORE clarifying questions. |
 | "Let me explore the codebase first" | Skills tell you HOW to explore. Check first. |
-| "I'll just read the PRD first" | `prd-diff-scan` must be invoked before `Read`/`Glob`. |
-| "I remember this skill" | Skills evolve. Read current version via Skill tool. |
+| "I can check git/files quickly" | Files lack conversation context. Check for skills. |
+| "Let me gather information first" | Skills tell you HOW to gather information. |
+| "This doesn't need a formal skill" | If a skill exists, use it. |
+| "I remember this skill" | Skills evolve. Read current version. |
+| "This doesn't count as a task" | Action = task. Check for skills. |
+| "The skill is overkill" | Simple things become complex. Use it. |
+| "I'll just do this one thing first" | Check BEFORE doing anything. |
+| "This feels productive" | Undisciplined action wastes time. Skills prevent this. |
+| "I know what that means" | Knowing the concept ≠ using the skill. Invoke it. |
+| "I'll read the PRD first" | Wrong. `prd-diff-scan` must be invoked before `Read`/`Glob`. |
+
+## Skill Priority
+
+When multiple skills could apply, use this order:
+
+1. **Process skills first** (brainstorming, debugging, prd-diff-scan) - these determine HOW to approach the task
+2. **Implementation skills second** (frontend-design, mcp-builder) - these guide execution
+
+"Let's build X" + has PRD → prd-diff-scan first, then brainstorming.
+"Let's build X" + no PRD → brainstorming directly.
+"Fix this bug" → debugging first, then domain-specific skills.
+“Analyze this PRD” → prd-diff-scan directly.
+“Compare PRD with current implementation” → prd-diff-scan directly.
+“对照 PRD 看看差异” → `prd-diff-scan` 直接优先。
+“做页面差异分析 / 差异扫描” → `prd-diff-scan` 直接优先。
+“需求文档在 `prd/...`，UI 项目在 `ruoyi-ui/`” → 即使没点名 skill，也必须先走 `prd-diff-scan`。
+
+“帮我出后端详细设计” → 在设计阶段使用 `spec/backend/java/detail-design-template.md` 并落盘。
+“帮我出前端详细设计” → 在设计阶段使用 `spec/frontend/vue/detail-design-template.md` 并落盘。
+
+If the user mentions **PRD / 差异分析 / 页面核对 / 对照现状**, bias strongly toward `prd-diff-scan` before any design or implementation skill.
+
+## Skill Types
+
+**Rigid** (TDD, debugging): Follow exactly. Don't adapt away discipline.
+
+**Flexible** (patterns): Adapt principles to context.
+
+The skill itself tells you which.
 
 ## User Instructions
 
 Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
+
+## 会话开始强制流程（Task 跟踪）
+
+**每次会话开始后、执行任何实质性工作前**，必须按以下顺序执行：
+
+### 第一步：创建合规检查任务
+
+```
+TaskCreate {
+  subject: "CLAUDE.md 合规检查",
+  description: "检查清单：
+    1. Section 7 - 技能调用：修改源码前是否调用 using-git-worktrees？
+    2. Section 7 - 子代理执行：执行 plan 是否调用 subagent-driven-development？
+    3. Section 6 - 延迟编译：是否在所有后端完成后才统一编译？
+    4. Section 6 - 延迟审查：是否在所有任务完成后一次性审查？
+    5. using-superpowers：开始前是否调用此 skill 检查？",
+  activeForm: "检查 CLAUDE.md 合规性"
+}
+```
+
+### 第二步：设置任务为 in_progress 并执行检查
+
+```
+TaskUpdate { taskId: "1", status: "in_progress" }
+```
+
+然后逐项检查，输出检查表：
+
+```
+| 检查项 | CLAUDE.md Section | 通过？ | 证据/备注 |
+|--------|------------------|-------|-----------|
+| 技能调用 | Section 7 | ✅/❌ | ... |
+| 子代理执行 | Section 7 | ✅/❌ | ... |
+| 延迟编译 | Section 6 | ✅/❌ | ... |
+| 延迟审查 | Section 6 | ✅/❌ | ... |
+| using-superpowers | using-superpowers skill | ✅/❌ | ... |
+```
+
+### 第三步：合规检查通过后标记 completed
+
+只有所有检查项都 ✅（或用户明确确认可以跳过某些项），才能：
+
+```
+TaskUpdate { taskId: "1", status: "completed" }
+```
+
+### 第四步：创建工作任务（依赖于合规检查）
+
+```
+TaskCreate {
+  subject: "执行 XXX/plan.md",
+  description: "...",
+  blockedBy: ["1"]  // 依赖于合规检查任务
+}
+```
+
+### 时间追踪更新规则
+
+每次更新 `plan.md` 的任务状态时，**必须同时更新**时间追踪字段（填写当前实际时间，不是固定字符串）：
+
+| 字段 | 何时填写 |
+|------|---------|
+| 开始时间 | 任务设为 in_progress 时（填写当前实际时间，如 `2026-03-16 10:30`） |
+| 完成时间 | 任务设为 completed 时（填写当前实际时间，如 `2026-03-16 11:15`） |
+| 耗时 | 任务完成时计算（完成时间 - 开始时间，如 `45 分钟`） |
+
+**禁止只更新状态列而不更新时间追踪字段。**
+
+
+### 违反后果
+
+违反上述任何一条 = 流程失败，必须：
+
+1. 回退相关代码修改
+2. 重新执行完整流程（包括 worktree + subagent）
