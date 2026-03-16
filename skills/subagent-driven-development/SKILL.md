@@ -60,57 +60,63 @@ If you catch yourself writing implementation code instead of dispatching a subag
 
 ## The Process
 
-```dot
-digraph process {
-    rankdir=TB;
+### Startup (once)
 
-    subgraph cluster_per_task {
-        label="Per Task";
-        "Dispatch implementer subagent (./implementer-prompt.md)" [shape=box];
-        "Implementer subagent asks questions?" [shape=diamond];
-        "Answer questions, provide context" [shape=box];
-        "Implementer subagent implements, tests, commits, self-reviews" [shape=box];
-        "Run compilation check (controller, no subagent)" [shape=box style=filled fillcolor=lightyellow];
-        "Compilation passes?" [shape=diamond];
-        "Implementer subagent fixes compilation errors" [shape=box];
-        "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [shape=box];
-        "Spec reviewer subagent confirms code matches spec?" [shape=diamond];
-        "Implementer subagent fixes spec gaps" [shape=box];
-        "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [shape=box];
-        "Code quality reviewer subagent approves?" [shape=diamond];
-        "Implementer subagent fixes quality issues" [shape=box];
-        "Mark task complete in TodoWrite" [shape=box];
-    }
+1. Read `index.md` → find first page with 实施状态 = 未开始
+2. Read that page's `plan.md` (or `shared-plan.md`)
+3. Extract ALL tasks with full text — do not make subagents read plan files
+4. Create TodoWrite with all tasks
 
-    "Read plan, extract all tasks with full text, note context, create TodoWrite" [shape=box];
-    "More tasks remain?" [shape=diamond];
-    "Dispatch final code reviewer subagent for entire implementation" [shape=box];
-    "Use superpowers:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
+### Per-Task Loop (MANDATORY — every task, no exceptions)
 
-    "Read plan, extract all tasks with full text, note context, create TodoWrite" -> "Dispatch implementer subagent (./implementer-prompt.md)";
-    "Dispatch implementer subagent (./implementer-prompt.md)" -> "Implementer subagent asks questions?";
-    "Implementer subagent asks questions?" -> "Answer questions, provide context" [label="yes"];
-    "Answer questions, provide context" -> "Dispatch implementer subagent (./implementer-prompt.md)";
-    "Implementer subagent asks questions?" -> "Implementer subagent implements, tests, commits, self-reviews" [label="no"];
-    "Implementer subagent implements, tests, commits, self-reviews" -> "Run compilation check (controller, no subagent)";
-    "Run compilation check (controller, no subagent)" -> "Compilation passes?";
-    "Compilation passes?" -> "Implementer subagent fixes compilation errors" [label="no"];
-    "Implementer subagent fixes compilation errors" -> "Run compilation check (controller, no subagent)" [label="re-compile"];
-    "Compilation passes?" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [label="yes"];
-    "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" -> "Spec reviewer subagent confirms code matches spec?";
-    "Spec reviewer subagent confirms code matches spec?" -> "Implementer subagent fixes spec gaps" [label="no"];
-    "Implementer subagent fixes spec gaps" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [label="re-review"];
-    "Spec reviewer subagent confirms code matches spec?" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="yes"];
-    "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" -> "Code quality reviewer subagent approves?";
-    "Code quality reviewer subagent approves?" -> "Implementer subagent fixes quality issues" [label="no"];
-    "Implementer subagent fixes quality issues" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="re-review"];
-    "Code quality reviewer subagent approves?" -> "Mark task complete in TodoWrite" [label="yes"];
-    "Mark task complete in TodoWrite" -> "More tasks remain?";
-    "More tasks remain?" -> "Dispatch implementer subagent (./implementer-prompt.md)" [label="yes"];
-    "More tasks remain?" -> "Dispatch final code reviewer subagent for entire implementation" [label="no"];
-    "Dispatch final code reviewer subagent for entire implementation" -> "Use superpowers:finishing-a-development-branch";
-}
-```
+**You MUST execute steps 1→2→3→4→5→6 in order. Skipping any step = process failure.**
+
+**Step 1: Dispatch implementer subagent**
+- Use Agent tool with `model: "sonnet"` and prompt from `./implementer-prompt.md`
+- If subagent asks questions → answer → let subagent continue
+- Wait for subagent to report back (implementation + self-review + commit)
+
+**Step 2: Gate 1 — Compilation check (controller runs directly)**
+- Run build command: `mvn compile -q -pl <modules>` (or equivalent)
+- MUST see exit code 0
+- Failure → dispatch implementer subagent to fix → re-compile
+
+<STOP-CHECK>
+STOP. Compilation passed, but you are NOT done. You have completed 1 of 3 gates.
+If you are about to update plan.md or move to the next task, YOU ARE SKIPPING 2 GATES.
+You MUST now proceed to Step 3 (spec review).
+</STOP-CHECK>
+
+**Step 3: Gate 2 — Dispatch spec reviewer subagent**
+- Use Agent tool with `model: "sonnet"` and prompt from `./spec-reviewer-prompt.md`
+- Controller reviewing code itself does NOT count — you MUST dispatch a subagent
+- Wait for subagent verdict
+- If ❌ → dispatch implementer subagent to fix → re-dispatch spec reviewer
+- If ✅ → proceed to Step 4
+
+**Step 4: Gate 3 — Dispatch code quality reviewer subagent**
+- Use Agent tool with `model: "sonnet"` and prompt from `./code-quality-reviewer-prompt.md`
+- Only after Gate 2 passes
+- Controller reviewing code itself does NOT count — you MUST dispatch a subagent
+- Wait for subagent verdict
+- If ❌ → dispatch implementer subagent to fix → re-dispatch code quality reviewer
+- If ✅ → proceed to Step 5
+
+**Step 5: Output Gate Evidence Block**
+- Output the Gate Evidence Block (see format below)
+- ALL 4 rows must show ✅ and "subagent dispatched: yes" (except Compilation which has no subagent)
+- If ANY row is missing or shows ❌ → go back and fix it before proceeding
+
+**Step 6: Mark task complete**
+- Only after Step 5 is output with all gates ✅
+- Update plan.md task status → ✅
+- Update index.md progress
+- Proceed to next task (back to Step 1)
+
+### After All Tasks
+
+1. Dispatch final code reviewer subagent for entire implementation
+2. Use `superpowers:finishing-a-development-branch`
 
 ## Prompt Templates
 
@@ -134,30 +140,30 @@ Controller (you) runs on the user's chosen model (typically Opus). Subagents use
 
 ## Hard Gates (Non-Negotiable)
 
-CRITICAL: These gates are sequential. Each MUST pass before proceeding to the next. Skipping ANY gate = process failure.
+These 3 gates are sequential. Each MUST pass before proceeding to the next. **Skipping ANY gate = process failure.**
+
+**Self-check: Count your Agent tool calls per task. Correct count = 3 minimum (1 implementer + 1 spec reviewer + 1 code quality reviewer). If you only dispatched 1 subagent + 1 compile, you skipped 2 gates.**
 
 ### Gate 1: Compilation
-- Controller runs build command directly (no subagent)
+- Controller runs build command directly (no subagent needed)
 - MUST see actual build output with exit 0
 - Failure → dispatch implementer subagent to fix → re-compile
 
-### Gate 2: Spec Compliance
-- MUST dispatch spec-reviewer subagent via Agent tool
+### Gate 2: Spec Compliance (MUST dispatch subagent)
+- Use Agent tool: `model: "sonnet"`, prompt from `./spec-reviewer-prompt.md`
 - Controller reviewing code itself does NOT satisfy this gate
 - Subagent must independently read code and verify against design docs
-- Use `./spec-reviewer-prompt.md` template
 - Failure → implementer subagent fixes → re-dispatch spec reviewer
 
-### Gate 3: Code Quality
-- MUST dispatch code-quality-reviewer subagent via Agent tool
+### Gate 3: Code Quality (MUST dispatch subagent)
+- Use Agent tool: `model: "sonnet"`, prompt from `./code-quality-reviewer-prompt.md`
 - Only after Gate 2 passes
 - Controller reviewing code itself does NOT satisfy this gate
-- Use `./code-quality-reviewer-prompt.md` template
 - Failure → implementer subagent fixes → re-dispatch code quality reviewer
 
-### Gate Evidence Block (Mandatory Output)
+### Gate Evidence Block (Hard Gate — blocks task completion)
 
-Before marking ANY task complete, output this block. Missing this block = task is NOT complete.
+**You CANNOT mark a task complete without outputting this block first.** If you are about to update plan.md without this block, STOP — you are skipping gates.
 
 ```
 ### Task N Gate Evidence
@@ -172,8 +178,10 @@ All gates ✅ → Task N COMPLETE
 Any gate ❌ → Task N remains IN PROGRESS
 ```
 
-Any row with "subagent dispatched: no" = gate NOT satisfied, regardless of any other claim.
-Model column must reflect the actual `model` parameter passed to the Agent tool. Compilation has no model (controller runs it directly).
+**Validation rules:**
+- Any row with "subagent dispatched: no" = gate NOT satisfied, regardless of any other claim
+- If Spec Review or Code Quality row is missing = task NOT complete
+- Model column must reflect the actual `model` parameter passed to the Agent tool
 
 ## Example Workflow
 
@@ -341,16 +349,12 @@ Done!
 **Failure Mode 1: Controller becomes implementer**
 The controller read existing code, fixed compilation errors, wrote new files, compiled successfully, and declared all tasks complete. NO subagents were dispatched — not for implementation, not for spec review, not for code quality review. The controller did everything itself and skipped all review gates.
 
-Why it happened: The SKILL.md described the process but didn't enforce it. The controller took a shortcut.
-
 How to detect: If you're writing implementation code (not build commands), you've become the implementer. STOP and dispatch a subagent instead.
 
-**Failure Mode 2: Compilation-only quality gate**
-The controller ran `mvn install -DskipTests`, saw it pass, and declared all tasks complete. Compilation passing only proves syntax is correct — it says nothing about business logic, spec compliance, or code quality.
+**Failure Mode 2: Compilation-only quality gate (MOST COMMON)**
+The per-task loop was: `Agent(implementer) → Bash(compile) → update plan.md → next task`. The controller dispatched implementer subagents and ran compilation checks, but NEVER dispatched spec reviewer or code quality reviewer subagents. Compilation only proves syntax — it says nothing about business logic or code quality. Result: 16 tasks "completed" with zero reviews, final verification found compilation errors the task-level checks missed.
 
-Why it happened: The controller treated "compiles" as "done" and skipped the two review stages entirely.
-
-How to detect: If your gate evidence block only has Compilation filled in, you've skipped 2 of 3 gates.
+How to detect: **Count your Agent tool calls per task.** If you only called Agent once (implementer) + Bash once (compile) + Edit (update status), you skipped 2 gates. Correct minimum = 3 Agent calls per task (implementer + spec reviewer + code quality reviewer).
 
 **Failure Mode 3: No plan status updates**
 The controller completed work but never updated `plan.md` task status table or `index.md` progress table. There's no record of what was done.
