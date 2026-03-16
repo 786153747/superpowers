@@ -118,6 +118,73 @@ digraph process {
 - `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
 - `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
 
+## Timing Instrumentation
+
+**Purpose:** Record wall-clock time for every step to identify bottlenecks.
+
+### How to Record
+
+At each measurement point, run:
+```bash
+date +%s
+```
+Store the result in a shell variable or note it down. Calculate duration = end - start.
+
+### Measurement Points (Per Task)
+
+| Point | When | Variable |
+|-------|------|----------|
+| `T_TASK_START` | Before dispatching implementer | `t0` |
+| `T_IMPL_END` | After implementer returns | `t1` |
+| `T_COMPILE_START` | Before running build command | `t2` |
+| `T_COMPILE_END` | After build finishes | `t3` |
+| `T_SPEC_START` | Before dispatching spec reviewer | `t4` |
+| `T_SPEC_END` | After spec reviewer returns | `t5` |
+| `T_QUALITY_START` | Before dispatching quality reviewer | `t6` |
+| `T_QUALITY_END` | After quality reviewer returns | `t7` |
+| `T_TASK_END` | After status updates complete | `t8` |
+
+**For fix loops:** If a gate fails and requires fix + re-review, record each iteration:
+- `T_FIX_N_START`, `T_FIX_N_END` — implementer fix
+- `T_REREVIEW_N_START`, `T_REREVIEW_N_END` — re-review
+
+### Timing Log File
+
+After each task completes, append to `timing.md` in the plan directory (same level as `plan.md`).
+
+Format:
+```markdown
+## Task N: [task name]
+
+| Phase | Start (epoch) | End (epoch) | Duration (s) | Duration (human) |
+|-------|--------------|------------|--------------|-----------------|
+| Implementation | {t0} | {t1} | {t1-t0} | {mm:ss} |
+| Compilation | {t2} | {t3} | {t3-t2} | {mm:ss} |
+| Spec Review | {t4} | {t5} | {t5-t4} | {mm:ss} |
+| Code Quality Review | {t6} | {t7} | {t7-t6} | {mm:ss} |
+| Status Updates | {t7} | {t8} | {t8-t7} | {mm:ss} |
+| **Total** | {t0} | {t8} | {t8-t0} | **{mm:ss}** |
+
+Fix loops: [none / N iterations, total Xs]
+```
+
+**Human-readable duration:** Convert seconds to `Xm Ys` format (e.g., `12m 34s`).
+
+### Controller Timing Protocol
+
+1. **Before dispatching implementer:** `date +%s` → save as `t0`
+2. **After implementer returns:** `date +%s` → save as `t1`
+3. **Before compilation:** `date +%s` → save as `t2`
+4. **After compilation:** `date +%s` → save as `t3`
+5. **Before spec reviewer:** `date +%s` → save as `t4`
+6. **After spec reviewer returns:** `date +%s` → save as `t5`
+7. **Before quality reviewer:** `date +%s` → save as `t6`
+8. **After quality reviewer returns:** `date +%s` → save as `t7`
+9. **After all status updates:** `date +%s` → save as `t8`
+10. **Append timing block** to `timing.md`
+
+**CRITICAL:** Timing is mandatory. Every task MUST have a timing block in `timing.md`. Missing timing = process violation.
+
 ## Hard Gates (Non-Negotiable)
 
 CRITICAL: These gates are sequential. Each MUST pass before proceeding to the next. Skipping ANY gate = process failure.
@@ -147,12 +214,13 @@ Before marking ANY task complete, output this block. Missing this block = task i
 
 ```
 ### Task N Gate Evidence
-| Gate | Status | Evidence |
-|------|--------|----------|
-| Implementation | ✅/❌ | subagent dispatched: [yes/no], report: [summary] |
-| Compilation | ✅/❌ | command: [cmd], exit code: [0/non-zero] |
-| Spec Review | ✅/❌ | subagent dispatched: [yes/no], verdict: [pass/fail + issues] |
-| Code Quality | ✅/❌ | subagent dispatched: [yes/no], verdict: [pass/fail + issues] |
+| Gate | Status | Duration | Evidence |
+|------|--------|----------|----------|
+| Implementation | ✅/❌ | Xm Ys | subagent dispatched: [yes/no], report: [summary] |
+| Compilation | ✅/❌ | Xm Ys | command: [cmd], exit code: [0/non-zero] |
+| Spec Review | ✅/❌ | Xm Ys | subagent dispatched: [yes/no], verdict: [pass/fail + issues] |
+| Code Quality | ✅/❌ | Xm Ys | subagent dispatched: [yes/no], verdict: [pass/fail + issues] |
+| **Total** | | **Xm Ys** | |
 
 All gates ✅ → Task N COMPLETE
 Any gate ❌ → Task N remains IN PROGRESS
@@ -196,12 +264,13 @@ Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
 Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
 
 ### Task 1 Gate Evidence
-| Gate | Status | Evidence |
-|------|--------|----------|
-| Implementation | ✅ | subagent dispatched: yes, report: Implemented install-hook command, 5/5 tests passing |
-| Compilation | ✅ | command: `npm run build`, exit code: 0 |
-| Spec Review | ✅ | subagent dispatched: yes, verdict: pass - all requirements met |
-| Code Quality | ✅ | subagent dispatched: yes, verdict: pass - clean code, good tests |
+| Gate | Status | Duration | Evidence |
+|------|--------|----------|----------|
+| Implementation | ✅ | 11m 23s | subagent dispatched: yes, report: Implemented install-hook command, 5/5 tests passing |
+| Compilation | ✅ | 2m 05s | command: `npm run build`, exit code: 0 |
+| Spec Review | ✅ | 8m 47s | subagent dispatched: yes, verdict: pass - all requirements met |
+| Code Quality | ✅ | 7m 12s | subagent dispatched: yes, verdict: pass - clean code, good tests |
+| **Total** | | **29m 27s** | |
 
 All gates ✅ → Task 1 COMPLETE
 
