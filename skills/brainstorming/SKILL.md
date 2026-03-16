@@ -197,7 +197,7 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 
 **Step 6b：后端详细设计**（Backend in scope 时执行，必须在 6a 之后）
 4. 写入并保存 `<task>/<page-slug>/backend-detail-design.md`
-5. **保存前必须通过模板头部自检清单**（12 项全部 ✅ 才可保存）
+5. **保存前必须通过模板头部自检清单**（14 项全部 ✅ 才可保存）
 6. 后端文档必须在「需求输入」中引用同目录下的前端详细设计路径
 
 **页面完成**

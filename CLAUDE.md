@@ -27,7 +27,7 @@ PRD/需求 → prd-diff-scan → brainstorming → writing-plans → executing-p
 
 ---
 
-## 10 条核心规则
+## 11 条核心规则
 
 1. **文档落盘**：diff.md、design.md、plan.md 必须保存到 `docs/plans/YYYY-MM-DD-<主题>/`，不能只在聊天中
 2. **逐轮确认**：brainstorming 每步完成后必须等用户确认，不得连续多步（除非用户明确授权自动模式）
@@ -39,6 +39,7 @@ PRD/需求 → prd-diff-scan → brainstorming → writing-plans → executing-p
 8. **Git Worktree**：执行计划前必须调用 `using-git-worktrees` 创建隔离工作区
 9. **子代理执行**：执行 plan 用 `subagent-driven-development`，每任务 fresh subagent
 10. **验证优先**：声称完成前必须调用 `verification-before-completion` 跑验证命令
+11. **详细设计无代码**：后端详细设计文档禁止包含 Java 代码块（`class`/`@`/`public`）、DDL SQL（`CREATE TABLE`）、MyBatis XML（`<select>`/`<if>`）。Entity/DTO 用字段表格、DB 用字段表格、查询用伪 SQL 纯文本。此规则在上下文压缩后仍必须遵守，参见模板 `spec/backend/java/detail-design-template.md` 自检清单第 14 条
 
 ---
 
