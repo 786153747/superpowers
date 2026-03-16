@@ -2,6 +2,8 @@
 
 Use this template when dispatching an implementer subagent.
 
+**Two modes:** The prompt template supports both pre-generated code (refine mode) and from-scratch mode. Include the "Pre-Generated Code" section only when pre-generation succeeded.
+
 ```
 Task tool (general-purpose):
   description: "Implement Task N: [task name]"
@@ -16,6 +18,28 @@ Task tool (general-purpose):
 
     [Scene-setting: where this fits, dependencies, architectural context]
 
+    ## Pre-Generated Code [INCLUDE ONLY IF PRE-GENERATION SUCCEEDED]
+
+    A fast LLM has pre-generated initial code for this task. The files are already
+    on disk at these paths:
+
+    [List each pre-generated file path]
+    - path/to/File1.java
+    - path/to/File2.java
+    - ...
+
+    **Your job is to REFINE this code, not rewrite it.** The pre-generated code
+    follows existing codebase patterns but may have issues:
+    - Missing or wrong imports
+    - Incorrect method signatures
+    - Business logic gaps
+    - Missing edge cases
+    - Style inconsistencies with the codebase
+
+    Start by reading each pre-generated file, then fix any issues you find.
+
+    [OMIT THIS SECTION IF PRE-GENERATION FAILED — subagent writes from scratch]
+
     ## Before You Begin
 
     If you have questions about:
@@ -29,7 +53,8 @@ Task tool (general-purpose):
     ## Your Job
 
     Once you're clear on requirements:
-    1. Implement exactly what the task specifies
+    1. [If pre-generated code exists] Read pre-generated files, identify issues, fix them
+       [If no pre-generated code] Implement from scratch exactly what the task specifies
     2. Write tests (following TDD if task says to)
     3. Verify implementation works
     4. Commit your work
@@ -70,7 +95,9 @@ Task tool (general-purpose):
     ## Report Format
 
     When done, report:
-    - What you implemented
+    - Mode: [refine pre-generated / from scratch]
+    - What you implemented (or refined)
+    - Pre-gen issues fixed (if refine mode): [list specific issues found and fixed]
     - What you tested and test results
     - Files changed
     - Self-review findings (if any)

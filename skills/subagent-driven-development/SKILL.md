@@ -5,9 +5,9 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Subagent-Driven Development
 
-Execute plan by dispatching fresh subagent per task, with compilation gate + two-stage review after each: compilation check first, then spec compliance review, then code quality review.
+Execute plan by dispatching fresh subagent per task, with optional LLM pre-generation + compilation gate + two-stage review after each: compilation check first, then spec compliance review, then code quality review.
 
-**Core principle:** Fresh subagent per task + compilation gate + two-stage review (spec then quality) = high quality, fast iteration
+**Core principle:** LLM pre-generation (fast/cheap model) + implementer refinement (capable model) + compilation gate + two-stage review = high quality, fast iteration
 
 ## When to Use
 
@@ -41,7 +41,8 @@ CRITICAL: The controller (you) is an orchestrator, NOT an implementer.
 
 ### Controller MUST:
 - Read plan, extract tasks, create TodoWrite
-- Dispatch implementer subagent per task (via Agent tool)
+- **Run LLM pre-generation per task** (controller runs `scripts/llm-generate.py` directly — this is orchestration, not implementation)
+- Dispatch implementer subagent per task with pre-generated code paths (via Agent tool)
 - Answer subagent questions
 - Run compilation check (controller runs build command directly)
 - Dispatch spec reviewer subagent (via Agent tool)
@@ -50,7 +51,7 @@ CRITICAL: The controller (you) is an orchestrator, NOT an implementer.
 - Update plan.md task status and index.md progress
 
 ### Controller MUST NOT:
-- Write implementation code (that's the implementer subagent's job)
+- Write implementation code (that's the implementer subagent's job — running `llm-generate.py` is orchestration, NOT implementation)
 - Review code itself and claim it replaces subagent review
 - Mark a task complete without all 3 gates passing
 - Skip dispatching any subagent (even if "code looks fine")
@@ -66,10 +67,13 @@ digraph process {
 
     subgraph cluster_per_task {
         label="Per Task";
-        "Dispatch implementer subagent (./implementer-prompt.md)" [shape=box];
+        "Run LLM pre-generation (controller, scripts/llm-generate.py)" [shape=box style=filled fillcolor=lightblue];
+        "Pre-generation succeeded?" [shape=diamond];
+        "Dispatch implementer subagent WITH pre-generated code" [shape=box];
+        "Dispatch implementer subagent WITHOUT pre-generated code" [shape=box];
         "Implementer subagent asks questions?" [shape=diamond];
         "Answer questions, provide context" [shape=box];
-        "Implementer subagent implements, tests, commits, self-reviews" [shape=box];
+        "Implementer subagent refines/implements, tests, commits, self-reviews" [shape=box];
         "Run compilation check (controller, no subagent)" [shape=box style=filled fillcolor=lightyellow];
         "Compilation passes?" [shape=diamond];
         "Implementer subagent fixes compilation errors" [shape=box];
@@ -87,12 +91,16 @@ digraph process {
     "Dispatch final code reviewer subagent for entire implementation" [shape=box];
     "Use superpowers:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
 
-    "Read plan, extract all tasks with full text, note context, create TodoWrite" -> "Dispatch implementer subagent (./implementer-prompt.md)";
-    "Dispatch implementer subagent (./implementer-prompt.md)" -> "Implementer subagent asks questions?";
+    "Read plan, extract all tasks with full text, note context, create TodoWrite" -> "Run LLM pre-generation (controller, scripts/llm-generate.py)";
+    "Run LLM pre-generation (controller, scripts/llm-generate.py)" -> "Pre-generation succeeded?";
+    "Pre-generation succeeded?" -> "Dispatch implementer subagent WITH pre-generated code" [label="yes"];
+    "Pre-generation succeeded?" -> "Dispatch implementer subagent WITHOUT pre-generated code" [label="no (fallback)"];
+    "Dispatch implementer subagent WITH pre-generated code" -> "Implementer subagent asks questions?";
+    "Dispatch implementer subagent WITHOUT pre-generated code" -> "Implementer subagent asks questions?";
     "Implementer subagent asks questions?" -> "Answer questions, provide context" [label="yes"];
-    "Answer questions, provide context" -> "Dispatch implementer subagent (./implementer-prompt.md)";
-    "Implementer subagent asks questions?" -> "Implementer subagent implements, tests, commits, self-reviews" [label="no"];
-    "Implementer subagent implements, tests, commits, self-reviews" -> "Run compilation check (controller, no subagent)";
+    "Answer questions, provide context" -> "Dispatch implementer subagent WITH pre-generated code";
+    "Implementer subagent asks questions?" -> "Implementer subagent refines/implements, tests, commits, self-reviews" [label="no"];
+    "Implementer subagent refines/implements, tests, commits, self-reviews" -> "Run compilation check (controller, no subagent)";
     "Run compilation check (controller, no subagent)" -> "Compilation passes?";
     "Compilation passes?" -> "Implementer subagent fixes compilation errors" [label="no"];
     "Implementer subagent fixes compilation errors" -> "Run compilation check (controller, no subagent)" [label="re-compile"];
@@ -106,7 +114,7 @@ digraph process {
     "Implementer subagent fixes quality issues" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="re-review"];
     "Code quality reviewer subagent approves?" -> "Mark task complete in TodoWrite" [label="yes"];
     "Mark task complete in TodoWrite" -> "More tasks remain?";
-    "More tasks remain?" -> "Dispatch implementer subagent (./implementer-prompt.md)" [label="yes"];
+    "More tasks remain?" -> "Run LLM pre-generation (controller, scripts/llm-generate.py)" [label="yes"];
     "More tasks remain?" -> "Dispatch final code reviewer subagent for entire implementation" [label="no"];
     "Dispatch final code reviewer subagent for entire implementation" -> "Use superpowers:finishing-a-development-branch";
 }
@@ -117,6 +125,60 @@ digraph process {
 - `./implementer-prompt.md` - Dispatch implementer subagent
 - `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
 - `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
+
+## LLM Pre-Generation
+
+**Purpose:** Use a fast, cheap LLM to generate initial code drafts before the implementer subagent refines them. This reduces the implementer's workload from "write from scratch" to "review and refine".
+
+### Prerequisites
+
+Set environment variables before running:
+```bash
+export LLM_API_KEY="your-api-key"
+export LLM_BASE_URL="http://localhost:10000/v1"    # your API proxy
+export LLM_MODEL="anthropic/claude-sonnet-4.6"      # fast model for drafts
+```
+
+### How It Works
+
+1. **Controller prepares context** — reads design docs + finds reference code files (similar existing implementations)
+2. **Controller writes task JSON** — saves to temp file with task description, design doc, reference files
+3. **Controller runs script** — `python scripts/llm-generate.py --task-file /tmp/task_N.json --output-dir <project-dir>`
+4. **Script generates code** — calls fast LLM, parses response, writes files to disk
+5. **Controller dispatches implementer** — tells subagent "pre-generated code exists at these paths, review and refine"
+
+### Task JSON Format
+
+```json
+{
+  "task_description": "Full task text from plan",
+  "design_doc": "Content of backend-detail-design.md or frontend-detail-design.md",
+  "reference_files": {
+    "com/ruoyi/system/domain/SysUser.java": "... file content ...",
+    "com/ruoyi/system/mapper/SysUserMapper.java": "... file content ..."
+  },
+  "target_files": [
+    "com/ruoyi/xxx/domain/NewEntity.java",
+    "com/ruoyi/xxx/mapper/NewEntityMapper.java"
+  ]
+}
+```
+
+### Controller Pre-Generation Protocol
+
+For each task:
+
+1. **Find reference code** — locate an existing similar implementation in the codebase (e.g., for a new CRUD entity, find an existing entity's full stack: domain/mapper/service/controller)
+2. **Read reference files** — read the actual file contents
+3. **Read design doc** — get the detail design for this task
+4. **Build task JSON** — combine task description + design doc + reference files + target file paths
+5. **Write to temp file** — `echo '...' > /tmp/task_N.json`
+6. **Run script** — `python scripts/llm-generate.py --task-file /tmp/task_N.json --output-dir <project-root>`
+7. **Check result** — if script exits 0, pre-generated files are on disk; if exits 1, fall back to normal implementation
+
+### Fallback
+
+Pre-generation is **best-effort**. If it fails (API error, no files parsed, etc.), the implementer subagent proceeds normally (writes from scratch). The implementer prompt template handles both cases.
 
 ## Timing Instrumentation
 
@@ -134,7 +196,8 @@ Store the result in a shell variable or note it down. Calculate duration = end -
 
 | Point | When | Variable |
 |-------|------|----------|
-| `T_TASK_START` | Before dispatching implementer | `t0` |
+| `T_TASK_START` | Before pre-generation | `t0` |
+| `T_PREGEN_END` | After pre-generation completes | `t0b` |
 | `T_IMPL_END` | After implementer returns | `t1` |
 | `T_COMPILE_START` | Before running build command | `t2` |
 | `T_COMPILE_END` | After build finishes | `t3` |
@@ -158,7 +221,8 @@ Format:
 
 | Phase | Start (epoch) | End (epoch) | Duration (s) | Duration (human) |
 |-------|--------------|------------|--------------|-----------------|
-| Implementation | {t0} | {t1} | {t1-t0} | {mm:ss} |
+| Pre-Generation | {t0} | {t0b} | {t0b-t0} | {mm:ss} |
+| Implementation | {t0b} | {t1} | {t1-t0b} | {mm:ss} |
 | Compilation | {t2} | {t3} | {t3-t2} | {mm:ss} |
 | Spec Review | {t4} | {t5} | {t5-t4} | {mm:ss} |
 | Code Quality Review | {t6} | {t7} | {t7-t6} | {mm:ss} |
@@ -172,9 +236,10 @@ Fix loops: [none / N iterations, total Xs]
 
 ### Controller Timing Protocol
 
-1. **Before dispatching implementer:** `date +%s` → save as `t0`
-2. **After implementer returns:** `date +%s` → save as `t1`
-3. **Before compilation:** `date +%s` → save as `t2`
+1. **Before pre-generation:** `date +%s` → save as `t0`
+2. **After pre-generation:** `date +%s` → save as `t0b`
+3. **After implementer returns:** `date +%s` → save as `t1`
+4. **Before compilation:** `date +%s` → save as `t2`
 4. **After compilation:** `date +%s` → save as `t3`
 5. **Before spec reviewer:** `date +%s` → save as `t4`
 6. **After spec reviewer returns:** `date +%s` → save as `t5`
@@ -216,7 +281,8 @@ Before marking ANY task complete, output this block. Missing this block = task i
 ### Task N Gate Evidence
 | Gate | Status | Duration | Evidence |
 |------|--------|----------|----------|
-| Implementation | ✅/❌ | Xm Ys | subagent dispatched: [yes/no], report: [summary] |
+| Pre-Generation | ✅/❌/⏭️ | Xm Ys | model: [model], files: [N files], tokens: [prompt/completion] |
+| Implementation | ✅/❌ | Xm Ys | subagent dispatched: [yes/no], mode: [refine/scratch], report: [summary] |
 | Compilation | ✅/❌ | Xm Ys | command: [cmd], exit code: [0/non-zero] |
 | Spec Review | ✅/❌ | Xm Ys | subagent dispatched: [yes/no], verdict: [pass/fail + issues] |
 | Code Quality | ✅/❌ | Xm Ys | subagent dispatched: [yes/no], verdict: [pass/fail + issues] |
@@ -241,15 +307,21 @@ You: I'm using Subagent-Driven Development to execute this plan.
 Task 1: Hook installation script
 
 [Get Task 1 text and context (already extracted)]
-[Dispatch implementation subagent with full task text + context]
+[Find reference implementation: existing similar command in codebase]
+[Read reference files + design doc]
+[Write /tmp/task_1.json with task description, design doc, reference files]
+[Run: python scripts/llm-generate.py --task-file /tmp/task_1.json --output-dir <project-root>]
+Pre-generation: ✅ 3 files generated in 12.3s (Sonnet 4.6)
+
+[Dispatch implementer subagent with pre-generated code paths]
 
 Implementer: "Before I begin - should the hook be installed at user or system level?"
 
 You: "User level (~/.config/superpowers/hooks/)"
 
-Implementer: "Got it. Implementing now..."
+Implementer: "Got it. Reviewing pre-generated code and refining..."
 [Later] Implementer:
-  - Implemented install-hook command
+  - Reviewed pre-generated code, fixed 2 issues (missing import, wrong method name)
   - Added tests, 5/5 passing
   - Self-review: Found I missed --force flag, added it
   - Committed
@@ -266,60 +338,33 @@ Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
 ### Task 1 Gate Evidence
 | Gate | Status | Duration | Evidence |
 |------|--------|----------|----------|
-| Implementation | ✅ | 11m 23s | subagent dispatched: yes, report: Implemented install-hook command, 5/5 tests passing |
+| Pre-Generation | ✅ | 0m 12s | model: anthropic/claude-sonnet-4.6, files: 3, tokens: 2100/4500 |
+| Implementation | ✅ | 5m 41s | subagent dispatched: yes, mode: refine, report: Refined pre-gen code, fixed 2 issues, 5/5 tests |
 | Compilation | ✅ | 2m 05s | command: `npm run build`, exit code: 0 |
 | Spec Review | ✅ | 8m 47s | subagent dispatched: yes, verdict: pass - all requirements met |
 | Code Quality | ✅ | 7m 12s | subagent dispatched: yes, verdict: pass - clean code, good tests |
-| **Total** | | **29m 27s** | |
+| **Total** | | **23m 57s** | |
 
 All gates ✅ → Task 1 COMPLETE
 
 [Mark Task 1 complete]
 
-Task 2: Recovery modes
+Task 2: Recovery modes (pre-generation fails)
 
 [Get Task 2 text and context (already extracted)]
-[Dispatch implementation subagent with full task text + context]
+[Run pre-generation]
+Pre-generation: ❌ API timeout, falling back to normal implementation
 
-Implementer: [No questions, proceeds]
+[Dispatch implementation subagent WITHOUT pre-generated code]
+
+Implementer: [No questions, writes from scratch]
 Implementer:
-  - Added verify/repair modes
+  - Implemented verify/repair modes from scratch
   - 8/8 tests passing
   - Self-review: All good
   - Committed
 
-[Run compilation check]
-Compilation: ✅ Build successful
-
-[Dispatch spec compliance reviewer]
-Spec reviewer: ❌ Issues:
-  - D1 (Requirements): Missing progress reporting (spec says "report every 100 items")
-  - D1 (Requirements): Extra - Added --json flag (not requested)
-
-[Implementer fixes issues]
-Implementer: Removed --json flag, added progress reporting
-
-[Spec reviewer reviews again]
-Spec reviewer: ✅ Spec compliant now
-
-[Dispatch code quality reviewer]
-Code reviewer: Strengths: Solid. Issues (Important): Magic number (100)
-
-[Implementer fixes]
-Implementer: Extracted PROGRESS_INTERVAL constant
-
-[Code reviewer reviews again]
-Code reviewer: ✅ Approved
-
-[Mark Task 2 complete]
-
-...
-
-[After all tasks]
-[Dispatch final code-reviewer]
-Final reviewer: All requirements met, ready to merge
-
-Done!
+...rest of gates proceed as normal...
 ```
 
 ## Advantages
@@ -336,6 +381,8 @@ Done!
 - Review checkpoints automatic
 
 **Efficiency gains:**
+- **LLM pre-generation** reduces implementer work from "write from scratch" to "review and refine"
+- Pre-generation uses fast/cheap model (Sonnet) → implementer (Opus) only refines
 - No file reading overhead (controller provides full text)
 - Controller curates exactly what context is needed
 - Subagent gets complete information upfront
