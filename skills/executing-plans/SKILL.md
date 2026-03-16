@@ -13,6 +13,81 @@ Load plan, review critically, execute tasks in batches, report for review betwee
 
 **Announce at start:** "I'm using the executing-plans skill to implement this plan."
 
+## 延迟编译与延迟审查策略（关键）
+
+**编码阶段不编译、不审查。** 这是本技能的核心原则。
+
+### 延迟编译
+
+- **编码阶段不编译** - 实现功能时专注于代码编写，不每模块单独编译
+- **统一编译时机** - 所有页面功能编码完成后，再执行编译验证
+- **编译顺序** - 先后端编译，再前端编译
+- **编译修复循环** - 编译失败时需修复代码，修复后重新编译，直到编译通过才进入审查阶段
+- **例外** - 用户明确要求或遇到阻塞性问题时才可编译
+
+### 延迟代码审查
+
+- **审查时机** - 所有页面功能编码完成、编译通过（后端 + 前端）后，再请求代码审查
+- **审查范围** - 对整个功能模块进行一次性审查，而非每任务审查
+- **例外** - 用户明确要求对特定任务进行审查
+- **修复后重新审查** - 如果审查发现问题并修复，需要再次执行 `requesting-code-review` 确认修复完成
+
+### 工作流程
+
+| 阶段 | 操作 | 说明 |
+|------|------|------|
+| 编码中 | 不编译、不审查 | 专注代码实现，按计划逐任务推进 |
+| 编码完成（后端） | `mvn compile` | 所有后端任务完成后统一编译 |
+| 后端编译失败 | 修复代码 → 重新 `mvn compile` | 循环直到编译通过 |
+| 后端编译通过 | `npm run build` | 在 `<源码目录>/ruoyi-ui/` 执行前端编译 |
+| 前端编译失败 | 修复代码 → 重新 `npm run build` | 循环直到编译通过 |
+| 编译通过 | `requesting-code-review` | 请求一次性代码审查 |
+| 审查通过 | 联调测试 | 进入前端联调阶段 |
+
+### 技能调用顺序
+
+使用本技能执行计划时，必须按以下顺序集成其他技能：
+
+| 阶段 | 技能 | 用途 |
+|------|------|------|
+| **开始前** | `superpowers:using-git-worktrees` | 创建隔离工作区（仅针对用户指定的**源码目录**） |
+| **全部页面编码完成后** | `mvn compile` | 后端统一编译验证 |
+| **后端编译失败** | 修复代码 → 重新 `mvn compile` | 循环直到编译通过 |
+| **后端编译通过后** | `npm run build` | 前端统一编译验证（在 `<源码目录>/ruoyi-ui/` 目录） |
+| **前端编译失败** | 修复代码 → 重新 `npm run build` | 循环直到编译通过 |
+| **编译通过后** | `superpowers:requesting-code-review` | 请求代码审查（一次性审查整个功能模块） |
+| **收到审查反馈后** | `superpowers:receiving-code-review` | 处理审查意见 |
+| **审查意见修复后** | `superpowers:requesting-code-review` | 再次请求审查，确认修复完成 |
+| **审查通过后** | `superpowers:verification-before-completion` | 运行验证命令 |
+| **验证通过后** | `superpowers:finishing-a-development-branch` | 完成分支 |
+
+### 注意事项
+
+- **编码阶段不审查** - 按计划逐任务推进，不每页暂停审查，直到所有页面编码完成
+- **统一审查** - 整个功能模块编码完成后，再请求一次性代码审查
+- `using-git-worktrees` 仅管理**用户指定的源码目录**，文档目录（`docs/plans/`）直接修改，不经过 git 工作区
+- **源码目录** - 指用户提供的包含前后端代码的项目根目录（如 `RuoYi-Vue3-TypeScript/`）
+
+### 无 Git 仓库例外
+
+如果**源码目录**不是 git 仓库：
+
+1. **先初始化 git 仓库**：
+   ```bash
+   cd <源码目录>
+   git init
+   git add .
+   git commit -m "feat: 初始提交"
+   ```
+
+2. **配置 .gitignore**（可选但推荐）：
+   - 添加常见的忽略规则（如 `node_modules/`, `*.log`, `.DS_Store` 等）
+   - 在首次 commit 之前完成
+
+3. **然后再执行 `using-git-worktrees`** 创建隔离工作区
+
+4. 如果用户明确表示不需要 git 隔离，可以**跳过 worktree 步骤**，直接在当前目录修改代码
+
 ## The Process
 
 ### Step 1: Load and Review Plan (via index.md)
@@ -37,6 +112,30 @@ For each task:
    - Update the task's status in `<page>/plan.md`'s 任务状态 table (set to `已完成` + write completion time)
    - Update `index.md` 执行进度 table: increment the `已完成` count for this page
    - On first task of a page: update `index.md` page `实施状态` to `进行中`
+
+### 时间追踪更新规则（关键）
+
+每次更新 `plan.md` 的任务状态时，**必须同时更新**时间追踪字段（填写当前任务实际开始/完成的时间，不是固定字符串）：
+
+| 字段 | 何时填写 |
+|------|---------|
+| 开始时间 | 任务设为 in_progress 时（填写当前实际时间，如 `2026-03-16 10:30`） |
+| 完成时间 | 任务设为 completed 时（填写当前实际时间，如 `2026-03-16 11:15`） |
+| 耗时 | 任务完成时计算（完成时间 - 开始时间，如 `45 分钟`） |
+
+**填写示例（plan.md）：**
+
+```markdown
+## 任务状态
+
+| 任务 | 描述 | 状态 | 开始时间 | 完成时间 | 耗时 |
+|------|------|------|---------|---------|------|
+| Task 1 | 创建后端领域模型 | 已完成 | 2026-03-16 10:30 | 2026-03-16 11:15 | 45 分钟 |
+| Task 2 | 创建后端 Mapper 层 | 进行中 | 2026-03-16 11:15 | — | — |
+| Task 3 | 创建后端 Service 层 | 未开始 | — | — | — |
+```
+
+**禁止只更新状态列而不更新时间追踪字段。**
 
 ### Step 3: Report (with page context)
 When batch complete:

@@ -216,3 +216,27 @@ Ready to implement auth feature
 
 **Pairs with:**
 - **finishing-a-development-branch** - REQUIRED for cleanup after work complete
+
+---
+
+## 强制调用规则（CLAUDE.md Section 8）
+
+### 必须调用此 skill 的场景
+
+| 场景 | 说明 |
+|------|------|
+| 执行 `executing-plans` 前 | 执行任何实施计划前必须创建隔离工作区 |
+| 执行 `subagent-driven-development` 前 | 子代理执行任务前必须创建隔离工作区 |
+| 修改源码前 | 任何功能开发、bug 修复涉及源码修改 |
+| CLAUDE.md 合规检查 | `using-superpowers` 检查清单第 1 项 |
+
+### 例外情况（可跳过）
+
+- **仅文档修改** - 修改 `docs/plans/` 下的设计文档、计划文档
+- **用户明确豁免** - 用户明确说明不需要 git 隔离
+
+### 违反后果
+
+违反强制调用规则 = 流程失败，必须：
+1. 回退相关代码修改
+2. 重新执行完整流程（包括 worktree + subagent + 时间追踪）
