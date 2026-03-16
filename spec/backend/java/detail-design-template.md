@@ -26,6 +26,7 @@
 | 11 | **完整链路**：3.1 中每个 Controller 在 4.1/4.2 有 Entity、4.3 有 QueryDTO、6.1 有 Service 方法、2 有 Mapper + XML、7 有伪 SQL（逐个 Controller 核对，任一缺失 = ❌） | |
 | 12 | **DTO 文件路径**：4.3 中每个 DTO 都标注了 Java 文件路径（放哪个包、叫什么名字） | |
 | 13 | **逻辑删除**：6.2 已写明逻辑删除约定；3.2 DELETE 接口的业务逻辑是 `UPDATE SET del_flag` 而非物理 DELETE；7 中所有伪 SQL 都有 `del_flag='0'` | |
+| 14 | **无具体代码**：文档中不含任何 Java 代码块（无 `class`/`@`/`public` 等 Java 语法）、DDL SQL、MyBatis XML（无 `<select>`/`<if>` 等标签）；Section 4.2/4.3 只有字段表格，Section 5.1 只有字段表格，Section 7 只有伪 SQL 纯文本 | |
 
 ## 1. 背景与目标
 
@@ -120,12 +121,9 @@ confirm(ids):
 
 **业务逻辑：**
 
-```
-deleteByIds(ids):
-1. 校验 ids 不为空 → 抛「请选择待删除记录」
+1. 校验 ids 不为空，否则抛「请选择待删除记录」
 2. 逻辑删除：UPDATE 目标表 SET del_flag='2', update_by=?, update_time=NOW() WHERE id IN (...) AND del_flag='0'
 3. 返回操作成功
-```
 
 > 若依默认使用逻辑删除（`del_flag='2'`），不做物理 DELETE。如有关联子表，需同步逻辑删除或校验是否有引用。
 
@@ -148,9 +146,10 @@ deleteByIds(ids):
 
 ### 4.2 关键字段
 
+> **禁止在此处写 Java 代码或类定义。只用下方表格描述字段，不得附加任何代码块。**
 > 与前端类型设计逐字段对齐；后端独有字段（delFlag、createBy、updateBy 等）也要列出；不得用省略号。
 > 继承 `BaseEntity` 的字段（createBy/createTime/updateBy/updateTime/remark）无需在 Entity 类中声明，但必须在此表中列出。
-> 需要导出的字段加 `@Excel(name = "列名")` 注解。
+> 需要导出 Excel 的字段在「说明」列注明「需 @Excel 导出」，不要在此写注解代码。
 
 | 字段 | Java 类型 | 数据库列名 | 说明 | 约束 | 对应前端字段 |
 | --- | --- | --- | --- | --- | --- |
@@ -163,6 +162,8 @@ deleteByIds(ids):
 | `updateTime` | `Date` | `update_time` | 更新时间 | 自动填充 | —（后端独有） |
 
 ### 4.3 DTO 设计
+
+> **禁止在此处写 Java 代码或类定义。只用表格描述 DTO 字段，不得附加任何代码块。**
 
 #### 查询参数 DTO
 
@@ -181,7 +182,8 @@ deleteByIds(ids):
 
 ### 5.1 表清单与完整字段
 
-> 每张表完整列出字段，不得用省略号。字段数多时用 DDL SQL。
+> **禁止写 DDL SQL 或任何 SQL 代码块。只用下方表格描述字段。**
+> 每张表完整列出字段，不得用省略号。
 > 在此注明各表的默认值约定和删除策略（软删/物理删），无需在其他地方重复。
 > **日期字段类型**：业务日期（如下单日期、发货日期）推荐用 `date` 或 `datetime`，不要用 `varchar`。只有从外部系统原样存储的文本日期才用 `varchar`。
 
@@ -242,7 +244,7 @@ deleteByIds(ids):
 
 ## 7. 查询 SQL
 
-> 每个查询接口写一条伪 SQL，说清主表、动态条件类型、排序。不需要写完整 XML。
+> 每个查询接口写一条伪 SQL，说清主表、动态条件类型、排序。**禁止写 MyBatis XML、`<select>`、`<if>` 等 XML 标签格式，只写纯 SQL 伪代码。**
 > **所有查询必须包含 `del_flag = '0'` 条件**，无一例外。
 
 #### select{{Entity}}List
