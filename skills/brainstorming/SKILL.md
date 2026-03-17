@@ -16,7 +16,7 @@ If the user explicitly wants **详细设计** and the project has templates unde
 In a PRD/UI-driven development-design workflow, treat detailed design as the default written output for every in-scope side:
 - Frontend is in scope when the input or diff mentions a UI project, page paths, page interactions, or frontend changes/blockers.
 - Backend is in scope when the input or diff mentions APIs, controllers/services/mappers, database work, SAP/mock integration, or backend changes/blockers.
-- If both sides are in scope and the user did not explicitly narrow scope, you MUST produce two detailed-design docs before any planning: **先写前端，再基于前端文档写后端**。
+- If both sides are in scope and the user did not explicitly narrow scope, you MUST produce two detailed-design docs before any planning: **按页面逐个推进，每个页面先写前端再写后端**（禁止先写完所有页面的前端设计再写后端设计）。
 
 <HARD-GATE>
 Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design and the user has approved it. This applies to EVERY project regardless of perceived simplicity.
@@ -30,7 +30,7 @@ Replies like `继续`, `下一步`, `往下走`, or answers to clarification que
 - Do NOT create: `*-diff.md`, `*-plan.md`, `*-db-design.md` — these belong to other skills
 - **One step per turn**: complete one step, then STOP and wait for user to reply. Do NOT continue to the next step in the same turn.
 - Do NOT do the diff scan yourself. If diff.md is missing, stop and tell the user.
-- If both frontend and backend are in scope, Step 5 must present both sides (先前端后后端) and Step 6 must save two docs (先前端，再基于前端写后端). Do NOT silently drop one side because it looks "already implemented".
+- If both frontend and backend are in scope, Step 5 must present both sides (先前端后后端) and Step 6 must save two docs per page (先前端，再基于前端写后端，逐页推进). Do NOT silently drop one side because it looks "already implemented". Do NOT batch all frontend docs first then all backend docs — each page must complete both sides before moving on.
 
 ---
 
@@ -46,6 +46,7 @@ You MUST create a task for each step and complete them in order.
 - Check out the current project state (files, docs, recent commits)
 - Understand what the user wants to build
 - If `spec/index.md` exists, read it. If the user wants frontend/backend detailed design, also note the matching template path under `spec/`
+- **检查已有前端实现**：搜索前端项目中是否已存在相关的页面文件（`src/views/`）、API 文件（`src/api/`）、类型文件（`src/types/api/`）。如果存在，在探索总结中明确标注"前端代码已存在"，后续 Step 6a 将以已有代码为准
 
 **After completing exploration, end your turn.** Present a brief summary of what you found and ask the user one clarifying question.
 
@@ -191,9 +192,13 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 **每轮只处理一个页面。** 对当前页面：
 
 **Step 6a：前端详细设计**（Frontend in scope 时执行）
-1. 创建页面子目录
-2. 按模板写入并保存 `<task>/<page-slug>/frontend-detail-design.md`
-3. **保存前必须通过模板 Section 10 自检清单**（18 项全部 ✅ 才可保存）
+1. **检查已有前端代码**：用 Glob 搜索 `src/api/**/*.ts` 和 `src/types/api/**/*.ts`，查找与当前页面相关的 API 文件和类型文件。如果找到：
+   - 读取 API 文件，提取所有接口的路径、HTTP 方法、函数签名
+   - 读取类型文件，提取所有 TypeScript 接口/类型定义
+   - **这些代码定义是 Section 5（接口设计）和 Section 6（类型设计）的唯一事实来源**
+2. 创建页面子目录
+3. 按模板写入并保存 `<task>/<page-slug>/frontend-detail-design.md`
+4. **保存前必须通过模板 Section 10 自检清单**（18 项全部 ✅ 才可保存）
 
 **Step 6b：后端详细设计**（Backend in scope 时执行，必须在 6a 之后）
 4. 写入并保存 `<task>/<page-slug>/backend-detail-design.md`
@@ -209,9 +214,13 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 
 #### 前后端写入顺序与对齐规则
 
-依赖链：`原型图/PRD → 前端详细设计 → 后端详细设计`
+依赖链：`已有前端代码 > 原型图/PRD → 前端详细设计 → 后端详细设计`
 
-1. **先写前端**：字段必须逐项对照 `diff.md` 中 PRD 字段对比表（前端是原型的唯一翻译层）
+**已有前端代码优先规则**：如果前端页面、API 文件（`src/api/*.ts`）、类型定义文件（`src/types/api/*.ts`）已存在，前端详细设计**必须以已有代码为准**——接口路径、HTTP 方法、参数名、类型定义均从代码中提取。PRD/原型仅作为功能范围的补充参考，不得覆盖已有代码中的接口约定。
+
+1. **先写前端**：
+   - **前端代码已存在时**：先读取已有的 API 文件和类型定义文件，以代码中的接口路径、HTTP 方法、参数名和类型为准填写 Section 5（接口设计）和 Section 6（类型设计）
+   - **前端代码不存在时**：字段逐项对照 `diff.md` 中 PRD 字段对比表（前端是原型的唯一翻译层）
 2. **再写后端**：后端只对齐前端、不再独立对照原型。后端文档必须：
    - 接口清单覆盖前端控件矩阵中所有「调用接口」
    - 请求参数/返回结构与前端类型设计保持一致

@@ -98,40 +98,32 @@ git worktree add "$path" -b "$BRANCH_NAME"
 cd "$path"
 ```
 
-### 3. Run Project Setup
+### 3. Run Project Setup (Optional — Skip for Java/Maven Projects)
 
-Auto-detect and run appropriate setup:
-
-```bash
-# Node.js
-if [ -f package.json ]; then npm install; fi
-
-# Rust
-if [ -f Cargo.toml ]; then cargo build; fi
-
-# Python
-if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-if [ -f pyproject.toml ]; then poetry install; fi
-
-# Go
-if [ -f go.mod ]; then go mod download; fi
-```
-
-### 4. Verify Clean Baseline
-
-Run tests to ensure worktree starts clean:
+Auto-detect and run appropriate setup **only if necessary**. For Java/Maven projects, worktree shares the same `.m2` repository cache — skip this step. For frontend projects, `node_modules` is usually gitignored and won't be in the worktree, but `npm install` should be deferred to when it's actually needed (e.g., before `npm run build` in Phase 2).
 
 ```bash
-# Examples - use project-appropriate command
-npm test
-cargo test
-pytest
-go test ./...
+# Only run if the project requires local dependency installation AND
+# the dependency directory is missing in the worktree:
+
+# Node.js — only if node_modules is missing and needed now
+if [ -f package.json ] && [ ! -d node_modules ]; then npm install; fi
+
+# Other ecosystems — skip unless user requests
 ```
 
-**If tests fail:** Report failures, ask whether to proceed or investigate.
+### 4. Verify Clean Baseline (Optional — Skip by Default)
 
-**If tests pass:** Report ready.
+Running the full test suite on an unmodified worktree is low-value: the code hasn't changed yet. **Skip by default.** Only run baseline tests if:
+- The user explicitly requests it
+- The base branch is suspected to be broken
+
+```bash
+# Only if explicitly requested:
+# npm test / cargo test / pytest / go test ./...
+```
+
+**Default behavior:** Skip directly to Step 5 (Report Location).
 
 ### 5. Report Location
 

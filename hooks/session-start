@@ -11,7 +11,7 @@ PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PROJECT_DIR="$(pwd)"
 spec_copy_message=""
 if [ ! -d "${PROJECT_DIR}/spec" ]; then
-    if cp -r "${PLUGIN_ROOT}/spec" "${PROJECT_DIR}/"; then
+    if mkdir -p "${PROJECT_DIR}/spec" && cp -r "${PLUGIN_ROOT}/spec/." "${PROJECT_DIR}/spec/"; then
         spec_copy_message="\n\n<spec-notice>spec/ directory has been copied to your project: ${PROJECT_DIR}/spec</spec-notice>"
     else
         spec_copy_message="\n\n<spec-notice>WARNING: Failed to copy spec/ directory to ${PROJECT_DIR}/spec - please copy it manually from ${PLUGIN_ROOT}/spec</spec-notice>"
@@ -54,62 +54,9 @@ escape_for_json() {
 using_superpowers_escaped=$(escape_for_json "$using_superpowers_content")
 warning_escaped=$(escape_for_json "$warning_message")
 
-routing_card=$(cat <<'EOF'
-<MANDATORY_FIRST_ACTION>
-Before ANY tool call, check the user's message for these signals:
-- PRD / 需求文档 / requirement doc
-- 差异分析 / 差异扫描 / 页面核对 / 对照现状 / compare PRD with implementation
-
-If any signal appears, your FIRST action must be:
-1. Invoke Skill("superpowers:prd-diff-scan")
-2. Do NOT use Read, Glob, Grep, Task, or brainstorming first
-3. Only after docs/plans/*/diff.md exists may you continue to brainstorming
-
-This also applies when the user only provides paths, for example:
-- "需求文档在 prd/..."
-- "UI 项目在 ruoyi-ui/"
-- "按这个 PRD 对当前项目做差异分析"
-
-If you read files or search before invoking prd-diff-scan, you have failed the workflow.
-</MANDATORY_FIRST_ACTION>
-EOF
-)
-
-detail_design_card=$(cat <<'EOF'
-<DETAIL_DESIGN_RULES>
-If the user asks for 详细设计 / 前端详细设计 / 后端详细设计:
-- 先看项目 `spec/` 目录
-- 后端详细设计用 `spec/backend/java/detail-design-template.md`
-- 前端详细设计用 `spec/frontend/vue/detail-design-template.md`
-- 前后端都有时，分成两份文档来写，不要混成一篇大杂烩
-- 文档必须落盘到 `docs/plans/YYYY-MM-DD-<topic>/` 任务目录下，不要只停留在聊天里
-- 按页面维度拆分：每个页面子目录下分别保存 frontend-detail-design.md 和 backend-detail-design.md
-  - `docs/plans/YYYY-MM-DD-<topic>/<page-slug>/backend-detail-design.md`
-  - `docs/plans/YYYY-MM-DD-<topic>/<page-slug>/frontend-detail-design.md`
-- 尽量用白话，少说套话，多写清楚文件、接口、字段、规则和验证方式
-- 前端详细设计以下 section 为必填，不得跳过：
-  - 3.2-3.4 三张 Mermaid 依赖图（页面导航、页面-控件组合、控件交互关系）
-  - 3.3/3.4 多页面时每个页面单独一张图，单张图不超过 20 个节点
-  - 3.5 控件矩阵（含业务说明列 + 控件状态条件子表），3.1 列出的每个页面都要有
-  - 8.0 页面初始化 + 8.1-8.4 按控件交互（每个控件先写业务场景）+ 8.5 空态与异常
-  - Section 10 自检清单 12 项全部 ✅ 才可保存
-- 后端详细设计以下 section 为必填，不得跳过：
-  - 需求输入引用前端详细设计路径
-  - 4.2 实体字段与前端类型逐字段对齐，不得用省略号
-  - 4.3 DTO 设计（查询参数 + 非 CRUD 请求体）
-  - 5.1 表字段完整列出，不得用省略号
-  - 7.1 每个查询接口都有 SQL；7.2 关键写入有具体 SQL
-  - Section 11 前后端对齐四张表（接口覆盖 + 请求参数 + 响应字段 + 枚举值）
-  - Section 12 自检清单 12 项全部 ✅ 才可保存
-</DETAIL_DESIGN_RULES>
-EOF
-)
-
-routing_card_escaped=$(escape_for_json "$routing_card")
-detail_design_card_escaped=$(escape_for_json "$detail_design_card")
 spec_copy_escaped=$(escape_for_json "$spec_copy_message")
 claudemd_copy_escaped=$(escape_for_json "$claudemd_copy_message")
-session_context="<EXTREMELY_IMPORTANT>\nYou have superpowers.\n\n${routing_card_escaped}\n\n${detail_design_card_escaped}\n\n**Below is the full content of your 'superpowers:using-superpowers' skill - your introduction to using skills. For all other skills, use the 'Skill' tool:**\n\n${using_superpowers_escaped}\n\n${warning_escaped}${spec_copy_escaped}${claudemd_copy_escaped}\n</EXTREMELY_IMPORTANT>"
+session_context="<EXTREMELY_IMPORTANT>\nYou have superpowers.\n\n**Below is the full content of your 'superpowers:using-superpowers' skill - your introduction to using skills. For all other skills, use the 'Skill' tool:**\n\n${using_superpowers_escaped}\n\n${warning_escaped}${spec_copy_escaped}${claudemd_copy_escaped}\n</EXTREMELY_IMPORTANT>"
 
 # Output context injection as JSON.
 # Keep both shapes for compatibility:

@@ -11,7 +11,7 @@ description: "Use ONLY after brainstorming has produced saved design docs (front
 
 Plan 的目标是让一个**有开发能力但不了解项目**的模型，通过读参考文件 + 遵循业务规则，产出与项目风格一致的代码。
 
-原则：DRY、YAGNI、TDD、频繁提交。
+原则：DRY、YAGNI、TDD。
 
 ## Prerequisites (HARD-GATE)
 
@@ -40,7 +40,7 @@ Q4: index.md 和设计文件完整？（无论有无 PRD，此步必做）
 Q5: 确定范围：
   - Frontend in scope：diff 或 session 提到 UI / 页面 / 前端 gaps
   - Backend in scope：diff 或 session 提到 API / DB / 后端 gaps
-  - 两侧都在范围内且用户未缩小范围 → 先写前端 plan 再写后端 plan
+  - 两侧都在范围内且用户未缩小范围 → 每个页面的 plan.md 中按接口维度切 Task，每个 Task 同时包含后端和前端联调
 ```
 
 If all checks pass, read design document(s), diff document, and index.md as input.
@@ -344,18 +344,9 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 1. [用自然语言描述规则，一条一行]
 2. [字段约束、状态流转、校验逻辑等]
 3. [边界情况和异常处理]
-
-**验证**:
-1. （编译延迟：`mvn compile` 在所有后端 Task 完成后统一执行，见 CLAUDE.md Rule 5，此处跳过）
-2. `mvn test -Dtest=XxxTest -pl module-name` → ALL PASS（如有单元测试）
-3. [其他验证步骤]
-
-**提交**:
-```bash
-git add [具体文件列表]
-git commit -m "feat: [描述]"
-```
 ````
+
+> **验证和提交不写在 Task 里。** 所有 Task 执行完成后，由 CLAUDE.md Rule 5（延迟编译）、Rule 10（`verification-before-completion`）和统一提交流程处理。
 
 ### Task 6 要素说明
 
@@ -365,7 +356,6 @@ git commit -m "feat: [描述]"
 | **设计文档引用** | 字段、接口、规则已在详细设计中，不重复 |
 | **业务规则** | 自然语言描述 WHAT，执行者翻译成 HOW |
 | **创建/修改文件** | 精确路径，不猜测；涉及原型文件时标注合并策略（Copy/Overwrite/Merge）和 diff 编号（Fx） |
-| **验证步骤** | 机械检查，明确的"完成"信号 |
 | **依赖关系** | 防止跳步 |
 
 ### 什么可以写在 Task 里
@@ -373,7 +363,6 @@ git commit -m "feat: [描述]"
 - 业务规则（自然语言）
 - 关键的非显而易见的技术要点（如"用 `@Transactional` 包裹状态更新和发货记录创建"）
 - 特殊的数据结构或算法描述（如"内存分页：先全量查询 SAP，再 subList 截取"）
-- 验证命令和预期输出
 - 原型文件合并策略（Copy/Overwrite/Merge）和对应的 diff 变更文件清单编号（Fx）
 
 ### 什么不要写在 Task 里
@@ -409,7 +398,6 @@ public class Order extends BaseEntity {
 **设计**: `backend-detail-design.md` Section 4.2 — 字段定义
 **创建文件**: `.../domain/Order.java`, `.../domain/DeliveryRecord.java`
 **业务规则**: 金额用 BigDecimal(13,3)；日期加 @JsonFormat；isReturnOrder 用 Boolean
-**验证**: （编译延迟，见 CLAUDE.md Rule 5）
 ```
 
 **不合格：按技术层横切** → Task 3 写所有 Mapper，Task 7 写所有 Controller（模块断层，无法逐步验证）
@@ -419,12 +407,12 @@ public class Order extends BaseEntity {
 ## Remember
 - 精确的文件路径
 - 参考文件 + 业务规则代替完整代码
-- 精确的验证命令和预期输出
 - 每个 Task 30-60 行，禁止省略任何 Task
-- DRY, YAGNI, TDD, frequent commits
+- DRY, YAGNI, TDD
 - 设计文档里已有的内容用 Section 引用，不重复
 - 禁止占位符值（XXX、???、TODO_ID）
 - 每个 DTO 都有创建 Task
+- **Task 中不写验证和提交**——由 CLAUDE.md Rule 5/10 在所有 Task 完成后统一处理
 
 ## 落盘前自检（必须执行）
 

@@ -58,8 +58,9 @@ Load plan, review critically, execute tasks in batches, report for review betwee
 | **编译通过后** | `superpowers:requesting-code-review` | 请求代码审查（一次性审查整个功能模块） |
 | **收到审查反馈后** | `superpowers:receiving-code-review` | 处理审查意见 |
 | **审查意见修复后** | `superpowers:requesting-code-review` | 再次请求审查，确认修复完成 |
-| **审查通过后** | `superpowers:verification-before-completion` | 运行验证命令 |
-| **验证通过后** | `superpowers:finishing-a-development-branch` | 完成分支 |
+| **审查通过后** | `superpowers:finishing-a-development-branch` | 完成分支（编译已通过，跳过重复测试） |
+
+> **注意**：编译通过即为验证通过，不再额外调用 `verification-before-completion`（避免重复编译）。
 
 ### 注意事项
 

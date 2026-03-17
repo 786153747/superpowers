@@ -15,27 +15,19 @@ Guide completion of development work by presenting clear options and handling ch
 
 ## The Process
 
-### Step 1: Verify Tests
+### Step 1: Verify Compilation Status
 
-**Before presenting options, verify tests pass:**
+**If coming from subagent-driven-development Phase 2 or executing-plans (compilation already passed):** Skip re-testing. The code was just compiled and reviewed — running tests again on unchanged code is redundant.
+
+**If called independently (no prior compilation):** Run the project's build/test command:
 
 ```bash
-# Run project's test suite
+# Only if no prior compilation evidence exists
 npm test / cargo test / pytest / go test ./...
 ```
 
-**If tests fail:**
-```
-Tests failing (<N> failures). Must fix before completing:
-
-[Show failures]
-
-Cannot proceed with merge/PR until tests pass.
-```
-
-Stop. Don't proceed to Step 2.
-
-**If tests pass:** Continue to Step 2.
+**If tests fail:** Stop. Don't proceed to Step 2.
+**If tests pass or compilation already verified:** Continue to Step 2.
 
 ### Step 2: Determine Base Branch
 
@@ -185,7 +177,7 @@ git worktree remove <worktree-path>
 - Force-push without explicit request
 
 **Always:**
-- Verify tests before offering options
+- Verify compilation status before offering options (skip re-test if already verified)
 - Present exactly 4 options
 - Get typed confirmation for Option 4
 - Clean up worktree for Options 1 & 4 only

@@ -7,13 +7,13 @@ description: Use when completing tasks, implementing major features, or before m
 
 Dispatch superpowers:code-reviewer subagent to catch issues before they cascade.
 
-**Core principle:** Review early, review often.
+**Core principle:** Deferred review — review once after all tasks, not per task (CLAUDE.md Rule 6).
 
 ## When to Request Review
 
 **Mandatory:**
-- After each task in subagent-driven development
-- After completing major feature
+- After Phase 2 compilation passes (subagent-driven-development)
+- After all tasks complete and compilation passes (executing-plans)
 - Before merge to main
 
 **Optional but valuable:**
@@ -77,13 +77,12 @@ You: [Fix progress indicators]
 ## Integration with Workflows
 
 **Subagent-Driven Development:**
-- Review after EACH task
-- Catch issues before they compound
-- Fix before moving to next task
+- Review once in Phase 2 (after all tasks complete and compilation passes)
+- SDD Phase 2 already dispatches spec-reviewer + code-quality-reviewer — do NOT add a separate requesting-code-review on top
 
 **Executing Plans:**
-- Review after each batch (3 tasks)
-- Get feedback, apply, continue
+- Review once after all tasks complete and compilation passes
+- One-shot review for entire feature module
 
 **Ad-Hoc Development:**
 - Review before merge
