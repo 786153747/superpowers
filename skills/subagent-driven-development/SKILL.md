@@ -82,6 +82,8 @@ digraph process {
         "Dispatch spec reviewer (./spec-reviewer-prompt.md)" [shape=box];
         "Spec passes?" [shape=diamond];
         "Fix subagent fixes spec gaps" [shape=box];
+        "Ask user: run spec review?" [shape=diamond style=filled fillcolor=lightblue];
+        "Ask user: run quality review?" [shape=diamond style=filled fillcolor=lightblue];
         "Dispatch quality reviewer (./code-quality-reviewer-prompt.md)" [shape=box];
         "Quality passes?" [shape=diamond];
         "Fix subagent fixes quality" [shape=box];
@@ -110,11 +112,15 @@ digraph process {
     "Frontend: npm run build" -> "Frontend passes?";
     "Frontend passes?" -> "Fix subagent fixes frontend" [label="no"];
     "Fix subagent fixes frontend" -> "Frontend: npm run build";
-    "Frontend passes?" -> "Dispatch spec reviewer (./spec-reviewer-prompt.md)" [label="yes"];
+    "Frontend passes?" -> "Ask user: run spec review?" [label="yes"];
+    "Ask user: run spec review?" -> "Dispatch spec reviewer (./spec-reviewer-prompt.md)" [label="yes (default)"];
+    "Ask user: run spec review?" -> "Ask user: run quality review?" [label="skip"];
     "Dispatch spec reviewer (./spec-reviewer-prompt.md)" -> "Spec passes?";
     "Spec passes?" -> "Fix subagent fixes spec gaps" [label="no"];
     "Fix subagent fixes spec gaps" -> "Dispatch spec reviewer (./spec-reviewer-prompt.md)";
-    "Spec passes?" -> "Dispatch quality reviewer (./code-quality-reviewer-prompt.md)" [label="yes"];
+    "Spec passes?" -> "Ask user: run quality review?" [label="yes"];
+    "Ask user: run quality review?" -> "Dispatch quality reviewer (./code-quality-reviewer-prompt.md)" [label="yes (default)"];
+    "Ask user: run quality review?" -> "Coding standards feedback?" [label="skip"];
     "Dispatch quality reviewer (./code-quality-reviewer-prompt.md)" -> "Quality passes?";
     "Quality passes?" -> "Fix subagent fixes quality" [label="no"];
     "Fix subagent fixes quality" -> "Dispatch quality reviewer (./code-quality-reviewer-prompt.md)";
@@ -178,26 +184,31 @@ For each task in the plan:
 - MUST see actual build output with exit 0
 - Failure → dispatch fix subagent → re-build → loop until pass
 
-### Gate 3: Spec Compliance
+### Gate 3: Spec Compliance (可选，默认执行)
 
-- MUST dispatch spec-reviewer subagent via Agent tool
+- 编译通过后，**询问用户**：「是否执行 Spec Compliance 审查？（默认执行，输入"跳过"则跳过）」
+- 用户明确说"跳过"/"不执行"/"skip" 才跳过，其他任何回复（包括无回复、回车、"好"、"执行"等）均视为执行
+- 执行时：dispatch spec-reviewer subagent via Agent tool
 - Reviewer covers the **entire implementation** (all tasks, all pages), not just one task
 - Controller reviewing code itself does NOT satisfy this gate
 - Use `./spec-reviewer-prompt.md` template
 - Failure → dispatch fix subagent → re-dispatch spec reviewer → loop until pass
+- 跳过时：Final Gate Evidence 中标记为 ⏭️ Skipped
 
-### Gate 4: Code Quality
+### Gate 4: Code Quality (可选，默认执行)
 
-- MUST dispatch code-quality-reviewer subagent via Agent tool
-- Only after Gate 3 passes
+- Gate 3 完成或跳过后，**询问用户**：「是否执行 Code Quality 审查？（默认执行，输入"跳过"则跳过）」
+- 用户明确说"跳过"/"不执行"/"skip" 才跳过，其他任何回复均视为执行
+- 执行时：dispatch code-quality-reviewer subagent via Agent tool
 - Reviewer covers the **entire implementation**
 - Controller reviewing code itself does NOT satisfy this gate
 - Use `./code-quality-reviewer-prompt.md` template
 - Failure → dispatch fix subagent → re-dispatch quality reviewer → loop until pass
+- 跳过时：Final Gate Evidence 中标记为 ⏭️ Skipped
 
 ### Gate 5: Coding Standards Feedback
 
-After Gate 4 passes, review all issues found during Gates 3-4 and check if any relate to coding conventions/patterns that should be captured in the coding standards docs.
+After Gate 4 passes or is skipped, review all issues found during Gates 3-4 (if executed) and check if any relate to coding conventions/patterns that should be captured in the coding standards docs. If both Gate 3 and Gate 4 were skipped, skip Gate 5 silently.
 
 **Controller does this directly (no subagent):**
 
@@ -234,9 +245,9 @@ After all gates pass, output this block once:
 |------|--------|----------|
 | Backend Compilation | ✅/❌ | command: `mvn compile`, exit code: [0/non-zero] |
 | Frontend Compilation | ✅/❌ | command: `npm run build`, exit code: [0/non-zero] |
-| Spec Review | ✅/❌ | subagent dispatched: yes, verdict: [pass/fail + issues] |
-| Code Quality | ✅/❌ | subagent dispatched: yes, verdict: [pass/fail + issues] |
-| Coding Standards Feedback | ✅/⏭️ | [N conventions proposed / no conventions to add] |
+| Spec Review | ✅/❌/⏭️ | subagent dispatched: yes/skipped, verdict: [pass/fail/skipped] |
+| Code Quality | ✅/❌/⏭️ | subagent dispatched: yes/skipped, verdict: [pass/fail/skipped] |
+| Coding Standards Feedback | ✅/⏭️ | [N conventions proposed / no conventions to add / skipped] |
 
 All gates ✅ → Implementation COMPLETE
 Any gate ❌ → Fix and re-verify
@@ -285,11 +296,17 @@ Frontend compilation: ❌ TS error in orderLedger.vue
 [npm run build again]
 Frontend compilation: ✅ Build successful
 
+[Ask user: run spec review?]
+User: "好" → execute
+
 [Dispatch spec reviewer for entire implementation]
 Spec reviewer: ❌ Missing D3 (internalRelatedPartyName filter in delivery-record)
 [Dispatch fix subagent → add missing filter]
 [Dispatch spec reviewer again]
 Spec reviewer: ✅ All requirements met
+
+[Ask user: run quality review?]
+User: "执行" → execute
 
 [Dispatch code quality reviewer]
 Code reviewer: ✅ Approved. Minor: consider extracting shared date formatter.
@@ -348,7 +365,7 @@ Done!
 - **Write implementation code as controller** (dispatch a subagent)
 - **Compile or review during Phase 1** (CLAUDE.md Rule 5/6: defer)
 - Start implementation on main/master branch without explicit user consent
-- Skip Phase 2 reviews (spec compliance AND code quality)
+- Skip Phase 2 reviews without asking user (must ask, only skip if user explicitly declines)
 - Proceed with unfixed issues in Phase 2
 - Dispatch multiple implementation subagents in parallel (conflicts)
 - Make subagent read plan file (provide full text instead)
