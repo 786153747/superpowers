@@ -175,6 +175,7 @@ cd tests/claude-code
 - Codex 说明：`docs/README.codex.md`
 - OpenCode 说明：`docs/README.opencode.md`
 - 测试说明：`docs/testing.md`
+- Playwright E2E guide: `docs/playwright-e2e.md`
 - Windows 钩子兼容说明：`docs/windows/polyglot-hooks.md`
 
 ## License

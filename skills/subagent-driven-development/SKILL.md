@@ -89,6 +89,12 @@ digraph process {
         "Fix subagent fixes quality" [shape=box];
         "Coding standards feedback?" [shape=diamond style=filled fillcolor=lightblue];
         "Present to user + update spec docs" [shape=box style=filled fillcolor=lightblue];
+        "Ask user: run E2E tests?" [shape=diamond style=filled fillcolor=lightblue];
+        "Generate e2e-test-cases.md" [shape=box];
+        "User confirms test cases?" [shape=diamond];
+        "Dispatch E2E generator (./e2e-generator-prompt.md)" [shape=box];
+        "E2E passes?" [shape=diamond];
+        "Fix E2E test code" [shape=box];
         "Output final gate evidence" [shape=box];
     }
 
@@ -126,8 +132,17 @@ digraph process {
     "Fix subagent fixes quality" -> "Dispatch quality reviewer (./code-quality-reviewer-prompt.md)";
     "Quality passes?" -> "Coding standards feedback?" [label="yes"];
     "Coding standards feedback?" -> "Present to user + update spec docs" [label="yes — conventions found"];
-    "Present to user + update spec docs" -> "Output final gate evidence";
-    "Coding standards feedback?" -> "Output final gate evidence" [label="no — skip"];
+    "Present to user + update spec docs" -> "Ask user: run E2E tests?";
+    "Coding standards feedback?" -> "Ask user: run E2E tests?" [label="no — skip"];
+    "Ask user: run E2E tests?" -> "Generate e2e-test-cases.md" [label="yes (default)"];
+    "Ask user: run E2E tests?" -> "Output final gate evidence" [label="skip"];
+    "Generate e2e-test-cases.md" -> "User confirms test cases?";
+    "User confirms test cases?" -> "Generate e2e-test-cases.md" [label="revise"];
+    "User confirms test cases?" -> "Dispatch E2E generator (./e2e-generator-prompt.md)" [label="confirmed"];
+    "Dispatch E2E generator (./e2e-generator-prompt.md)" -> "E2E passes?";
+    "E2E passes?" -> "Fix E2E test code" [label="no — test issue"];
+    "Fix E2E test code" -> "Dispatch E2E generator (./e2e-generator-prompt.md)";
+    "E2E passes?" -> "Output final gate evidence" [label="yes"];
     "Output final gate evidence" -> "Use superpowers:finishing-a-development-branch";
 }
 ```
@@ -137,6 +152,8 @@ digraph process {
 - `./implementer-prompt.md` - Dispatch implementer subagent
 - `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent (Phase 2 only)
 - `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent (Phase 2 only)
+- `./e2e-test-cases-template.md` - Controller generates e2e-test-cases.md per page (Gate 6 Step 1)
+- `./e2e-generator-prompt.md` - Dispatch E2E test generator subagent (Gate 6 Step 2)
 
 ---
 
@@ -232,8 +249,46 @@ Would you like to update the coding standards doc (`@spec/CODING_STANDARDS.md`) 
 ```
 
 4. Wait for user confirmation
-5. If approved, update the relevant `coding-standards.md` file(s)
+5. If approved, update `@spec/CODING_STANDARDS.md`
 6. If no convention-related issues found, skip this gate silently
+
+### Gate 6: E2E Tests (可选，默认执行)
+
+- Gate 5 完成或跳过后，**询问用户三个问题**：
+  1. 「是否生成并运行 E2E 测试？（默认执行，输入"跳过"则跳过）」
+  2. 如果执行：「使用哪种语言？TypeScript / Python（默认 TypeScript）」
+  3. 如果执行：「使用有头模式还是无头模式？headed / headless（默认 headless）」
+- 用户明确说"跳过"/"不执行"/"skip" 才跳过，其他任何回复均视为执行
+- 用户选择语言后，将 `{E2E_LANGUAGE}` 设为 `typescript` 或 `python` 传给 subagent
+- 用户选择模式后，将 `{E2E_HEADED}` 设为 `true` 或 `false` 传给 subagent
+- **此 Gate 独立于 Gate 3/4/5**，即使前面的 Gate 全部跳过，仍然要询问用户
+
+**执行分两步：**
+
+**Step 1: 生成测试用例文档**
+- Controller 读取每个页面的 `frontend-detail-design.md`，提取测试场景
+- 按 `./e2e-test-cases-template.md` 模板生成 `e2e-test-cases.md` 到对应页面的计划目录：`docs/plans/<task>/<page-slug>/e2e-test-cases.md`
+- 文档按 P0/P1/P2 分级，每个用例包含：用例编号、场景描述、前置条件、操作步骤、预期结果
+- 文档末尾包含「脚本映射表」（此时留空，Step 2 完成后回填）
+- 生成后**展示给用户确认**，用户可增删改用例
+- 用户确认后进入 Step 2
+
+**Step 2: 生成测试代码并运行**
+- Dispatch e2e-generator subagent via Agent tool
+- Use `./e2e-generator-prompt.md` template
+- 提供：`e2e-test-cases.md` 路径、前端详细设计路径、前端目录、语言、浏览器模式
+- subagent 根据 `e2e-test-cases.md`（而非自行推断场景）生成 Playwright 测试代码 → 运行测试 → 报告结果
+- **脚本中所有注释必须使用中文**，每个测试函数上方写清楚对应用例编号和验证目标
+- 如果测试因 app 行为问题失败：报告为潜在产品问题，不自动修复 app 代码
+- 如果测试因选择器/时序失败：subagent 修复测试代码并重跑
+
+**Step 2 完成后，controller 必须：**
+1. 用 subagent 返回的脚本映射数据**回填**每个页面 `e2e-test-cases.md` 末尾的「脚本映射表」（用例编号 → 脚本文件 → 测试方法 → 通过/失败）
+2. **更新 `index.md`**：
+   - 执行追踪表新增 `e2e-tests` 行，备注填写总用例数和通过数
+   - 页面清单表新增 `E2E 用例` 列，填入每个页面的用例数量
+
+- 跳过时：Final Gate Evidence 中标记为 ⏭️ Skipped
 
 ### Final Gate Evidence Block (Mandatory)
 
@@ -248,6 +303,7 @@ After all gates pass, output this block once:
 | Spec Review | ✅/❌/⏭️ | subagent dispatched: yes/skipped, verdict: [pass/fail/skipped] |
 | Code Quality | ✅/❌/⏭️ | subagent dispatched: yes/skipped, verdict: [pass/fail/skipped] |
 | Coding Standards Feedback | ✅/⏭️ | [N conventions proposed / no conventions to add / skipped] |
+| E2E Tests | ✅/❌/⏭️ | lang: [ts/py], N specs generated, M passed / skipped |
 
 All gates ✅ → Implementation COMPLETE
 Any gate ❌ → Fix and re-verify
@@ -316,6 +372,23 @@ Review found: date formatter pattern should use `@JsonFormat(pattern = "yyyy-MM-
 → Present to user: "Should we add this to coding-standards.md?"
 → User approves → Update spec/backend/java/coding-standards.md
 
+[Ask user: run E2E tests?]
+User: "好" → execute
+[Ask user: TypeScript or Python?]
+User: "TypeScript"
+[Ask user: headed or headless?]
+User: "headed"
+
+[Step 1: Generate e2e-test-cases.md for each page]
+→ my-order/e2e-test-cases.md: 8 test cases (4 P0, 3 P1, 1 P2)
+→ delivery-record/e2e-test-cases.md: 6 test cases
+→ Present to user for confirmation
+User: "TC-05 加一个空列表场景" → revise → confirmed
+
+[Step 2: Dispatch E2E generator with test cases + frontend detail design paths, lang=typescript, headed=true]
+E2E generator: Generated 3 spec files, 12 tests. 11 passed, 1 failed (product issue: filter not applied).
+→ Report product issue to user
+
 ### Final Gate Evidence
 | Gate | Status | Evidence |
 |------|--------|----------|
@@ -324,6 +397,7 @@ Review found: date formatter pattern should use `@JsonFormat(pattern = "yyyy-MM-
 | Spec Review | ✅ | subagent dispatched: yes, verdict: pass (1 fix loop) |
 | Code Quality | ✅ | subagent dispatched: yes, verdict: pass |
 | Coding Standards | ✅ | 1 convention added to backend spec |
+| E2E Tests | ✅ | lang: ts, 3 specs generated, 12 tests, 11 passed, 1 product issue reported |
 
 All gates ✅ → Implementation COMPLETE
 
@@ -355,8 +429,8 @@ Done!
 
 **Quality gates (Phase 2):**
 - Compilation gate: code must compile before any review
-- Two-stage review: spec compliance, then code quality
-- Spec compliance covers entire implementation (catches cross-task inconsistencies)
+- Optional two-stage review: spec compliance, then code quality (both default to execute, skip only if user explicitly declines)
+- When executed, spec compliance covers entire implementation (catches cross-task inconsistencies)
 - Review loops ensure fixes actually work
 
 ## Red Flags

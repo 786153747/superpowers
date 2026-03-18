@@ -19,7 +19,7 @@ Task tool (general-purpose):
     ## Coding Standards
 
     Before writing any code, read and follow the project coding standards:
-    - **代码规范**: `@spec/CODING_STANDARDS.md`（前后端统一规范文档）
+    - **代码规范**: `spec/CODING_STANDARDS.md`（相对于业务项目根目录，前后端统一规范文档）
 
     Read this spec file before starting implementation.
     These are mandatory conventions — your implementation MUST conform to them.
