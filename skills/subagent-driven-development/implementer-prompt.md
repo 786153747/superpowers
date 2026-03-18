@@ -39,48 +39,31 @@ Task tool (general-purpose):
     Once you're clear on requirements:
     1. Implement exactly what the task specifies
     2. Write tests (following TDD if task says to)
-    3. Verify implementation works
+    3. Do not run project-level compilation/build in Phase 1 unless the task explicitly requires a lightweight local check or you are diagnosing a blocker
     4. Commit your work
-    5. Self-review (see below)
-    6. Report back
+    5. Report back
 
-    Work from: [directory]
+    Work from this exact directory only: [ABSOLUTE_WORKTREE_PATH]
+    Do not write source files anywhere else.
+    Do not fall back to the main repository root or another checkout.
+    If you cannot access this exact directory, stop and report the problem immediately.
 
     **While you work:** If you encounter something unexpected or unclear, **ask questions**.
     It's always OK to pause and clarify. Don't guess or make assumptions.
 
-    ## Before Reporting Back: Self-Review
-
-    Review your work with fresh eyes. Ask yourself:
-
-    **Completeness:**
-    - Did I fully implement everything in the spec?
-    - Did I miss any requirements?
-    - Are there edge cases I didn't handle?
-
-    **Quality:**
-    - Is this my best work?
-    - Are names clear and accurate (match what things do, not how they work)?
-    - Is the code clean and maintainable?
-
-    **Discipline:**
-    - Did I avoid overbuilding (YAGNI)?
-    - Did I only build what was requested?
-    - Did I follow existing patterns in the codebase?
-
-    **Testing:**
-    - Do tests actually verify behavior (not just mock behavior)?
-    - Did I follow TDD if required?
-    - Are tests comprehensive?
-
-    If you find issues during self-review, fix them now before reporting.
-
     ## Report Format
 
     When done, report:
+    - STATUS: COMPLETE or NOT COMPLETE
     - What you implemented
-    - What you tested and test results
+    - Exact working directory used
     - Files changed
-    - Self-review findings (if any)
+    - Lightweight checks run during implementation, if any
+    - Whether any command timed out or any blocker remains
     - Any issues or concerns
+
+    If the task is not fully complete, report `STATUS: NOT COMPLETE` and include:
+    - Remaining work
+    - Blockers or unresolved questions
+    - Partial files changed so far
 ```

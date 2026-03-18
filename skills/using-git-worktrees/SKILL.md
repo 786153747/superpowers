@@ -132,6 +132,15 @@ Worktree ready at <full-path>
 Ready to implement <feature-name>
 ```
 
+## Path Handoff Contract
+
+After creating the worktree, downstream execution skills must receive and preserve the exact absolute worktree path.
+
+- Record the worktree absolute path as `SOURCE_ROOT`
+- If plan/status documents remain in the original checkout, record that path separately as `DOC_ROOT`
+- All subsequent source edits, subagent work, and verification commands must use `SOURCE_ROOT`
+- Do not silently fall back to the main repository root once a worktree has been selected
+
 ## Quick Reference
 
 | Situation | Action |
@@ -166,6 +175,11 @@ Ready to implement <feature-name>
 - **Problem:** Breaks on projects using different tools
 - **Fix:** Auto-detect from project files (package.json, etc.)
 
+### Losing worktree path context
+
+- **Problem:** Docs get updated in one checkout while code changes land in another
+- **Fix:** Hand off the exact absolute `SOURCE_ROOT` to downstream skills and keep using it consistently
+
 ## Example Workflow
 
 ```
@@ -189,12 +203,14 @@ Ready to implement auth feature
 - Proceed with failing tests without asking (if tests were run)
 - Assume directory location when ambiguous
 - Skip CLAUDE.md check
+- Lose the selected worktree path after creation
 
 **Always:**
 - Follow directory priority: existing > CLAUDE.md > ask
 - Verify directory is ignored for project-local
 - Auto-detect project type; only run setup when needed (skip for Java/Maven)
 - Skip baseline tests by default; only run if user requests or branch suspected broken
+- Pass the exact absolute worktree path to downstream execution skills
 
 ## Integration
 

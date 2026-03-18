@@ -68,6 +68,7 @@ Load plan, review critically, execute tasks in batches, report for review betwee
 - **统一审查** - 整个功能模块编码完成后，再请求一次性代码审查
 - `using-git-worktrees` 仅管理**用户指定的源码目录**，文档目录（`docs/plans/`）直接修改，不经过 git 工作区
 - **源码目录** - 指用户提供的包含前后端代码的项目根目录（如 `RuoYi-Vue3-TypeScript/`）
+- 创建 worktree 后，后续所有源码修改、验证命令、子代理工作目录都必须固定在同一个源码根目录；如果文档目录和源码目录不同，必须显式记录并持续使用
 
 ### 无 Git 仓库例外
 
@@ -114,6 +115,25 @@ For each task:
    - Update `index.md` 执行进度 table: increment the `已完成` count for this page
    - On first task of a page: update `index.md` page `实施状态` to `进行中`
 
+### 强制状态一致性规则
+
+- 只有在以下条件全部满足时，Task 才能标记为 `已完成`:
+  1. 该 Task 已实际执行
+  2. 计划要求的验证已执行，且退出码明确为成功
+  3. `<page>/plan.md` 与 `index.md` 的状态更新都成功
+- 以下情况一律不得标记 `已完成`:
+  - 命令超时
+  - 命令无输出且未确认退出码
+  - `Error editing file`
+  - 仅凭文件存在性或推测认定任务完成
+  - 尚未真正开始执行的 Task
+- 禁止批量预标记:
+  - 不得把多个 `未开始` Task 一次性更新为 `已完成`
+  - 必须逐 Task 执行、逐 Task 更新状态
+- 若状态文件更新失败:
+  - 保持原状态或标记为 `进行中`
+  - 先修复状态文件，再继续执行后续 Task
+
 ### Step 3: Report (with page context)
 When batch complete:
 - Show what was implemented
@@ -141,7 +161,7 @@ If the session was interrupted (context compressed, window closed, new session):
 
 1. Read `index.md` — find the first page with `实施状态 = 进行中` or `未开始`
 2. If `进行中` → read that page's `plan.md` task status table:
-   - `已完成` tasks: skip, do NOT redo
+   - `已完成` tasks: first verify required outputs still exist on disk; if outputs are missing or clearly incomplete, downgrade to `未开始` or `进行中` before continuing
    - `进行中` task: check if the code changes exist on disk (use Glob/Read). If changes look complete, run verification; if incomplete or missing, re-execute the task
    - `未开始` tasks: proceed normally
 3. If all pages `已完成` → proceed to Step 5

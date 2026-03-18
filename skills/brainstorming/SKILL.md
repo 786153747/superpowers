@@ -16,7 +16,7 @@ If the user explicitly wants **详细设计** and the project has templates unde
 In a PRD/UI-driven development-design workflow, treat detailed design as the default written output for every in-scope side:
 - Frontend is in scope when the input or diff mentions a UI project, page paths, page interactions, or frontend changes/blockers.
 - Backend is in scope when the input or diff mentions APIs, controllers/services/mappers, database work, SAP/mock integration, or backend changes/blockers.
-- If both sides are in scope and the user did not explicitly narrow scope, you MUST produce two detailed-design docs before any planning: **按页面逐个推进，每个页面先写前端再写后端**（禁止先写完所有页面的前端设计再写后端设计）。
+- If both sides are in scope and the user did not explicitly narrow scope, you MUST produce two detailed-design docs before any planning: **每个页面先写前端再写后端**（禁止先写完所有页面的前端设计再写后端设计）。执行模式（串行/并行）在 Step 6.0 由用户选择。
 
 <HARD-GATE>
 Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design and the user has approved it. This applies to EVERY project regardless of perceived simplicity.
@@ -30,7 +30,7 @@ Replies like `继续`, `下一步`, `往下走`, or answers to clarification que
 - Do NOT create: `*-diff.md`, `*-plan.md`, `*-db-design.md` — these belong to other skills
 - **One step per turn**: complete one step, then STOP and wait for user to reply. Do NOT continue to the next step in the same turn.
 - Do NOT do the diff scan yourself. If diff.md is missing, stop and tell the user.
-- If both frontend and backend are in scope, Step 5 must present both sides (先前端后后端) and Step 6 must save two docs per page (先前端，再基于前端写后端，逐页推进). Do NOT silently drop one side because it looks "already implemented". Do NOT batch all frontend docs first then all backend docs — each page must complete both sides before moving on.
+- If both frontend and backend are in scope, Step 5 must present both sides (先前端后后端) and Step 6 must save two docs per page (先前端，再基于前端写后端). Do NOT silently drop one side because it looks "already implemented". Do NOT batch all frontend docs first then all backend docs — each page must complete both sides before moving on. 用户可在 Step 6.0 选择串行或并行模式。
 
 ---
 
@@ -183,10 +183,21 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 1. **任务根目录**：从已有的 `diff.md` 所在目录推断。如果不存在 diff.md（无 PRD 场景），则创建 `docs/plans/YYYY-MM-DD-<topic>/`。
 2. **页面清单**：从 diff 文档的受影响页面清单或用户提供的需求中提取。每个页面对应一个 kebab-case 的子目录名（page-slug）。
 3. **预读前端代码**（Frontend in scope 时）：**一次性**并行 Glob `src/api/**/*.ts` + `src/types/api/**/*.ts`，再并行 Read 所有匹配文件。将结果缓存供后续各页面 Step 6a 使用，避免每页重复搜索和读取。
+4. **选择执行模式**（页面数量 > 1 时）：
 
-#### 6.1 按页面保存设计文件（每页一轮，逐页推进）
+向用户提供两种模式选择：
 
-**上下文管理**：当写到第 4 个页面且前后端都有时（≥ 8 份文档），主动建议用户在新对话中继续，避免输出截断。
+> 共 Y 个页面需要编写详细设计。请选择执行模式：
+> - **A) 串行模式**：逐页推进，每页一轮对话，可逐页审阅反馈
+> - **B) 并行模式**：使用子代理同时编写所有页面，速度更快，完成后统一审阅
+>
+> 页面清单：[列出所有 page-slug]
+
+用户选择后进入对应的 6.1 或 6.1-parallel。页面数量 = 1 时直接进入 6.1，不询问。
+
+#### 6.1 串行模式：按页面保存设计文件（每页一轮，逐页推进）
+
+**上下文管理**：当写到第 4 个页面且前后端都有时（≥ 8 份文档），主动建议用户在新对话中继续，避免输出截断。也可建议用户切换到并行模式。
 
 - Determine scope before writing:
   - Frontend in scope → use `spec/frontend/vue/detail-design-template.md`
@@ -213,9 +224,38 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 8. **如果还有更多页面 → STOP，等用户确认后继续下一个页面**
 9. **如果是最后一个页面 → 继续到 6.2 创建 index.md**
 
-> Step 6 会跨越多个对话轮次（每个页面一轮）。
+> Step 6 串行模式会跨越多个对话轮次（每个页面一轮）。
 
-#### 前后端写入顺序与对齐规则
+#### 6.1-parallel 并行模式：子代理同时编写所有页面
+
+用户选择并行模式后，使用 Agent 工具为每个页面启动一个独立子代理，所有页面**同时**编写。
+
+**启动方式**：在同一轮中，为所有页面并行发起 Agent 调用（单条消息中多个 Agent tool call）。
+
+每个 Agent 的 prompt 必须包含：
+1. **任务说明**：为页面 `<page-slug>` 编写前端和/或后端详细设计文档
+2. **输出路径**：`<task-root>/<page-slug>/frontend-detail-design.md` 和 `backend-detail-design.md`
+3. **模板内容**：将 `spec/frontend/vue/detail-design-template.md` 和/或 `spec/backend/java/detail-design-template.md` 的完整内容嵌入 prompt
+4. **该页面相关的已有前端代码**：从 6.0 预读结果中筛选与当前页面相关的 API 文件和类型文件内容
+5. **需求上下文**：该页面在 diff.md 中的差异描述和确认决议，以及 Step 5 确认的设计方案中与该页面相关的部分
+6. **规则约束**：
+   - 页面内先写前端再写后端，后端必须引用同目录前端设计
+   - 文档独立性：禁止跨页面引用，内容必须完整自包含
+   - 已有前端代码优先规则
+   - 保存前必须通过自检清单（前端 18 项 / 后端 12 项）
+
+**完成后处理**：
+- 所有 Agent 完成后，主代理逐个检查每个页面的输出文件是否已正确保存
+- 输出汇总 checkpoint：
+
+> **CHECKPOINT**: "✅ 全部 Y 个页面的详细设计已并行完成并保存。"
+> | 页面 | 前端设计 | 后端设计 | 状态 |
+> |------|---------|---------|------|
+> | <page-slug> | ✅ | ✅ | 完成 |
+
+- **STOP，等用户审阅确认后继续到 6.2 创建 index.md**
+
+#### 前后端写入顺序与对齐规则（串行和并行模式共用）
 
 依赖链：`已有前端代码 > 原型图/PRD → 前端详细设计 → 后端详细设计`
 

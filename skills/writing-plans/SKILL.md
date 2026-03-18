@@ -235,12 +235,12 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 
 ### 每个 plan.md 的格式
 
-每个页面的 `plan.md` 顶部必须包含任务状态表（由 executing-plans 更新状态）：
+每个页面的 `plan.md` 顶部必须包含任务状态表（由执行阶段的 skill 更新状态；默认遵循仓库根 `CLAUDE.md` 的执行规则）：
 
 ```markdown
 # <页面名称> Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **Execution:** Follow repository execution rules in `CLAUDE.md`. Default to `superpowers:subagent-driven-development` for current-session execution; use `superpowers:executing-plans` only for a separate parallel session.
 
 **Goal:** [一句话描述本页面构建什么]
 
@@ -307,6 +307,8 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 ## Plan Document Header (for each page plan)
 
 **Every page plan MUST start with the header shown in Plan Generation Flow above.**
+
+Do not hard-code `superpowers:executing-plans` in generated plans when the repository root `CLAUDE.md` requires another default executor. The generated header must defer to the repository rule and mention `executing-plans` only as the separate-session option.
 
 ## Task Structure（核心）
 
@@ -438,5 +440,5 @@ Master index updated: docs/plans/<task>/index.md
 
 Offer execution choice (详见 CLAUDE.md §1 执行模式选择):
 
-1. **Subagent-Driven (this session)** → `superpowers:subagent-driven-development`
+1. **Subagent-Driven (this session, default if CLAUDE.md says so)** → `superpowers:subagent-driven-development`
 2. **Parallel Session (separate)** → `superpowers:executing-plans`
