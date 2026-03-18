@@ -129,7 +129,6 @@ Running the full test suite on an unmodified worktree is low-value: the code has
 
 ```
 Worktree ready at <full-path>
-Tests passing (<N> tests, 0 failures)
 Ready to implement <feature-name>
 ```
 
@@ -187,21 +186,19 @@ Ready to implement auth feature
 
 **Never:**
 - Create worktree without verifying it's ignored (project-local)
-- Skip baseline test verification
-- Proceed with failing tests without asking
+- Proceed with failing tests without asking (if tests were run)
 - Assume directory location when ambiguous
 - Skip CLAUDE.md check
 
 **Always:**
 - Follow directory priority: existing > CLAUDE.md > ask
 - Verify directory is ignored for project-local
-- Auto-detect and run project setup
-- Verify clean test baseline
+- Auto-detect project type; only run setup when needed (skip for Java/Maven)
+- Skip baseline tests by default; only run if user requests or branch suspected broken
 
 ## Integration
 
 **Called by:**
-- **brainstorming** (Phase 4) - REQUIRED when design is approved and implementation follows
 - **subagent-driven-development** - REQUIRED before executing any tasks
 - **executing-plans** - REQUIRED before executing any tasks
 - Any skill needing isolated workspace

@@ -45,8 +45,10 @@ You MUST create a task for each step and complete them in order.
 
 - Check out the current project state (files, docs, recent commits)
 - Understand what the user wants to build
-- If `spec/index.md` exists, read it. If the user wants frontend/backend detailed design, also note the matching template path under `spec/`
-- **检查已有前端实现**：搜索前端项目中是否已存在相关的页面文件（`src/views/`）、API 文件（`src/api/`）、类型文件（`src/types/api/`）。如果存在，在探索总结中明确标注"前端代码已存在"，后续 Step 6a 将以已有代码为准
+- **并行执行以下探索**（在同一轮中同时发起）：
+  - Glob 搜索前端项目已有的页面文件（`src/views/`）、API 文件（`src/api/`）、类型文件（`src/types/api/`）
+  - 如果用户需要前端/后端详细设计，记录 `spec/` 下对应模板路径
+- 如果前端文件存在，在探索总结中明确标注"前端代码已存在"，后续 Step 6a 将以已有代码为准
 
 **After completing exploration, end your turn.** Present a brief summary of what you found and ask the user one clarifying question.
 
@@ -59,8 +61,8 @@ If no PRD / requirement doc was provided → skip to Step 3.
 If user provided PRD or requirement doc:
 
 1. Use Glob to check if `docs/plans/*/diff.md` exists
-2. If exists → Read the diff document, then **验证完整性与新鲜度**：
-   - 如果 diff 文档有 Git 基线（`Git 仓库根目录 != 无`），检查 commit 是否一致：执行 `git -C <原型目录> log -1 --format="%H"`，与 diff 文档的 `当前原型 Commit ID` 比对。不一致 → **STOP**，告知用户重新执行 `prd-diff-scan`
+2. If exists → **并行执行**：Read diff 文档 + Bash `git -C <原型目录> log -1 --format="%H"` 获取当前 commit。然后**验证完整性与新鲜度**：
+   - 如果 diff 文档有 Git 基线（`Git 仓库根目录 != 无`），比对当前 commit 与 diff 文档的 `当前原型 Commit ID`。不一致 → **STOP**，告知用户重新执行 `prd-diff-scan`
    - 每个 PRD 页面是否都有 5 维度对比（UI 可视要素 + 控件矩阵 + 字段对比 + 9 维度 + 验收点）
    - 差异清单 Dx 是否覆盖了对比表中所有「差异」行
    - 建议决议是否逐项覆盖了所有 Dx 和 Bx
@@ -180,6 +182,7 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 
 1. **任务根目录**：从已有的 `diff.md` 所在目录推断。如果不存在 diff.md（无 PRD 场景），则创建 `docs/plans/YYYY-MM-DD-<topic>/`。
 2. **页面清单**：从 diff 文档的受影响页面清单或用户提供的需求中提取。每个页面对应一个 kebab-case 的子目录名（page-slug）。
+3. **预读前端代码**（Frontend in scope 时）：**一次性**并行 Glob `src/api/**/*.ts` + `src/types/api/**/*.ts`，再并行 Read 所有匹配文件。将结果缓存供后续各页面 Step 6a 使用，避免每页重复搜索和读取。
 
 #### 6.1 按页面保存设计文件（每页一轮，逐页推进）
 
@@ -192,18 +195,18 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 **每轮只处理一个页面。** 对当前页面：
 
 **Step 6a：前端详细设计**（Frontend in scope 时执行）
-1. **检查已有前端代码**：用 Glob 搜索 `src/api/**/*.ts` 和 `src/types/api/**/*.ts`，查找与当前页面相关的 API 文件和类型文件。如果找到：
-   - 读取 API 文件，提取所有接口的路径、HTTP 方法、函数签名
-   - 读取类型文件，提取所有 TypeScript 接口/类型定义
+1. **检查已有前端代码**：从 6.0 预读结果中筛选与当前页面相关的 API 文件和类型文件（无需重复 Glob/Read）。如果找到：
+   - 提取所有接口的路径、HTTP 方法、函数签名
+   - 提取所有 TypeScript 接口/类型定义
    - **这些代码定义是 Section 5（接口设计）和 Section 6（类型设计）的唯一事实来源**
 2. 创建页面子目录
 3. 按模板写入并保存 `<task>/<page-slug>/frontend-detail-design.md`
 4. **保存前必须通过模板 Section 10 自检清单**（18 项全部 ✅ 才可保存）
 
 **Step 6b：后端详细设计**（Backend in scope 时执行，必须在 6a 之后）
-4. 写入并保存 `<task>/<page-slug>/backend-detail-design.md`
-5. **保存前必须通过模板头部自检清单**（12 项全部 ✅ 才可保存）
-6. 后端文档必须在「需求输入」中引用同目录下的前端详细设计路径
+5. 写入并保存 `<task>/<page-slug>/backend-detail-design.md`
+6. **保存前必须通过模板头部自检清单**（12 项全部 ✅ 才可保存）
+7. 后端文档必须在「需求输入」中引用同目录下的前端详细设计路径
 
 **页面完成**
 7. 输出 checkpoint：`"✅ 页面 <page-slug> 设计已保存（第 X / 共 Y 个页面）"`
@@ -219,7 +222,7 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 **已有前端代码优先规则**：如果前端页面、API 文件（`src/api/*.ts`）、类型定义文件（`src/types/api/*.ts`）已存在，前端详细设计**必须以已有代码为准**——接口路径、HTTP 方法、参数名、类型定义均从代码中提取。PRD/原型仅作为功能范围的补充参考，不得覆盖已有代码中的接口约定。
 
 1. **先写前端**：
-   - **前端代码已存在时**：先读取已有的 API 文件和类型定义文件，以代码中的接口路径、HTTP 方法、参数名和类型为准填写 Section 5（接口设计）和 Section 6（类型设计）
+   - **前端代码已存在时**：从 6.0 预读结果中提取已有的 API 文件和类型定义文件，以代码中的接口路径、HTTP 方法、参数名和类型为准填写 Section 5（接口设计）和 Section 6（类型设计）
    - **前端代码不存在时**：字段逐项对照 `diff.md` 中 PRD 字段对比表（前端是原型的唯一翻译层）
 2. **再写后端**：后端只对齐前端、不再独立对照原型。后端文档必须：
    - 接口清单覆盖前端控件矩阵中所有「调用接口」
