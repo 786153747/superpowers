@@ -35,7 +35,7 @@ PRD/需求 → prd-diff-scan → brainstorming → writing-plans → executing-p
 4. **按接口维度切 Task**：每个 Task 是垂直切片（Entity→Mapper→Service→Controller），禁止按技术层横切
 5. **延迟编译**：编码阶段不编译，所有后端任务完成后再 `mvn compile`
 6. **延迟审查**：编译通过后（后端 + 前端）再请求一次性审查，不每任务审查
-7. **时间追踪**：更新任务状态时必须同时更新开始时间/完成时间/耗时（填写当前实际时间）
+7. **代码规范**：implementer 编码前必须读取 `spec/` 下的代码规范文档，Phase 2 审查后收集规范类问题反馈给用户确认是否更新规范文档
 8. **Git Worktree**：执行计划前必须调用 `using-git-worktrees` 创建隔离工作区
 9. **子代理执行**：执行 plan 用 `subagent-driven-development`，每任务 fresh subagent（仅实现，编译和审查延迟到 Phase 2）
 10. **验证优先**：声称完成前必须调用 `verification-before-completion` 跑验证命令

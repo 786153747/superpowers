@@ -85,6 +85,8 @@ digraph process {
         "Dispatch quality reviewer (./code-quality-reviewer-prompt.md)" [shape=box];
         "Quality passes?" [shape=diamond];
         "Fix subagent fixes quality" [shape=box];
+        "Coding standards feedback?" [shape=diamond style=filled fillcolor=lightblue];
+        "Present to user + update spec docs" [shape=box style=filled fillcolor=lightblue];
         "Output final gate evidence" [shape=box];
     }
 
@@ -116,7 +118,10 @@ digraph process {
     "Dispatch quality reviewer (./code-quality-reviewer-prompt.md)" -> "Quality passes?";
     "Quality passes?" -> "Fix subagent fixes quality" [label="no"];
     "Fix subagent fixes quality" -> "Dispatch quality reviewer (./code-quality-reviewer-prompt.md)";
-    "Quality passes?" -> "Output final gate evidence" [label="yes"];
+    "Quality passes?" -> "Coding standards feedback?" [label="yes"];
+    "Coding standards feedback?" -> "Present to user + update spec docs" [label="yes — conventions found"];
+    "Present to user + update spec docs" -> "Output final gate evidence";
+    "Coding standards feedback?" -> "Output final gate evidence" [label="no — skip"];
     "Output final gate evidence" -> "Use superpowers:finishing-a-development-branch";
 }
 ```
@@ -135,13 +140,11 @@ digraph process {
 
 For each task in the plan:
 
-1. **Record start time**: `date +%s` → save as `t_start`
-2. **Dispatch implementer subagent** with full task text + context (paste task, don't make subagent read plan file)
-3. **Answer questions** if implementer asks (before implementation begins)
-4. **Implementer completes**: implements code, self-reviews, reports back
-5. **Record end time**: `date +%s` → save as `t_end`
-6. **Mark task complete**: update plan.md task status + time tracking, update index.md progress
-7. **Move to next task** — do NOT compile or review
+1. **Dispatch implementer subagent** with full task text + context (paste task, don't make subagent read plan file)
+2. **Answer questions** if implementer asks (before implementation begins)
+3. **Implementer completes**: implements code, self-reviews, reports back
+4. **Mark task complete**: update plan.md task status, update index.md progress
+5. **Move to next task** — do NOT compile or review
 
 ### What controller does NOT do in Phase 1
 
@@ -152,7 +155,7 @@ For each task in the plan:
 
 ### Status updates after each task
 
-1. Update `<page>/plan.md` 任务状态 table: set status to `已完成`, fill start/end time
+1. Update `<page>/plan.md` 任务状态 table: set status to `已完成`
 2. Update `index.md` 执行进度 table: increment `已完成` count
 3. On first task of a page: update `index.md` page `实施状态` to `进行中`
 4. When all tasks of a page complete: update `index.md` page `实施状态` to `已完成`
@@ -192,72 +195,51 @@ For each task in the plan:
 - Use `./code-quality-reviewer-prompt.md` template
 - Failure → dispatch fix subagent → re-dispatch quality reviewer → loop until pass
 
+### Gate 5: Coding Standards Feedback
+
+After Gate 4 passes, review all issues found during Gates 3-4 and check if any relate to coding conventions/patterns that should be captured in the coding standards docs.
+
+**Controller does this directly (no subagent):**
+
+1. Collect all issues found by spec reviewer (Gate 3) and code quality reviewer (Gate 4), including fixed ones
+2. Filter for issues that represent **recurring patterns or conventions** (not one-off bugs), for example:
+   - Naming inconsistencies (e.g., method should be `selectXxxList` not `getXxxList`)
+   - Missing standard annotations or patterns
+   - Code structure deviations from project conventions
+   - Frontend/backend API calling pattern issues
+3. If such issues exist, present them to the user:
+
+```
+### Coding Standards Feedback
+
+The following issues from code review may indicate missing or unclear coding standards:
+
+1. [Issue description] — suggested addition to [backend/frontend] coding standards
+2. ...
+
+Would you like to update the coding standards doc (`@spec/CODING_STANDARDS.md`) with these conventions?
+```
+
+4. Wait for user confirmation
+5. If approved, update the relevant `coding-standards.md` file(s)
+6. If no convention-related issues found, skip this gate silently
+
 ### Final Gate Evidence Block (Mandatory)
 
-After all 4 gates pass, output this block once:
+After all gates pass, output this block once:
 
 ```
 ### Final Gate Evidence
-| Gate | Status | Duration | Evidence |
-|------|--------|----------|----------|
-| Backend Compilation | ✅/❌ | Xm Ys | command: `mvn compile`, exit code: [0/non-zero] |
-| Frontend Compilation | ✅/❌ | Xm Ys | command: `npm run build`, exit code: [0/non-zero] |
-| Spec Review | ✅/❌ | Xm Ys | subagent dispatched: yes, verdict: [pass/fail + issues] |
-| Code Quality | ✅/❌ | Xm Ys | subagent dispatched: yes, verdict: [pass/fail + issues] |
-| **Total** | | **Xm Ys** | |
+| Gate | Status | Evidence |
+|------|--------|----------|
+| Backend Compilation | ✅/❌ | command: `mvn compile`, exit code: [0/non-zero] |
+| Frontend Compilation | ✅/❌ | command: `npm run build`, exit code: [0/non-zero] |
+| Spec Review | ✅/❌ | subagent dispatched: yes, verdict: [pass/fail + issues] |
+| Code Quality | ✅/❌ | subagent dispatched: yes, verdict: [pass/fail + issues] |
+| Coding Standards Feedback | ✅/⏭️ | [N conventions proposed / no conventions to add] |
 
 All gates ✅ → Implementation COMPLETE
 Any gate ❌ → Fix and re-verify
-```
-
----
-
-## Timing Instrumentation
-
-### Per-task timing (Phase 1)
-
-Record only start and end time per task:
-
-```bash
-# Before dispatching implementer
-t_start=$(date +%s)
-
-# After implementer returns
-t_end=$(date +%s)
-echo "Task N: $(( t_end - t_start )) seconds"
-```
-
-### Phase 2 timing
-
-Record start/end for each gate (compilation, spec review, quality review).
-
-### Timing Log
-
-After Phase 2 completes, write `timing.md` in the plan directory:
-
-```markdown
-# Timing Log
-
-## Phase 1: Implementation
-
-| Task | Duration (human) |
-|------|-----------------|
-| Task 1: [name] | Xm Ys |
-| Task 2: [name] | Xm Ys |
-| ... | ... |
-| **Phase 1 Total** | **Xm Ys** |
-
-## Phase 2: Verification
-
-| Gate | Duration (human) | Fix loops |
-|------|-----------------|-----------|
-| Backend Compilation | Xm Ys | [none / N iterations] |
-| Frontend Compilation | Xm Ys | [none / N iterations] |
-| Spec Review | Xm Ys | [none / N iterations] |
-| Code Quality Review | Xm Ys | [none / N iterations] |
-| **Phase 2 Total** | **Xm Ys** | |
-
-## Grand Total: **Xm Ys**
 ```
 
 ---
@@ -274,28 +256,22 @@ You: I'm using Subagent-Driven Development to execute this plan.
 --- Phase 1: Implementation ---
 
 Task 1: Database tables
-[Record t_start]
 [Dispatch implementer subagent with full task text]
 Implementer: Implemented, self-review done.
-[Record t_end → 3m 15s]
 [Update plan.md: Task 1 已完成, update index.md]
 
 Task 2: Order list API (full vertical slice)
-[Record t_start]
 [Dispatch implementer subagent with full task text]
 Implementer: "Should the date range be inclusive or exclusive?"
 You: "Inclusive on both ends."
 Implementer: Implemented, self-review done.
-[Record t_end → 8m 42s]
 [Update plan.md: Task 2 已完成, update index.md]
 
 ... (continue for all tasks) ...
 
 Task N: Frontend diff fixes
-[Record t_start]
 [Dispatch implementer subagent]
 Implementer: Done.
-[Record t_end → 4m 20s]
 [Update plan.md + index.md: all pages 已完成]
 
 --- Phase 2: Verification ---
@@ -318,18 +294,22 @@ Spec reviewer: ✅ All requirements met
 [Dispatch code quality reviewer]
 Code reviewer: ✅ Approved. Minor: consider extracting shared date formatter.
 
+[Coding Standards Feedback]
+Review found: date formatter pattern should use `@JsonFormat(pattern = "yyyy-MM-dd")`
+→ Present to user: "Should we add this to coding-standards.md?"
+→ User approves → Update spec/backend/java/coding-standards.md
+
 ### Final Gate Evidence
-| Gate | Status | Duration | Evidence |
-|------|--------|----------|----------|
-| Backend Compilation | ✅ | 1m 30s | command: `mvn compile`, exit code: 0 |
-| Frontend Compilation | ✅ | 2m 45s | command: `npm run build`, exit code: 0 (1 fix loop) |
-| Spec Review | ✅ | 12m 10s | subagent dispatched: yes, verdict: pass (1 fix loop) |
-| Code Quality | ✅ | 8m 05s | subagent dispatched: yes, verdict: pass |
-| **Total** | | **24m 30s** | |
+| Gate | Status | Evidence |
+|------|--------|----------|
+| Backend Compilation | ✅ | command: `mvn compile`, exit code: 0 |
+| Frontend Compilation | ✅ | command: `npm run build`, exit code: 0 (1 fix loop) |
+| Spec Review | ✅ | subagent dispatched: yes, verdict: pass (1 fix loop) |
+| Code Quality | ✅ | subagent dispatched: yes, verdict: pass |
+| Coding Standards | ✅ | 1 convention added to backend spec |
 
 All gates ✅ → Implementation COMPLETE
 
-[Write timing.md]
 [Use superpowers:finishing-a-development-branch]
 Done!
 ```

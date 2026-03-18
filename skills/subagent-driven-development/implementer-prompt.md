@@ -16,6 +16,14 @@ Task tool (general-purpose):
 
     [Scene-setting: where this fits, dependencies, architectural context]
 
+    ## Coding Standards
+
+    Before writing any code, read and follow the project coding standards:
+    - **代码规范**: `@spec/CODING_STANDARDS.md`（前后端统一规范文档）
+
+    Read this spec file before starting implementation.
+    These are mandatory conventions — your implementation MUST conform to them.
+
     ## Before You Begin
 
     If you have questions about:

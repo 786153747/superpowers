@@ -110,33 +110,9 @@ For each task:
 3. Run verifications as specified
 4. Mark as completed
 5. **Update status tracking** after each task:
-   - Update the task's status in `<page>/plan.md`'s 任务状态 table (set to `已完成` + write completion time)
+   - Update the task's status in `<page>/plan.md`'s 任务状态 table (set to `已完成`)
    - Update `index.md` 执行进度 table: increment the `已完成` count for this page
    - On first task of a page: update `index.md` page `实施状态` to `进行中`
-
-### 时间追踪更新规则（关键）
-
-每次更新 `plan.md` 的任务状态时，**必须同时更新**时间追踪字段（填写当前任务实际开始/完成的时间，不是固定字符串）：
-
-| 字段 | 何时填写 |
-|------|---------|
-| 开始时间 | 任务设为 in_progress 时（填写当前实际时间，如 `2026-03-16 10:30`） |
-| 完成时间 | 任务设为 completed 时（填写当前实际时间，如 `2026-03-16 11:15`） |
-| 耗时 | 任务完成时计算（完成时间 - 开始时间，如 `45 分钟`） |
-
-**填写示例（plan.md）：**
-
-```markdown
-## 任务状态
-
-| 任务 | 描述 | 状态 | 开始时间 | 完成时间 | 耗时 |
-|------|------|------|---------|---------|------|
-| Task 1 | 创建后端领域模型 | 已完成 | 2026-03-16 10:30 | 2026-03-16 11:15 | 45 分钟 |
-| Task 2 | 创建后端 Mapper 层 | 进行中 | 2026-03-16 11:15 | — | — |
-| Task 3 | 创建后端 Service 层 | 未开始 | — | — | — |
-```
-
-**禁止只更新状态列而不更新时间追踪字段。**
 
 ### Step 3: Report (with page context)
 When batch complete:
