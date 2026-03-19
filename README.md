@@ -6,7 +6,6 @@ Superpowers is a complete software development workflow for your coding agents, 
 
 - Project overview in Chinese: [README.zh-CN.md](README.zh-CN.md)
 - Claude Code CLI guide in Chinese: [docs/README.claude-code.zh-CN.md](docs/README.claude-code.zh-CN.md)
-- Playwright E2E guide: [docs/playwright-e2e.md](docs/playwright-e2e.md)
 
 ## How it works
 
@@ -105,7 +104,6 @@ Start a new session in your chosen platform and ask for something that should tr
 
 **Testing**
 - **test-driven-development** - RED-GREEN-REFACTOR cycle (includes testing anti-patterns reference)
-- **playwright-e2e** - Run, triage, or add Playwright browser end-to-end validation with artifact-aware reporting
 
 **Debugging**
 - **systematic-debugging** - 4-phase root cause process (includes root-cause-tracing, defense-in-depth, condition-based-waiting techniques)

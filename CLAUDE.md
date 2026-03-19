@@ -53,7 +53,6 @@ docs/plans/YYYY-MM-DD-<主题>/
     frontend-detail-design.md
     backend-detail-design.md
     plan.md                  # writing-plans 创建，executing-plans 更新状态
-    e2e-test-cases.md        # Gate 6 生成（可选）
 ```
 
 ---
