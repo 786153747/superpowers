@@ -26,6 +26,8 @@ Replies like `继续`, `下一步`, `往下走`, or answers to clarification que
 
 ## Restrictions
 
+- In `6.1-parallel`, never declare success, create `index.md`, or say "all pages complete" based only on subagent replies. Success requires an on-disk verification pass against the full expected page list and all required frontend/backend design files.
+
 - This skill can create `*-design.md` documents, and it may create `*-detail-design.md` when the user explicitly asks for detailed design
 - Do NOT create: `diff.md`, `*-plan.md`, `*-db-design.md` — these belong to other skills
 - **One step per turn**: complete one step, then STOP and wait for user to reply. Do NOT continue to the next step in the same turn.
@@ -191,6 +193,11 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务目录
 
 #### 6.0 确定任务根目录和页面清单
 
+**Page baseline hard gate**:
+- Record the full page list as `EXPECTED_PAGES` from the current diff or explicit user requirement.
+- Treat `EXPECTED_PAGES` as the only completion baseline for Step 6.
+- Every later checkpoint, verification table, and `index.md` page row must cover every page in `EXPECTED_PAGES`; never infer the list from whichever files happen to exist.
+
 1. **版本目录**：使用 Step 2 已确定的 `当前版本目录` 路径。如果不存在当前 diff 文档（无 PRD 场景），则创建 `docs/plans/YYYY-MM-DD-<topic>/`，并在有 commit 时继续创建 `docs/plans/YYYY-MM-DD-<topic>/<commitid>/` 作为版本目录。**不得使用 glob 重新扫描**。
 2. **页面清单**：从当前 diff 文档的受影响页面清单或用户提供的需求中提取。每个页面对应一个 kebab-case 的子目录名（page-slug）。
 3. **项目级事实来源**：详细设计阶段只允许从 `spec/CODING_STANDARDS.md` 获取技术栈、架构、代码规范和基类/继承约定，禁止扫描项目代码补充这些信息。
@@ -252,7 +259,22 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务目录
    - 保存前必须通过自检清单（前端 18 项 / 后端 12 项）
 7. **路径上下文**：传入 `DOC_ROOT`（CWD 绝对路径），子代理用此路径读取 `spec/` 和 `docs/plans/` 下的文件。如果涉及读取代码文件，传入 `PROJECT_ROOT`
 
+8. **完成回报约束**：
+   - 子代理最终回复必须明确列出本页实际写入的文件绝对路径
+   - 仅当本页范围内要求的文件都已落盘时，子代理才可声明该页完成
+   - 若缺少 `frontend-detail-design.md` 或 `backend-detail-design.md` 中任一必需文件，子代理必须显式报告缺失，不得说“已完成”
+
 **完成后处理**：
+- 主代理必须基于 `EXPECTED_PAGES` 构建逐页落盘校验表，并逐项检查：
+  - Frontend in scope → `<version-root>/<page-slug>/frontend-detail-design.md` 必须存在
+  - Backend in scope → `<version-root>/<page-slug>/backend-detail-design.md` 必须存在
+  - Frontend 和 Backend 都在 scope → 同一页面必须两份文档都存在，缺一不可
+- **禁止**仅凭子代理口头汇报、部分页面存在、或草稿 `index.md` 判断完成。
+- 如果任一页面缺失目录或缺失必需文档：
+  - **不得**输出成功 checkpoint
+  - **不得**进入 6.2 创建 `index.md`
+  - 必须明确列出缺失项（页面 / 文件路径），并继续补跑缺失页面或缺失侧的设计
+- 只有当 `EXPECTED_PAGES` 中每个页面都通过上述磁盘校验后，才允许输出汇总 checkpoint，且表格中的 `✅` 必须来源于实际文件存在性检查，而不是子代理自报
 - 所有 Agent 完成后，主代理逐个检查每个页面的输出文件是否已正确保存
 - 输出汇总 checkpoint：
 
@@ -288,6 +310,11 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务目录
 **后端自包含**：跨页面共享的实体/DB 表/公共 API 设计在每个用到它的页面中**重复包含**，不创建 shared 文件。
 
 #### 6.2 创建 index.md
+
+**创建前硬校验**：
+- 必须先重新按 `EXPECTED_PAGES` 执行一次与 6.1-parallel 相同的磁盘存在性检查。
+- 若任一页面或任一必需设计文件缺失，**立即 STOP**：不得创建或更新 `index.md`，不得把缺失页面写成“已完成”。
+- `index.md` 中的页面清单必须与 `EXPECTED_PAGES` 完全一致；禁止写入指向不存在文件的链接。
 
 所有页面的设计文件保存完毕后，在当前版本目录创建 `index.md`：
 
