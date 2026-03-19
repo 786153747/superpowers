@@ -1,0 +1,140 @@
+{
+  "projectName": "后市场订单管理",
+  "generatedAt": "2026-03-19T10:00:00",
+  "baseUrl": "http://localhost:8080",
+  "auth": {
+    "loginPath": "/login",
+    "method": "POST",
+    "body": {
+      "username": "admin",
+      "password": "admin123"
+    },
+    "tokenExtract": "$.token",
+    "headerName": "Authorization",
+    "headerPrefix": "Bearer "
+  },
+  "performanceConfig": {
+    "threads": 10,
+    "rampUp": 10,
+    "loops": 5,
+    "thinkTime": 300
+  },
+  "apis": [
+    {
+      "id": "API-01",
+      "name": "查询订单列表",
+      "method": "GET",
+      "path": "/aftermarket/order/list",
+      "controller": "AftermarketOrderController",
+      "contentType": "application/x-www-form-urlencoded",
+      "params": {
+        "type": "query",
+        "fields": [
+          { "name": "pageNum", "value": "1" },
+          { "name": "pageSize", "value": "10" },
+          { "name": "orderNo", "value": "" },
+          { "name": "status", "value": "" }
+        ]
+      },
+      "assertions": [
+        { "type": "status", "value": "200" },
+        { "type": "jsonpath", "path": "$.code", "value": "200" },
+        { "type": "jsonpath", "path": "$.rows", "condition": "exists" }
+      ]
+    },
+    {
+      "id": "API-02",
+      "name": "新增订单",
+      "method": "POST",
+      "path": "/aftermarket/order",
+      "controller": "AftermarketOrderController",
+      "contentType": "application/json",
+      "params": {
+        "type": "body",
+        "json": {
+          "orderNo": "ORD-${__time(yyyyMMddHHmmss)}",
+          "supplierId": 1,
+          "amount": 1000.00,
+          "remark": "JMeter自动化测试"
+        }
+      },
+      "assertions": [
+        { "type": "status", "value": "200" },
+        { "type": "jsonpath", "path": "$.code", "value": "200" }
+      ]
+    },
+    {
+      "id": "API-03",
+      "name": "查询订单详情",
+      "method": "GET",
+      "path": "/aftermarket/order/{orderId}",
+      "controller": "AftermarketOrderController",
+      "contentType": "application/x-www-form-urlencoded",
+      "params": {
+        "type": "path",
+        "fields": [
+          { "name": "orderId", "value": "1" }
+        ]
+      },
+      "assertions": [
+        { "type": "status", "value": "200" },
+        { "type": "jsonpath", "path": "$.code", "value": "200" },
+        { "type": "jsonpath", "path": "$.data.orderId", "condition": "exists" }
+      ]
+    },
+    {
+      "id": "API-04",
+      "name": "修改订单",
+      "method": "PUT",
+      "path": "/aftermarket/order",
+      "controller": "AftermarketOrderController",
+      "contentType": "application/json",
+      "params": {
+        "type": "body",
+        "json": {
+          "orderId": 1,
+          "remark": "JMeter修改测试-${__time(yyyyMMddHHmmss)}"
+        }
+      },
+      "assertions": [
+        { "type": "status", "value": "200" },
+        { "type": "jsonpath", "path": "$.code", "value": "200" }
+      ]
+    },
+    {
+      "id": "API-05",
+      "name": "删除订单",
+      "method": "DELETE",
+      "path": "/aftermarket/order/{orderIds}",
+      "controller": "AftermarketOrderController",
+      "contentType": "application/x-www-form-urlencoded",
+      "params": {
+        "type": "path",
+        "fields": [
+          { "name": "orderIds", "value": "1" }
+        ]
+      },
+      "assertions": [
+        { "type": "status", "value": "200" },
+        { "type": "jsonpath", "path": "$.code", "value": "200" }
+      ]
+    },
+    {
+      "id": "API-06",
+      "name": "导出订单",
+      "method": "POST",
+      "path": "/aftermarket/order/export",
+      "controller": "AftermarketOrderController",
+      "contentType": "application/x-www-form-urlencoded",
+      "params": {
+        "type": "query",
+        "fields": [
+          { "name": "orderNo", "value": "" }
+        ]
+      },
+      "assertions": [
+        { "type": "status", "value": "200" }
+      ]
+    }
+  ]
+}

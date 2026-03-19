@@ -17,11 +17,12 @@ Plan 的目标是让一个**有开发能力但不了解项目**的模型，通�
 
 - `spec/CODING_STANDARDS.md` 是技术栈、架构、代码规范的唯一来源
 - 禁止通过扫描仓库代码来推断这些项目级约定
+- 注意：`spec/CODING_STANDARDS.md` 在 CWD 下（主代理用相对路径读取）；Task 中引用的源码文件路径应指向 `PROJECT_ROOT` 或 `SOURCE_ROOT`
 - 参考文件只允许列出当前 Task **明确要修改、调用、继承或对齐**的具体文件，不得作为“扫描项目学习风格”的手段
 
 ## 当前版本目录契约
 
-- `diff_<commitid>.md`、`index.md`、`frontend-detail-design.md`、`backend-detail-design.md`、`shared-plan.md`、`plan.md` 必须来自**同一个当前版本目录**
+- `diff.md`、`index.md`、`frontend-detail-design.md`、`backend-detail-design.md`、`shared-plan.md`、`plan.md` 必须来自**同一个当前版本目录**
 - 当前版本目录默认取**当前 diff 文档所在目录**
 - 如果存在多个 commit 版本目录，而你无法唯一确定哪个才是本次任务的当前版本目录，必须停止并要求用户重新确认或先重跑 `prd-diff-scan`
 - 一旦当前版本目录确定，后续只允许读取该目录中的 `index.md`、设计文档和计划文件；其他版本目录一律忽略
@@ -34,19 +35,22 @@ Before writing any plan, follow this decision tree in order. Stop at the first �
 Q1: 本次 session 提供了 PRD / 需求文档？
   否 → 跳到 Q4
   是 ↓
-Q2: docs/plans/**/diff_*.md 存在？
-  否 → ⛔ STOP: "❌ 缺少差异扫描文档。请先完成 prd-diff-scan。"
-  是 ↓
-  （如果只有旧 `diff.md`，也视为缺少合法差异扫描文档，必须重跑 prd-diff-scan）
-  确定当前版本目录 = 当前 diff 文档所在目录
-  如果存在多个候选版本目录且无法唯一确定当前 diff → ⛔ STOP: "❌ 当前版本目录不明确。请先确认使用哪一个 commit 版本目录。"
+Q2: 当前版本目录中的 diff.md 存在？
+  确定当前版本目录（不得使用 `docs/plans/**/diff.md` glob 扫描）：
+  - 如果用户或上游 skill 给出了确切版本目录路径 → 直接使用
+  - 如果用户给出了任务目录 → 列出子目录找最新 commit 版本目录
+  - 如果存在多个候选且无法唯一确定 → ⛔ STOP: "❌ 当前版本目录不明确。请先确认使用哪一个 commit 版本目录。"
+  确定后用 Read 直接读取 `<当前版本目录>/diff.md`
+  不存在 → ⛔ STOP: "❌ 缺少差异扫描文档。请先完成 prd-diff-scan。"
+  存在 → 验证文档身份（标题、PRD 路径与当前任务一致）↓
 Q3: diff 文档有 Git 基线且 commit 一致？
   （无 Git 基线 → 跳到 Q4）
   （执行 git -C <原型目录> log -1 --format="%H"，与 diff 文档的 Commit ID 比对）
   不一致 → ⛔ STOP: "❌ diff 文档已过期，请重新执行 prd-diff-scan。"
+  如果文档中存在 `待核对` / `需核对` / `待读取` / `未读取源码` 等未完成标记 → ⛔ STOP: "❌ diff 文档未完成，请先重新执行 prd-diff-scan。"
   一致 ↓
 Q4: 当前版本目录中的 index.md 和设计文件完整？（无论有无 PRD，此步必做）
-  用 Glob 检查 <current-version-dir>/index.md 是否存在
+  用 Read 直接读取 `<当前版本目录>/index.md`（不得使用 Glob 扫描）
   不存在 → ⛔ STOP: "❌ 缺少 index.md。请先完成 brainstorming 生成设计文档。"
   存在 → 读取当前版本目录中的 index.md → 按页面清单检查：
   - Frontend in scope → 每个页面需有 frontend-detail-design.md
@@ -59,7 +63,7 @@ Q5: 确定范围：
   - 两侧都在范围内且用户未缩小范围 → 每个页面的 plan.md 中按接口维度切 Task，每个 Task 同时包含后端和前端联调
 ```
 
-If all checks pass, read design document(s), current diff document (`diff_<commitid>.md`), index.md, and `spec/CODING_STANDARDS.md` as input. `diff / index / 设计文档` must all come from the same current version directory.
+If all checks pass, read design document(s), current diff document (`diff.md`), index.md, and `spec/CODING_STANDARDS.md` as input. `diff / index / 设计文档` must all come from the same current version directory.
 
 Never treat a generic `继续` as approval to bypass the design gate.
 
@@ -242,7 +246,7 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 ### 流程概述
 
 1. 读取当前版本目录中的 `index.md` 获取页面清单和页面-API 映射
-2. 读取当前 diff 文档（`diff_<commitid>.md`）获取差异和已确认决议
+2. 读取当前 diff 文档（`diff.md`）获取差异和已确认决议
 3. 检查是否有跨页面共享的基础设施任务（建表、菜单配置等）→ 如有则生成 `shared-plan.md`（参考第一个页面的 backend-detail-design.md 中的 DB 表定义和共享实体）
 4. **对每个页面**（按 index.md 页面清单顺序）：
    - 读取该页面的 `frontend-detail-design.md` 和 `backend-detail-design.md`
@@ -335,16 +339,18 @@ Do not hard-code `superpowers:executing-plans` in generated plans when the repos
 
 **依赖**: Task X, Task Y（必须先完成）
 
+> **路径占位符**：`[SOURCE_ROOT]` 和 `[DOC_ROOT]` 在 plan 中是占位符。实际值在执行阶段由 `using-git-worktrees` 创建 worktree 后确定，controller 负责替换为绝对路径传给 subagent。
+
 **参考文件**（实现前必须先用 Read 工具读取；仅限当前 Task 明确涉及的具体文件）:
-- Modify Target: `path/to/existing/file.java` — 读取当前内容，避免覆盖已有改动
-- Dependency/Base: `path/to/base/BaseEntity.java` — 对齐继承关系或调用方式
-- Standards: `spec/CODING_STANDARDS.md` — 项目级技术栈 / 架构 / 代码规范唯一来源
-- Design: `docs/plans/xxx-detail-design.md` Section 4.2 — 字段定义
+- Modify Target: `[SOURCE_ROOT]/path/to/existing/file.java` — 读取当前内容，避免覆盖已有改动
+- Dependency/Base: `[SOURCE_ROOT]/path/to/base/BaseEntity.java` — 对齐继承关系或调用方式
+- Standards: `[DOC_ROOT]/spec/CODING_STANDARDS.md` — 项目级技术栈 / 架构 / 代码规范唯一来源
+- Design: `[DOC_ROOT]/docs/plans/xxx-detail-design.md` Section 4.2 — 字段定义
 
 **创建/修改文件**:
-- Create: `exact/path/to/NewFile.java`
-- Modify: `exact/path/to/existing.java` — 添加 XXX 方法
-- Test: `exact/path/to/test/NewFileTest.java`
+- Create: `[SOURCE_ROOT]/exact/path/to/NewFile.java`
+- Modify: `[SOURCE_ROOT]/exact/path/to/existing.java` — 添加 XXX 方法
+- Test: `[SOURCE_ROOT]/exact/path/to/test/NewFileTest.java`
 - Copy: `src/views/xxx/detail.vue` ← 原型新增，开发项目不存在（diff F2）
 - Overwrite: `src/views/xxx/index.vue` ← 原型修改，开发项目无本地改动（diff F3）
 - Merge: `src/views/xxx/list.vue` ← 原型修改，开发项目有本地改动（diff F1）
@@ -357,7 +363,7 @@ Do not hard-code `superpowers:executing-plans` in generated plans when the repos
 3. [边界情况和异常处理]
 ````
 
-> **验证和提交不写在 Task 里。** 所有 Task 执行完成后，由 CLAUDE.md Rule 5（延迟编译）、Rule 10（`verification-before-completion`）和统一提交流程处理。
+> **验证和提交不写在 Task 里。** 所有 Task 执行完成后，由 CLAUDE.md Rule 6（延迟编译）、Rule 11（验证优先）和统一提交流程处理。
 
 ### Task 6 要素说明
 
@@ -423,7 +429,7 @@ public class Order extends BaseEntity {
 - 设计文档里已有的内容用 Section 引用，不重复
 - 禁止占位符值（XXX、???、TODO_ID）
 - 每个 DTO 都有创建 Task
-- **Task 中不写验证和提交**——由 CLAUDE.md Rule 5/10 在所有 Task 完成后统一处理
+- **Task 中不写验证和提交**——由 CLAUDE.md Rule 6/7 在所有 Task 完成后统一处理
 
 ## 落盘前自检（必须执行）
 
@@ -436,12 +442,22 @@ Plan 保存前必须逐项自检：
 | 3 | 后端详细设计 Section 4.3 中每个 DTO → Plan 中有创建文件项 | ✅/❌ |
 | 4 | Plan 中无占位符值（`XXX`、`???`、`TODO_ID`、未替换的 `{{xx}}`） | ✅/❌ |
 | 5 | 当前 diff 文档中每个差异 Dx → Plan 中有对应 Task 处理（**包括影响范围为"前端"的 Dx**，逐条核对不得遗漏） | ✅/❌ |
-| 6 | 参考文件路径全部为真实存在的文件（用 Glob 验证），**无"同上"** | ✅/❌ |
+| 6 | 参考文件路径全部为真实存在的文件（用 Read 验证存在性），**无"同上"** | ✅/❌ |
 | 7 | Task 中**无完整 SQL DDL / 查询 SQL**（应引用设计文档 Section 编号），每个 Task ≤ 60 行 | ✅/❌ |
 | 8 | index.md 页面清单**无重复行**（每个 page-slug 只出现一次） | ✅/❌ |
 | 9 | **共享接口去重**：index.md API 映射中标记"是否共享=是"的接口，后续页面 plan 不得重复创建 Controller/Service/Mapper | ✅/❌ |
 
 任一项为 ❌ → 补全后再保存。
+
+**总裁定（必须在自检表最后输出）**：
+
+```
+## 自检总裁定: [PASS / FAIL]
+```
+
+- 9 项全部 ✅ → `PASS`，可以落盘
+- 任何一项 ❌ → `FAIL`，**绝对不得落盘**。必须定位失败项、修复后重新执行完整自检，直到 `PASS` 才能保存
+- **禁止绕过**：不得在 FAIL 时以"后续补充"等理由保存半成品 plan
 
 ## Execution Handoff
 
@@ -454,6 +470,8 @@ Plan complete. Page plans saved to:
   ...
 Master index updated: docs/plans/<task>/<commitid>/index.md
 ```
+
+> **路径传递**：调用执行 skill 时，必须传递当前版本目录确切路径 + `PROJECT_ROOT`。执行 skill 不应重新发现这些路径。
 
 Offer execution choice (详见 CLAUDE.md §1 执行模式选择):
 

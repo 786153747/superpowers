@@ -124,7 +124,8 @@ Do not use this skill for:
 用户确认 `e2e-test-cases.md` 后，进入代码生成阶段。
 
 1. **确定前端项目目录**：
-   - 从用户上下文或详细设计文档中推断
+   - 前端项目在 `PROJECT_ROOT`（或 `SOURCE_ROOT` 如果有 worktree）下
+   - 从用户上下文或详细设计文档中推断具体子路径
    - 如果无法确定，使用 `AskUserQuestion` 询问
 
 2. **发现已有 Playwright 配置**：

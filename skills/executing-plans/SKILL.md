@@ -54,9 +54,11 @@ Load plan, review critically, execute tasks in batches, report for review betwee
 
 - **编码阶段不审查** - 按计划逐任务推进，不每页暂停审查，直到所有页面编码完成
 - **统一审查** - 编码完成后进入 Phase 2 验证流程，包含编译 + 分步审查（Gate 1-5）
-- `using-git-worktrees` 仅管理**用户指定的源码目录**，文档目录（`docs/plans/`）直接修改，不经过 git 工作区
-- **源码目录** - 指用户提供的包含前后端代码的项目根目录（如 `RuoYi-Vue3-TypeScript/`）
-- 创建 worktree 后，后续所有源码修改、验证命令、子代理工作目录都必须固定在同一个源码根目录；如果文档目录和源码目录不同，必须显式记录并持续使用
+- `using-git-worktrees` 在 `PROJECT_ROOT`（实际代码项目目录）下创建 worktree，产出 `SOURCE_ROOT`
+- 文档目录（`docs/plans/`、`spec/`）在 CWD 下，用 CWD 相对路径读写，不经过 worktree
+- `DOC_ROOT` = CWD 绝对路径，传给 subagent 读取设计文档和 spec
+- 创建 worktree 后，所有源码修改、验证命令、子代理工作目录都使用 `SOURCE_ROOT`
+- 计划进度回写（index.md、plan.md）始终在 CWD 下的 `docs/plans/`
 
 ### 无 Git 仓库例外
 
@@ -86,21 +88,24 @@ Load plan, review critically, execute tasks in batches, report for review betwee
 - **当前版本目录**：有 commit 时为 `docs/plans/YYYY-MM-DD-<topic>/<commitid>/`；无 commit 时可退化为任务目录本身
 - 本 skill 中提到的 `index.md`、`shared-plan.md`、`<page-slug>/plan.md`，默认都指**当前版本目录**中的文件
 - 当前版本目录必须先确定一次，再在整个执行阶段复用；不得从多个 commit 版本目录混读 `diff / index / plan`
+- 版本目录在 CWD 下的 `docs/plans/` 中（`DOC_ROOT`），不在 worktree（`SOURCE_ROOT`）中
 - 如果存在多个版本目录且无法唯一确定当前版本目录，必须停止并向用户确认，不能凭宽泛 Glob 结果自行挑选
 
 ### Step 1: Load and Review Plan (via index.md)
 
-1. Determine the current version directory first:
-   - Prefer the directory that contains the current `diff_<commitid>.md` and matching `index.md`
-   - Use Glob only to枚举候选，不得因为 `docs/plans/**/index.md` 命中多个结果就任意挑选一个
-   - If multiple candidates remain and you cannot uniquely identify the current version directory, STOP and ask the user
-2. Read `index.md` from the current version directory
-3. Check the **执行顺序** section to determine execution order
-4. Find the first page with `实施状态 = 未开始` or `进行中`
-5. Read that page's `plan.md` from the current version directory (e.g., `shared-plan.md` or `<page-slug>/plan.md`)
-6. Review the plan critically - identify any questions or concerns
-7. If concerns: Raise them with your human partner before starting
-8. If no concerns: Create TodoWrite for the current page's tasks and proceed
+1. **确定当前版本目录**（不得使用 `docs/plans/**/index.md` glob 扫描）：
+   - 如果用户或上游 skill 给出了确切版本目录路径 → 直接使用
+   - 如果用户给出了任务目录（如 `docs/plans/2026-03-19-xxx/`）→ 列出子目录找最新 commit 版本目录
+   - 如果存在多个候选且无法唯一确定 → **STOP**，用 `AskUserQuestion` 让用户选择
+   - 确定后记录：`当前版本目录 = <确切路径>`，后续所有 index.md / plan.md / diff.md 引用均使用此路径
+2. 用 Read 直接读取 `<当前版本目录>/index.md`
+3. **验证内容**：确认 index.md 的功能名称、页面清单与当前任务一致（防止读错版本目录）
+4. Check the **执行顺序** section to determine execution order
+5. Find the first page with `实施状态 = 未开始` or `进行中`
+6. Read that page's `plan.md` from the current version directory (e.g., `shared-plan.md` or `<page-slug>/plan.md`)
+7. Review the plan critically - identify any questions or concerns
+8. If concerns: Raise them with your human partner before starting
+9. If no concerns: Create TodoWrite for the current page's tasks and proceed
 
 ### Step 2: Execute Batch
 **Default: First 3 tasks of the current page**
@@ -159,7 +164,7 @@ Based on feedback:
 
 If the session was interrupted (context compressed, window closed, new session):
 
-1. Read the current version directory's `index.md` — find the first page with `实施状态 = 进行中` or `未开始`
+1. **重新确定当前版本目录**：按 Step 1 的规则确定确切路径（不得 glob 扫描），然后 Read `<当前版本目录>/index.md` — find the first page with `实施状态 = 进行中` or `未开始`
 2. If `进行中` → read that page's `plan.md` task status table from the current version directory:
    - `已完成` tasks: first verify required outputs still exist on disk; if outputs are missing or clearly incomplete, downgrade to `未开始` or `进行中` before continuing
    - `进行中` task: check if the code changes exist on disk (use Glob/Read). If changes look complete, run verification; if incomplete or missing, re-execute the task
@@ -179,7 +184,7 @@ After all pages' tasks complete:
 
 ## 原型文件合并规则
 
-当 Task 的「创建/修改文件」标注了合并策略（Copy / Overwrite / Merge）时，按以下方式执行。合并策略和 diff 编号（Fx）由 writing-plans 根据当前 diff 文档（`diff_<commitid>.md`）中的变更文件清单生成。
+当 Task 的「创建/修改文件」标注了合并策略（Copy / Overwrite / Merge）时，按以下方式执行。合并策略和 diff 编号（Fx）由 writing-plans 根据当前 diff 文档（`diff.md`）中的变更文件清单生成。
 
 在执行任何 Task 前：
 1. 先读取 `spec/CODING_STANDARDS.md`，将其作为技术栈、架构、代码规范的唯一来源

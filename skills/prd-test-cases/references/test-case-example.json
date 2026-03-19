@@ -1,0 +1,199 @@
+{
+  "projectName": "后市场订单管理",
+  "generatedAt": "2026-03-19T10:00:00",
+  "source": {
+    "prd": "docs/prd/aftermarket-order.md",
+    "diff": "docs/plans/2026-03-16-后市场订单库存功能/abc123/diff_abc123.md"
+  },
+  "pages": [
+    {
+      "pageSlug": "my-order",
+      "pageName": "我的订单",
+      "testCases": [
+        {
+          "id": "TC-MO-01",
+          "priority": "P0",
+          "category": "正向主流程",
+          "scenario": "查询订单列表-默认加载",
+          "precondition": "用户已登录且有页面访问权限，数据库中存在订单数据",
+          "steps": [
+            {
+              "stepNo": 1,
+              "action": "导航到「我的订单」页面",
+              "expected": "页面正常加载，显示查询表单和订单列表表格"
+            },
+            {
+              "stepNo": 2,
+              "action": "观察表格数据",
+              "expected": "表格显示订单数据，列头包含：订单编号、订单日期、供应商、状态、金额"
+            },
+            {
+              "stepNo": 3,
+              "action": "观察分页组件",
+              "expected": "分页组件显示总条数，默认每页 10 条"
+            }
+          ],
+          "testData": "至少 15 条订单数据（超过一页）",
+          "relatedDiff": "D1"
+        },
+        {
+          "id": "TC-MO-02",
+          "priority": "P0",
+          "category": "正向主流程",
+          "scenario": "按订单编号搜索",
+          "precondition": "用户已登录，数据库中存在编号为 ORD-20260301 的订单",
+          "steps": [
+            {
+              "stepNo": 1,
+              "action": "在「订单编号」输入框中输入 ORD-20260301",
+              "expected": "输入框显示输入的编号"
+            },
+            {
+              "stepNo": 2,
+              "action": "点击「搜索」按钮",
+              "expected": "表格刷新，仅显示包含该编号的订单"
+            },
+            {
+              "stepNo": 3,
+              "action": "观察分页组件",
+              "expected": "分页组件显示筛选后的总条数"
+            }
+          ],
+          "testData": "订单编号: ORD-20260301",
+          "relatedDiff": ""
+        },
+        {
+          "id": "TC-MO-03",
+          "priority": "P1",
+          "category": "正向主流程",
+          "scenario": "新增订单-正常流程",
+          "precondition": "用户已登录且有新增权限",
+          "steps": [
+            {
+              "stepNo": 1,
+              "action": "点击「新增」按钮",
+              "expected": "弹出新增订单对话框"
+            },
+            {
+              "stepNo": 2,
+              "action": "填写订单编号: ORD-TEST-001",
+              "expected": "输入框正常显示"
+            },
+            {
+              "stepNo": 3,
+              "action": "选择供应商: 测试供应商A",
+              "expected": "下拉框正常选择"
+            },
+            {
+              "stepNo": 4,
+              "action": "填写金额: 1000.00",
+              "expected": "金额输入框正常显示"
+            },
+            {
+              "stepNo": 5,
+              "action": "点击「确定」按钮",
+              "expected": "弹窗关闭，提示「新增成功」，列表中可查到新订单"
+            }
+          ],
+          "testData": "订单编号: ORD-TEST-001, 供应商: 测试供应商A, 金额: 1000.00",
+          "relatedDiff": "D3"
+        },
+        {
+          "id": "TC-MO-04",
+          "priority": "P1",
+          "category": "反向校验",
+          "scenario": "新增订单-必填字段为空",
+          "precondition": "用户已登录且有新增权限",
+          "steps": [
+            {
+              "stepNo": 1,
+              "action": "点击「新增」按钮",
+              "expected": "弹出新增订单对话框"
+            },
+            {
+              "stepNo": 2,
+              "action": "不填写任何字段，直接点击「确定」",
+              "expected": "必填字段（订单编号、供应商）显示红色校验提示，表单未提交"
+            }
+          ],
+          "testData": "",
+          "relatedDiff": "D3"
+        },
+        {
+          "id": "TC-MO-05",
+          "priority": "P2",
+          "category": "边界场景",
+          "scenario": "空数据状态展示",
+          "precondition": "用户已登录，数据库中无订单数据或筛选结果为空",
+          "steps": [
+            {
+              "stepNo": 1,
+              "action": "在搜索框输入不存在的订单编号 NOT-EXIST-999",
+              "expected": "输入框正常显示"
+            },
+            {
+              "stepNo": 2,
+              "action": "点击「搜索」按钮",
+              "expected": "表格显示「暂无数据」，分页总条数为 0"
+            },
+            {
+              "stepNo": 3,
+              "action": "观察页面控件状态",
+              "expected": "「新增」「导出」按钮仍可用，「搜索」「重置」按钮仍可用"
+            }
+          ],
+          "testData": "不存在的订单编号: NOT-EXIST-999",
+          "relatedDiff": ""
+        },
+        {
+          "id": "TC-MO-06",
+          "priority": "P1",
+          "category": "权限控制",
+          "scenario": "无新增权限用户不显示新增按钮",
+          "precondition": "使用无新增权限的用户登录",
+          "steps": [
+            {
+              "stepNo": 1,
+              "action": "导航到「我的订单」页面",
+              "expected": "页面正常加载"
+            },
+            {
+              "stepNo": 2,
+              "action": "观察工具栏按钮",
+              "expected": "「新增」按钮不显示或禁用，「查询」「导出」按钮正常显示"
+            }
+          ],
+          "testData": "使用角色: 只读用户",
+          "relatedDiff": "D5"
+        }
+      ]
+    },
+    {
+      "pageSlug": "delivery-record",
+      "pageName": "发货记录",
+      "testCases": [
+        {
+          "id": "TC-DR-01",
+          "priority": "P0",
+          "category": "正向主流程",
+          "scenario": "查询发货记录列表",
+          "precondition": "用户已登录，数据库中存在发货记录",
+          "steps": [
+            {
+              "stepNo": 1,
+              "action": "导航到「发货记录」页面",
+              "expected": "页面正常加载，显示发货记录列表"
+            },
+            {
+              "stepNo": 2,
+              "action": "观察表格列头",
+              "expected": "列头包含：发货单号、订单编号、发货日期、物流单号、状态"
+            }
+          ],
+          "testData": "至少 5 条发货记录",
+          "relatedDiff": "D7"
+        }
+      ]
+    }
+  ]
+}

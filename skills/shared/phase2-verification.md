@@ -12,13 +12,13 @@ Shared verification process used by both `subagent-driven-development` and `exec
 
 ## Gate 1: Backend Compilation
 
-- Controller runs `mvn compile` directly (no subagent)
+- Controller runs `mvn compile` in `SOURCE_ROOT` directory (no subagent)
 - MUST see actual build output with exit 0
 - Failure → dispatch fix subagent → re-compile → loop until pass
 
 ## Gate 2: Frontend Compilation
 
-- Controller runs `npm run build` in frontend directory
+- Controller runs `npm run build` in `SOURCE_ROOT` frontend directory
 - MUST see actual build output with exit 0
 - Failure → dispatch fix subagent → re-build → loop until pass
 
@@ -66,11 +66,11 @@ The following issues from code review may indicate missing or unclear coding sta
 1. [Issue description] — suggested addition to [backend/frontend] coding standards
 2. ...
 
-Would you like to update the coding standards doc (`@spec/CODING_STANDARDS.md`) with these conventions?
+Would you like to update the coding standards doc (`spec/CODING_STANDARDS.md`，位于 DOC_ROOT/CWD) with these conventions?
 ```
 
 4. Wait for user confirmation
-5. If approved, update `@spec/CODING_STANDARDS.md`
+5. If approved, update `spec/CODING_STANDARDS.md`（CWD 下）
 6. If no convention-related issues found, skip this gate silently
 
 ## Final Gate Evidence Block (Mandatory)

@@ -74,6 +74,8 @@ No .gitignore verification needed - outside project entirely.
 
 ## Creation Steps
 
+> **注意**：worktree 在 `PROJECT_ROOT`（实际代码项目目录）下创建，不是 CWD。如果 CWD ≠ `PROJECT_ROOT`，需要先 `cd` 到 `PROJECT_ROOT` 或使用 `-C` 参数。
+
 ### 1. Detect Project Name
 
 ```bash
@@ -134,12 +136,14 @@ Ready to implement <feature-name>
 
 ## Path Handoff Contract
 
-After creating the worktree, downstream execution skills must receive and preserve the exact absolute worktree path.
+After creating the worktree, downstream execution skills must receive and preserve the exact paths.
 
-- Record the worktree absolute path as `SOURCE_ROOT`
-- If plan/status documents remain in the original checkout, record that path separately as `DOC_ROOT`
-- All subsequent source edits, subagent work, and verification commands must use `SOURCE_ROOT`
+- Record the worktree absolute path as `SOURCE_ROOT`（在 `PROJECT_ROOT` 下创建）
+- Record CWD absolute path as `DOC_ROOT`（`docs/plans/`、`spec/` 所在目录）
+- `SOURCE_ROOT`：所有源码编辑、subagent 工作目录、验证命令
+- `DOC_ROOT`：设计文档、spec、计划进度（index.md / plan.md）的读写
 - Do not silently fall back to the main repository root once a worktree has been selected
+- worktree 创建在 `PROJECT_ROOT` 下，不是 CWD（如果两者不同）
 
 ## Quick Reference
 
@@ -224,7 +228,7 @@ Ready to implement auth feature
 
 ---
 
-## 强制调用规则（CLAUDE.md Section 8）
+## 强制调用规则（CLAUDE.md Rule 9）
 
 ### 必须调用此 skill 的场景
 

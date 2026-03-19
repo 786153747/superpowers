@@ -16,16 +16,31 @@ Task tool (general-purpose):
 
     [Scene-setting: where this fits, dependencies, architectural context]
 
+    ## Merge Context (仅 Copy/Overwrite/Merge 任务需要)
+
+    [如果 Task 涉及原型文件合并，controller 必须提供：]
+    - 原型目录: [PROJECT_ROOT 下的原型目录路径]
+    - 旧 Commit SHA: [用于三方合并的旧基线，无则填"无"]
+    - 当前 Commit SHA: [原型当前 HEAD]
+    [无合并策略标注的纯后端 Task 可省略此节]
+
     ## Coding Standards
 
     Before writing any code, read and follow the project coding standards:
-    - **代码规范**: `spec/CODING_STANDARDS.md`（相对于业务项目根目录，前后端统一规范文档）
+    - **代码规范**: `[DOC_ROOT]/spec/CODING_STANDARDS.md`（由 controller 传入的绝对路径）
 
-    Read this spec file before starting implementation.
+    Read this spec file before starting. [DOC_ROOT] is the absolute path to the documentation root, provided by the controller.
     These are mandatory conventions — your implementation MUST conform to them.
-    Treat `spec/CODING_STANDARDS.md` as the ONLY source for project-wide技术栈、架构和代码规范.
-    Do NOT scan the repository to infer conventions.
-    You may read only the specific target files you need to modify, merge, or verify safely.
+    Treat `[DOC_ROOT]/spec/CODING_STANDARDS.md` as the ONLY source for project-wide技术栈、架构和代码规范.
+
+    ### 禁止扫描代码库
+
+    - Do NOT scan the repository (`src/`, `com/`, etc.) to infer conventions, coding patterns, or project structure
+    - Do NOT read base classes, parent classes, or utility classes to "verify they exist" — trust the design doc and CODING_STANDARDS.md
+    - Do NOT use Glob/Grep to explore project code for learning purposes
+    - You may ONLY read the specific files listed in the task's "参考文件" and "创建/修改文件" sections
+    - If CODING_STANDARDS.md says to extend `BaseEntity`, just extend it — don't go read `BaseEntity.java` first
+    - If you're unsure about a convention, **ask the controller** rather than scanning code
 
     ## Before You Begin
 
@@ -43,10 +58,11 @@ Task tool (general-purpose):
     1. Implement exactly what the task specifies
     2. Write tests (following TDD if task says to)
     3. Do not run project-level compilation/build in Phase 1 unless the task explicitly requires a lightweight local check or you are diagnosing a blocker
-    4. Commit your work
+    4. Do NOT commit — the controller handles commits after all tasks complete
     5. Report back
 
-    Work from this exact directory only: [ABSOLUTE_WORKTREE_PATH]
+    Work from this exact directory only: [SOURCE_ROOT]
+    Read design docs and spec from: [DOC_ROOT]
     Do not write source files anywhere else.
     Do not fall back to the main repository root or another checkout.
     If you cannot access this exact directory, stop and report the problem immediately.

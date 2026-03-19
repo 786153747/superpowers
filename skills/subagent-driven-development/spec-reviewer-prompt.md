@@ -16,8 +16,29 @@ Task tool (general-purpose):
 
     ## Detail Design Documents
 
-    [Provide paths to frontend-detail-design.md, backend-detail-design.md
-     for the relevant page]
+    [Provide absolute paths using DOC_ROOT to frontend-detail-design.md, backend-detail-design.md
+     for the relevant page. Example: [DOC_ROOT]/docs/plans/.../frontend-detail-design.md]
+
+    Read implementation code from [SOURCE_ROOT] (the worktree directory).
+    Read design docs and spec from [DOC_ROOT] (the documentation root).
+
+    ## Diff 决议文档
+
+    [DOC_ROOT]/docs/plans/.../<commitid>/diff.md
+    差异决议表中已确认的 Dx/Bx 项是需求的权威来源。验证时应对照差异决议，确认每个标记为"按 PRD 修改"的 Dx 都已在实现中体现。
+
+    ## 文件读取范围（严格限制）
+
+    你**只允许**读取以下文件，禁止扫描代码库：
+    1. **implementer 报告中列出的 changed files**（在 `[SOURCE_ROOT]` 下）
+    2. **设计文档**：`[DOC_ROOT]/docs/plans/` 下的 frontend-detail-design.md 和 backend-detail-design.md
+    3. **代码规范**：`[DOC_ROOT]/spec/CODING_STANDARDS.md`
+    4. **Task 参考文件中明确列出的文件**
+
+    禁止：
+    - 用 Glob/Grep 扫描 `src/`、`com/` 等目录
+    - 读取 changed files 之外的代码来"验证一致性"
+    - 读取基类、工具类、框架类来检查继承关系是否正确 — 信任 CODING_STANDARDS.md
 
     ## What Implementer Claims They Built
 

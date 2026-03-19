@@ -31,10 +31,10 @@ Then your **first action** must be:
 
 1. Invoke `Skill("superpowers:prd-diff-scan")`
 2. Do **NOT** use `Read`, `Glob`, `Grep`, `Task`, or `brainstorming` first
-3. Only after `docs/plans/**/diff_*.md` exists may you move to `brainstorming`
-4. If only legacy `docs/plans/**/diff.md` exists, treat it as invalid and rerun `prd-diff-scan`
+3. `prd-diff-scan` 完成后会输出 diff 文档的确切保存路径（如 `docs/plans/<topic>/<commitid>/diff.md`）。**后续 skill 必须使用这个确切路径**，不得用 `docs/plans/**/diff.md` 重新扫描
+4. 如果 `prd-diff-scan` 尚未执行或 diff 文档不存在，先运行 `prd-diff-scan`
 5. If the actual target code directory, UI prototype implementation directory, or previous diff file is ambiguous, `prd-diff-scan` must stop and use `AskUserQuestion` to confirm before proceeding
-6. Once a commit-based version directory is selected, downstream stages must use the matching `diff / index / 设计文档 / plan` set from that same version directory only
+6. Once a commit-based version directory is selected, downstream stages must use the matching `diff.md / index / 设计文档 / plan` set from that same version directory only — **通过确切路径引用，不得 glob**
 
 If the user also asks for design or implementation in the same message, this routing still wins.
 Skipping this routing = workflow failure.
@@ -140,16 +140,34 @@ Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
 
 **每次会话开始后、执行任何实质性工作前**，必须按以下顺序执行：
 
+### 第零步：路径初始化（最先执行）
+
+确认实际代码项目路径。CWD（`docs/plans/`、`spec/` 所在目录）不需要确认。
+
+使用 `AskUserQuestion` 确认 `PROJECT_ROOT`（实际代码项目根目录）：
+- 源码在此目录下
+- worktree 将在此目录下创建
+- 如果 MEMORY.md 中记录了上次使用的路径，作为推荐选项
+- 如果 CWD 本身就是代码项目（`docs/plans/` 和源码在同一目录），`PROJECT_ROOT` = CWD
+
+确认后记录：
+- `PROJECT_ROOT` = 用户确认的实际代码项目路径
+- `DOC_ROOT` = CWD 绝对路径（传给 subagent 用）
+
+后续所有 skill 中：
+- 文档操作（`docs/plans/`、`spec/`）→ CWD 相对路径（主代理）或 `DOC_ROOT` 绝对路径（subagent）
+- 代码操作 → `PROJECT_ROOT` 或 `SOURCE_ROOT`（worktree 创建后）
+
 ### 第一步：创建合规检查任务
 
 ```
 TaskCreate {
   subject: "CLAUDE.md 合规检查",
   description: "检查清单：
-    1. Section 7 - 技能调用：修改源码前是否调用 using-git-worktrees？
-    2. Section 7 - 子代理执行：执行 plan 是否调用 subagent-driven-development？
-    3. Section 6 - 延迟编译：是否在所有后端完成后才统一编译？
-    4. Section 6 - 延迟审查：是否在所有任务完成后一次性审查？
+    1. Rule 9 - Git Worktree：修改源码前是否调用 using-git-worktrees？
+    2. Rule 10 - 子代理执行：执行 plan 是否调用 subagent-driven-development？
+    3. Rule 6 - 延迟编译：是否在所有后端完成后才统一编译？
+    4. Rule 7 - 延迟审查：是否在所有任务完成后一次性审查？
     5. using-superpowers：开始前是否调用此 skill 检查？",
   activeForm: "检查 CLAUDE.md 合规性"
 }
@@ -164,12 +182,12 @@ TaskUpdate { taskId: "1", status: "in_progress" }
 然后逐项检查，输出检查表：
 
 ```
-| 检查项 | CLAUDE.md Section | 通过？ | 证据/备注 |
-|--------|------------------|-------|-----------|
-| 技能调用 | Section 7 | ✅/❌ | ... |
-| 子代理执行 | Section 7 | ✅/❌ | ... |
-| 延迟编译 | Section 6 | ✅/❌ | ... |
-| 延迟审查 | Section 6 | ✅/❌ | ... |
+| 检查项 | CLAUDE.md Rule | 通过？ | 证据/备注 |
+|--------|---------------|-------|-----------|
+| Git Worktree | Rule 9 | ✅/❌ | ... |
+| 子代理执行 | Rule 10 | ✅/❌ | ... |
+| 延迟编译 | Rule 6 | ✅/❌ | ... |
+| 延迟审查 | Rule 7 | ✅/❌ | ... |
 | using-superpowers | using-superpowers skill | ✅/❌ | ... |
 ```
 

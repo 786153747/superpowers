@@ -15,6 +15,14 @@ Guide completion of development work by presenting clear options and handling ch
 
 ## The Process
 
+### 路径上下文
+
+- **SOURCE_ROOT**：worktree 路径（开发分支所在目录）
+- **PROJECT_ROOT**：主仓库目录（merge / push 操作在此执行）
+- **DOC_ROOT**：CWD 绝对路径（文档目录）
+
+Git checkout / merge / push 在 `PROJECT_ROOT` 执行。worktree 清理（`git worktree remove`）也在 `PROJECT_ROOT` 执行，移除 `SOURCE_ROOT`。
+
 ### Step 1: Verify Compilation Status
 
 **If coming from subagent-driven-development Phase 2 or executing-plans (compilation already passed):** Skip re-testing. The code was just compiled and reviewed — running tests again on unchanged code is redundant.

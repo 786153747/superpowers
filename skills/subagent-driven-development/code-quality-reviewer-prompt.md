@@ -7,14 +7,90 @@ Use this template when dispatching a code quality reviewer subagent.
 **Only dispatch after spec compliance review passes.**
 
 ```
-Task tool (superpowers:code-reviewer):
-  Use template at requesting-code-review/code-reviewer.md
+Agent tool (general-purpose):
+  description: "Review code quality for [feature/page name]"
+  prompt: |
+    You are reviewing code quality for a completed implementation.
 
-  WHAT_WAS_IMPLEMENTED: [from implementer's report]
-  PLAN_OR_REQUIREMENTS: Task N from [plan-file]
-  BASE_SHA: [commit before task]
-  HEAD_SHA: [current commit]
-  DESCRIPTION: [task summary]
+    ## What Was Implemented
+
+    [DESCRIPTION from implementer's report]
+
+    ## Requirements/Plan
+
+    [PLAN_OR_REQUIREMENTS: Full text of relevant tasks from plan]
+
+    ## Working Directories
+
+    Read implementation code from [SOURCE_ROOT] (the worktree directory).
+    Read design docs and spec from [DOC_ROOT] (the documentation root).
+
+    ## 文件读取范围（严格限制）
+
+    你**只允许**读取以下文件，禁止扫描代码库：
+    1. **git diff 涉及的文件**：在 `[SOURCE_ROOT]` 下执行 `git diff --name-only [BASE_SHA]..[HEAD_SHA]`
+    2. **代码规范**：`[DOC_ROOT]/spec/CODING_STANDARDS.md`
+    3. **设计文档**（如需对照）：`[DOC_ROOT]/docs/plans/` 下的相关文件
+
+    禁止：
+    - 用 Glob/Grep 扫描 `src/`、`com/` 等目录
+    - 读取 changed files 之外的代码
+    - 读取基类、工具类、框架类 — 信任 CODING_STANDARDS.md
+
+    ## Git Range to Review
+
+    **Base:** [BASE_SHA]
+    **Head:** [HEAD_SHA]
+
+    ```bash
+    cd [SOURCE_ROOT]
+    git diff --stat [BASE_SHA]..[HEAD_SHA]
+    git diff [BASE_SHA]..[HEAD_SHA]
+    ```
+
+    ## Review Checklist
+
+    **Code Quality:**
+    - Clean separation of concerns?
+    - Proper error handling?
+    - Type safety (if applicable)?
+    - DRY principle followed?
+    - Edge cases handled?
+
+    **Architecture:**
+    - Sound design decisions?
+    - Performance implications?
+    - Security concerns?
+
+    **Requirements:**
+    - All plan requirements met?
+    - Implementation matches spec?
+    - No scope creep?
+
+    ## Output Format
+
+    ### Strengths
+    [What's well done? Be specific with file:line references.]
+
+    ### Issues
+
+    #### Critical (Must Fix)
+    [Bugs, security issues, data loss risks, broken functionality]
+
+    #### Important (Should Fix)
+    [Architecture problems, missing features, poor error handling, test gaps]
+
+    #### Minor (Nice to Have)
+    [Code style, optimization opportunities]
+
+    **For each issue:**
+    - File:line reference
+    - What's wrong
+    - Why it matters
+    - How to fix (if not obvious)
+
+    ### Assessment
+
+    **Ready to proceed?** [Yes/No/With fixes]
+    **Reasoning:** [Technical assessment in 1-2 sentences]
 ```
-
-**Code reviewer returns:** Strengths, Issues (Critical/Important/Minor), Assessment

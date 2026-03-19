@@ -27,9 +27,9 @@ Replies like `继续`, `下一步`, `往下走`, or answers to clarification que
 ## Restrictions
 
 - This skill can create `*-design.md` documents, and it may create `*-detail-design.md` when the user explicitly asks for detailed design
-- Do NOT create: `diff_<commitid>.md`, `*-plan.md`, `*-db-design.md` — these belong to other skills
+- Do NOT create: `diff.md`, `*-plan.md`, `*-db-design.md` — these belong to other skills
 - **One step per turn**: complete one step, then STOP and wait for user to reply. Do NOT continue to the next step in the same turn.
-- Do NOT do the diff scan yourself. If no valid `diff_*.md` exists, stop and tell the user.
+- Do NOT do the diff scan yourself. If no valid `diff.md` exists in a current version directory, stop and tell the user.
 - If both frontend and backend are in scope, Step 5 must present both sides (先前端后后端) and Step 6 must save two docs per page (先前端，再基于前端写后端). Do NOT silently drop one side because it looks "already implemented". Do NOT batch all frontend docs first then all backend docs — each page must complete both sides before moving on. 用户可在 Step 6.0 选择串行或并行模式。
 
 ---
@@ -60,13 +60,19 @@ If no PRD / requirement doc was provided → skip to Step 3.
 
 If user provided PRD or requirement doc:
 
-1. Use Glob to check if `docs/plans/**/diff_*.md` exists
-2. If only legacy `docs/plans/**/diff.md` exists → **STOP**，告知用户旧格式不兼容，必须重新执行 `prd-diff-scan` 生成 `diff_<commitid>.md`
-3. If exists → **并行执行**：Read 当前版本化 diff 文档 + Bash `git -C <原型目录> log -1 --format="%H"` 获取当前 commit。然后**验证完整性与新鲜度**：
+1. **确定当前版本目录路径**（不得使用 `docs/plans/**/diff.md` glob 扫描）：
+   - 如果用户明确给出了 diff 文件路径 → 直接使用该路径的所在目录
+   - 如果用户给出了任务目录（如 `docs/plans/2026-03-19-xxx/`）→ 列出其子目录，找到最新的 commit 版本目录
+   - 如果存在多个候选版本目录且无法唯一确定 → **STOP**，用 `AskUserQuestion` 让用户选择
+   - 确定后记录：`当前版本目录 = <确切路径>`
+2. 用 Read 工具直接读取 `<当前版本目录>/diff.md`
+3. If not found → **STOP**，告知用户必须先重新执行 `prd-diff-scan` 生成当前版本目录中的 `diff.md`
+4. If exists → **验证 diff 文档身份**：确认文档标题、PRD 路径与当前任务一致。然后**并行执行**：Bash `git -C <原型目录> log -1 --format="%H"` 获取当前 commit。**验证完整性与新鲜度**：
    - 如果 diff 文档有 Git 基线（`Git 仓库根目录 != 无`），比对当前 commit 与 diff 文档的 `当前原型 Commit ID`。不一致 → **STOP**，告知用户重新执行 `prd-diff-scan`
    - 每个 PRD 页面是否都有 5 维度对比（UI 可视要素 + 控件矩阵 + 字段对比 + 9 维度 + 验收点）
    - 差异清单 Dx 是否覆盖了对比表中所有「差异」行
    - 建议决议是否逐项覆盖了所有 Dx 和 Bx
+   - 文档中是否不存在 `待核对` / `需核对` / `待读取` / `未读取源码` 等未完成标记
    - 如果不完整或已过期 → **STOP**，告知用户重新执行 `prd-diff-scan`
    - 如果完整 → 提取差异决议表中所有「⏳ 待确认」项，告知用户"Step 3 将逐项确认这 N 项差异和 Blockers"
 4. If NOT exists → **STOP. End your turn immediately.** Output only this:
@@ -177,7 +183,7 @@ Design documents are organized by **page** inside a **version directory**.
 docs/plans/YYYY-MM-DD-<topic>/           # 任务目录
   <commitid>/                            # 版本目录（修改场景 / 有 commit 时）
     index.md                             # 主索引（本步骤创建）
-    diff_<commitid>.md                   # 已存在
+    diff.md                              # 已存在
     <page-slug>/                         # 页面子目录
       frontend-detail-design.md
       backend-detail-design.md
@@ -185,7 +191,7 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务目录
 
 #### 6.0 确定任务根目录和页面清单
 
-1. **版本目录**：从已有的 `diff_<commitid>.md` 所在目录推断。如果 diff 位于 commit 子目录，则该子目录就是当前版本目录；如果不存在当前 diff 文档（无 PRD 场景），则创建 `docs/plans/YYYY-MM-DD-<topic>/`，并在有 commit 时继续创建 `docs/plans/YYYY-MM-DD-<topic>/<commitid>/` 作为版本目录。
+1. **版本目录**：使用 Step 2 已确定的 `当前版本目录` 路径。如果不存在当前 diff 文档（无 PRD 场景），则创建 `docs/plans/YYYY-MM-DD-<topic>/`，并在有 commit 时继续创建 `docs/plans/YYYY-MM-DD-<topic>/<commitid>/` 作为版本目录。**不得使用 glob 重新扫描**。
 2. **页面清单**：从当前 diff 文档的受影响页面清单或用户提供的需求中提取。每个页面对应一个 kebab-case 的子目录名（page-slug）。
 3. **项目级事实来源**：详细设计阶段只允许从 `spec/CODING_STANDARDS.md` 获取技术栈、架构、代码规范和基类/继承约定，禁止扫描项目代码补充这些信息。
 4. **选择执行模式**（页面数量 > 1 时）：
@@ -235,15 +241,16 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务目录
 
 每个 Agent 的 prompt 必须包含：
 1. **任务说明**：为页面 `<page-slug>` 编写前端和/或后端详细设计文档
-2. **输出路径**：`<version-root>/<page-slug>/frontend-detail-design.md` 和 `backend-detail-design.md`
+2. **输出路径**：`<version-root>/<page-slug>/frontend-detail-design.md` 和 `backend-detail-design.md`（使用 Step 2 确定的确切版本目录的**绝对路径**，不得让子代理自行 glob 查找）
 3. **模板内容**：将 `spec/frontend/vue/detail-design-template.md` 和/或 `spec/backend/java/detail-design-template.md` 的完整内容嵌入 prompt
 4. **项目规范输入**：`spec/CODING_STANDARDS.md` 的内容或摘要，作为技术栈、架构、代码规范和基类/继承约定的唯一来源
-5. **需求上下文**：该页面在当前 diff 文档（`diff_<commitid>.md`）中的差异描述和确认决议，以及 Step 5 确认的设计方案中与该页面相关的部分
+5. **需求上下文**：该页面在当前 diff 文档（`diff.md`）中的差异描述和确认决议，以及 Step 5 确认的设计方案中与该页面相关的部分
 6. **规则约束**：
    - 页面内先写前端再写后端，后端必须引用同目录前端设计
    - 文档独立性：禁止跨页面引用，内容必须完整自包含
    - 项目规范唯一来源规则
    - 保存前必须通过自检清单（前端 18 项 / 后端 12 项）
+7. **路径上下文**：传入 `DOC_ROOT`（CWD 绝对路径），子代理用此路径读取 `spec/` 和 `docs/plans/` 下的文件。如果涉及读取代码文件，传入 `PROJECT_ROOT`
 
 **完成后处理**：
 - 所有 Agent 完成后，主代理逐个检查每个页面的输出文件是否已正确保存
@@ -258,7 +265,7 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务目录
 
 #### 前后端写入顺序与对齐规则（串行和并行模式共用）
 
-依赖链：`spec/CODING_STANDARDS.md + diff_<commitid>.md + 原型图/PRD → 前端详细设计 → 后端详细设计`
+依赖链：`spec/CODING_STANDARDS.md + diff.md + 原型图/PRD → 前端详细设计 → 后端详细设计`
 
 **项目规范唯一来源规则**：详细设计阶段不得扫描项目代码去推断技术栈、模块架构、代码规范、接口约定或类型约定。上述项目级事实只允许从 `spec/CODING_STANDARDS.md` 获取。
 
@@ -315,10 +322,12 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务目录
 - 页面-API 映射从各页面的后端设计接口清单中提取
 - **去重检查**：页面清单中每个 page-slug 只能出现一次。保存前逐行扫描，发现重复行必须删除
 
-- Do NOT create plan.md, db-design.md, or `diff_<commitid>.md` here.
+- Do NOT create plan.md, db-design.md, or `diff.md` here.
 - Commit the design documents to git
 
-→ **CHECKPOINT**: "✅ 全部 Y 个页面的设计文档已保存到当前版本目录，index.md 已创建。"
+→ **CHECKPOINT**: "✅ 全部 Y 个页面的设计文档已保存到 `<当前版本目录确切路径>`，index.md 已创建。"
+
+> **路径传递**：进入 writing-plans 时，必须传递当前版本目录确切路径和 `PROJECT_ROOT`，writing-plans 不应重新发现版本目录。
 
 **After saving index.md, STOP.** Ask user: "设计文档已保存。是否现在进入实施计划（writing-plans）？"
 
@@ -341,8 +350,8 @@ digraph brainstorming {
     "Step 1: Explore context" [shape=box];
     "STOP: wait for user" [shape=octagon style=filled fillcolor=lightyellow];
     "Has PRD?" [shape=diamond];
-    "Step 2: Check diff_*.md" [shape=box];
-    "diff_*.md exists?" [shape=diamond];
+    "Step 2: Check diff.md" [shape=box];
+    "diff.md exists?" [shape=diamond];
     "STOP: run prd-diff-scan" [shape=octagon style=filled fillcolor=salmon];
     "Step 3: Clarify (1 question)" [shape=box];
     "STOP: wait for answer" [shape=octagon style=filled fillcolor=lightyellow];
@@ -356,11 +365,11 @@ digraph brainstorming {
 
     "Step 1: Explore context" -> "STOP: wait for user";
     "STOP: wait for user" -> "Has PRD?";
-    "Has PRD?" -> "Step 2: Check diff_*.md" [label="yes"];
+    "Has PRD?" -> "Step 2: Check diff.md" [label="yes"];
     "Has PRD?" -> "Step 3: Clarify (1 question)" [label="no"];
-    "Step 2: Check diff_*.md" -> "diff_*.md exists?";
-    "diff_*.md exists?" -> "Step 3: Clarify (1 question)" [label="yes"];
-    "diff_*.md exists?" -> "STOP: run prd-diff-scan" [label="no"];
+    "Step 2: Check diff.md" -> "diff.md exists?";
+    "diff.md exists?" -> "Step 3: Clarify (1 question)" [label="yes"];
+    "diff.md exists?" -> "STOP: run prd-diff-scan" [label="no"];
     "Step 3: Clarify (1 question)" -> "STOP: wait for answer";
     "STOP: wait for answer" -> "Step 4: Approaches";
     "Step 4: Approaches" -> "STOP: wait for choice";

@@ -5,9 +5,9 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Subagent-Driven Development
 
-Execute plan by dispatching fresh subagent per task. Compilation and review are **deferred** to after all tasks complete (CLAUDE.md Rule 5/6).
+Execute plan by dispatching fresh subagent per task. Compilation and review are **deferred** to after all tasks complete (CLAUDE.md Rule 6/7).
 
-**Core principle:** Fresh subagent per task + 无依赖 task 自动并行 + deferred compilation (Rule 5) + deferred review (Rule 6) = high quality, fast iteration
+**Core principle:** Fresh subagent per task + 无依赖 task 自动并行 + deferred compilation (Rule 6) + deferred review (Rule 7) = high quality, fast iteration
 
 ## When to Use
 
@@ -48,8 +48,8 @@ CRITICAL: The controller (you) is an orchestrator, NOT an implementer.
 
 ### Controller MUST NOT:
 - Write implementation code (that's the implementer subagent's job)
-- Run compilation between tasks (CLAUDE.md Rule 5: defer until all tasks done)
-- Dispatch reviewers between tasks (CLAUDE.md Rule 6: defer until compilation passes)
+- Run compilation between tasks (CLAUDE.md Rule 6: defer until all tasks done)
+- Dispatch reviewers between tasks (CLAUDE.md Rule 7: defer until compilation passes)
 - Treat timeout, missing exit code, missing agent handle, or "No task found with ID" as success
 - Batch-mark multiple `未开始` tasks as `已完成`
 - Mix source edits between the main repository root and the worktree after a worktree has been selected
@@ -164,14 +164,14 @@ digraph process {
 5. **Mark task(s) complete** only after explicit implementation-complete evidence → 更新 plan.md + index.md → 回到步骤 1
 
 **并行安全约束：**
-- 仅当 Task 为垂直切片（Rule 4）且不修改相同文件时才可并行
+- 仅当 Task 为垂直切片（Rule 5）且不修改相同文件时才可并行
 - 2 个 ready task 描述中提到修改相同文件 → 降级为串行
 - 任何 subagent 返回 NOT COMPLETE → 单独处理后再推进下一 wave
 
 ### What controller does NOT do in Phase 1
 
-- ❌ Run `mvn compile` or `npm run build` (Rule 5: defer)
-- ❌ Dispatch spec reviewer or code quality reviewer (Rule 6: defer)
+- ❌ Run `mvn compile` or `npm run build` (Rule 6: defer)
+- ❌ Dispatch spec reviewer or code quality reviewer (Rule 7: defer)
 - ❌ Output gate evidence blocks per task
 - ❌ Wait for human review between tasks
 
@@ -188,6 +188,8 @@ digraph process {
 2. Update `index.md` 执行进度 table: increment `已完成` count
 3. On first task of a page: update `index.md` page `实施状态` to `进行中`
 4. When all tasks of a page complete: update `index.md` page `实施状态` to `已完成`
+
+> **注意**：状态回写目标是 CWD 下的 docs/plans（即 `DOC_ROOT`），不是 worktree 目录。
 
 ### 强制状态一致性规则
 
@@ -211,9 +213,11 @@ digraph process {
 
 ### Worktree 目录绑定
 
-- 创建 worktree 后，记录其绝对路径为唯一的 `SOURCE_ROOT`
-- 所有源码修改、验证命令、子代理工作目录都必须使用同一个 `SOURCE_ROOT`
-- 如果文档保留在主仓库更新，controller 必须显式区分 `DOC_ROOT` 和 `SOURCE_ROOT`
+- 创建 worktree 后，记录其绝对路径为 `SOURCE_ROOT`（在 `PROJECT_ROOT` 下创建）
+- 记录 CWD 绝对路径为 `DOC_ROOT`
+- **`SOURCE_ROOT`**：所有源码修改、验证命令、子代理工作目录
+- **`DOC_ROOT`**：所有文档读取（spec、设计文档）、计划进度回写（index.md、plan.md）
+- Controller 自己读文档用 CWD 相对路径，派发 subagent 时传 `DOC_ROOT` 绝对路径
 - 不得在未说明的情况下在主仓库和 worktree 之间来回切换源码路径
 
 ---
@@ -340,7 +344,7 @@ Done!
 
 **Never:**
 - **Write implementation code as controller** (dispatch a subagent)
-- **Compile or review during Phase 1** (CLAUDE.md Rule 5/6: defer)
+- **Compile or review during Phase 1** (CLAUDE.md Rule 6/7: defer)
 - Start implementation on main/master branch without explicit user consent
 - Skip Phase 2 reviews without asking user (must ask, only skip if user explicitly declines)
 - Proceed with unfixed issues in Phase 2
@@ -378,9 +382,15 @@ How to detect: After completing a task, if you haven't written to plan.md and in
 **Required workflow skills:**
 - **superpowers:using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
 - **superpowers:writing-plans** - Creates the plan this skill executes
-- **superpowers:requesting-code-review** - Code review template for reviewer subagents
 - **superpowers:finishing-a-development-branch** - Complete development after all tasks
 - **superpowers:verification-before-completion** - REQUIRED: Evidence before any completion claims
+
+**Phase 2 审查模板（内置，不需要单独调用 skill）:**
+- `./spec-reviewer-prompt.md` - Spec compliance reviewer
+- `./code-quality-reviewer-prompt.md` - Code quality reviewer
+
+**Ad-hoc（仅用于非 SDD 场景）:**
+- **superpowers:requesting-code-review** - 独立代码审查（SDD Phase 2 已内置审查，不要重复调用）
 
 **Subagents should use:**
 - **superpowers:test-driven-development** - Subagents follow TDD for each task
