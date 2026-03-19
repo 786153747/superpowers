@@ -31,7 +31,10 @@ Then your **first action** must be:
 
 1. Invoke `Skill("superpowers:prd-diff-scan")`
 2. Do **NOT** use `Read`, `Glob`, `Grep`, `Task`, or `brainstorming` first
-3. Only after `docs/plans/*/diff.md` exists may you move to `brainstorming`
+3. Only after `docs/plans/**/diff_*.md` exists may you move to `brainstorming`
+4. If only legacy `docs/plans/**/diff.md` exists, treat it as invalid and rerun `prd-diff-scan`
+5. If the actual target code directory, UI prototype implementation directory, or previous diff file is ambiguous, `prd-diff-scan` must stop and use `AskUserQuestion` to confirm before proceeding
+6. Once a commit-based version directory is selected, downstream stages must use the matching `diff / index / 设计文档 / plan` set from that same version directory only
 
 If the user also asks for design or implementation in the same message, this routing still wins.
 Skipping this routing = workflow failure.
@@ -97,7 +100,7 @@ When multiple skills could apply, use this order:
 "帮我出后端详细设计" → 在设计阶段使用 `spec/backend/java/detail-design-template.md` 并落盘。
 "帮我出前端详细设计" → 在设计阶段使用 `spec/frontend/vue/detail-design-template.md` 并落盘。
 
-**writing-plans 不是入口 skill。** 它只能在 brainstorming 产出设计文档之后使用。如果 `docs/plans/*/index.md` 不存在，不要选 writing-plans，应该先走 brainstorming。
+**writing-plans 不是入口 skill。** 它只能在 brainstorming 产出设计文档之后使用。如果当前版本目录中的 `index.md` 不存在，不要选 writing-plans，应该先走 brainstorming。
 
 If the user mentions **PRD / 差异分析 / 页面核对 / 对照现状**, bias strongly toward `prd-diff-scan` before any design or implementation skill.
 

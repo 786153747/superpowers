@@ -27,9 +27,9 @@ Replies like `继续`, `下一步`, `往下走`, or answers to clarification que
 ## Restrictions
 
 - This skill can create `*-design.md` documents, and it may create `*-detail-design.md` when the user explicitly asks for detailed design
-- Do NOT create: `*-diff.md`, `*-plan.md`, `*-db-design.md` — these belong to other skills
+- Do NOT create: `diff_<commitid>.md`, `*-plan.md`, `*-db-design.md` — these belong to other skills
 - **One step per turn**: complete one step, then STOP and wait for user to reply. Do NOT continue to the next step in the same turn.
-- Do NOT do the diff scan yourself. If diff.md is missing, stop and tell the user.
+- Do NOT do the diff scan yourself. If no valid `diff_*.md` exists, stop and tell the user.
 - If both frontend and backend are in scope, Step 5 must present both sides (先前端后后端) and Step 6 must save two docs per page (先前端，再基于前端写后端). Do NOT silently drop one side because it looks "already implemented". Do NOT batch all frontend docs first then all backend docs — each page must complete both sides before moving on. 用户可在 Step 6.0 选择串行或并行模式。
 
 ---
@@ -46,9 +46,9 @@ You MUST create a task for each step and complete them in order.
 - Check out the current project state (files, docs, recent commits)
 - Understand what the user wants to build
 - **并行执行以下探索**（在同一轮中同时发起）：
-  - Glob 搜索前端项目已有的页面文件（`src/views/`）、API 文件（`src/api/`）、类型文件（`src/types/api/`）
+  - Read `spec/CODING_STANDARDS.md`，提取项目信息、技术栈、模块架构、前后端代码规范、可直接使用的基类/继承约定
   - 如果用户需要前端/后端详细设计，记录 `spec/` 下对应模板路径
-- 如果前端文件存在，在探索总结中明确标注"前端代码已存在"，后续 Step 6a 将以已有代码为准
+- **禁止**扫描 `src/views/`、`src/api/`、`src/types/api/` 等项目代码来推断技术栈、架构、代码规范、接口约定或类型约定
 
 **After completing exploration, end your turn.** Present a brief summary of what you found and ask the user one clarifying question.
 
@@ -60,15 +60,16 @@ If no PRD / requirement doc was provided → skip to Step 3.
 
 If user provided PRD or requirement doc:
 
-1. Use Glob to check if `docs/plans/*/diff.md` exists
-2. If exists → **并行执行**：Read diff 文档 + Bash `git -C <原型目录> log -1 --format="%H"` 获取当前 commit。然后**验证完整性与新鲜度**：
+1. Use Glob to check if `docs/plans/**/diff_*.md` exists
+2. If only legacy `docs/plans/**/diff.md` exists → **STOP**，告知用户旧格式不兼容，必须重新执行 `prd-diff-scan` 生成 `diff_<commitid>.md`
+3. If exists → **并行执行**：Read 当前版本化 diff 文档 + Bash `git -C <原型目录> log -1 --format="%H"` 获取当前 commit。然后**验证完整性与新鲜度**：
    - 如果 diff 文档有 Git 基线（`Git 仓库根目录 != 无`），比对当前 commit 与 diff 文档的 `当前原型 Commit ID`。不一致 → **STOP**，告知用户重新执行 `prd-diff-scan`
    - 每个 PRD 页面是否都有 5 维度对比（UI 可视要素 + 控件矩阵 + 字段对比 + 9 维度 + 验收点）
    - 差异清单 Dx 是否覆盖了对比表中所有「差异」行
    - 建议决议是否逐项覆盖了所有 Dx 和 Bx
    - 如果不完整或已过期 → **STOP**，告知用户重新执行 `prd-diff-scan`
    - 如果完整 → 提取差异决议表中所有「⏳ 待确认」项，告知用户"Step 3 将逐项确认这 N 项差异和 Blockers"
-3. If NOT exists → **STOP. End your turn immediately.** Output only this:
+4. If NOT exists → **STOP. End your turn immediately.** Output only this:
 
 > ❌ 差异扫描文档不存在。请先单独执行 `prd-diff-scan` skill 完成差异扫描：
 > `Skill("superpowers:prd-diff-scan")`
@@ -167,22 +168,26 @@ Even if you think the choice is obvious, STOP and wait.
 
 ### Step 6: Write design doc (per-page directory structure)
 
-Design documents are organized by **page** inside a **task directory**:
+Design documents are organized by **page** inside a **version directory**.  
+任务目录与版本目录的关系：
+- **任务目录**：`docs/plans/YYYY-MM-DD-<topic>/`
+- **版本目录**：有 commit 时为 `docs/plans/YYYY-MM-DD-<topic>/<commitid>/`；无 commit 时退化为任务目录本身
 
 ```
-docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan 创建）
-  index.md                               # 主索引（本步骤创建）
-  diff.md                                # 已存在
-  <page-slug>/                           # 页面子目录
-    frontend-detail-design.md
-    backend-detail-design.md
+docs/plans/YYYY-MM-DD-<topic>/           # 任务目录
+  <commitid>/                            # 版本目录（修改场景 / 有 commit 时）
+    index.md                             # 主索引（本步骤创建）
+    diff_<commitid>.md                   # 已存在
+    <page-slug>/                         # 页面子目录
+      frontend-detail-design.md
+      backend-detail-design.md
 ```
 
 #### 6.0 确定任务根目录和页面清单
 
-1. **任务根目录**：从已有的 `diff.md` 所在目录推断。如果不存在 diff.md（无 PRD 场景），则创建 `docs/plans/YYYY-MM-DD-<topic>/`。
-2. **页面清单**：从 diff 文档的受影响页面清单或用户提供的需求中提取。每个页面对应一个 kebab-case 的子目录名（page-slug）。
-3. **预读前端代码**（Frontend in scope 时）：**一次性**并行 Glob `src/api/**/*.ts` + `src/types/api/**/*.ts`，再并行 Read 所有匹配文件。将结果缓存供后续各页面 Step 6a 使用，避免每页重复搜索和读取。
+1. **版本目录**：从已有的 `diff_<commitid>.md` 所在目录推断。如果 diff 位于 commit 子目录，则该子目录就是当前版本目录；如果不存在当前 diff 文档（无 PRD 场景），则创建 `docs/plans/YYYY-MM-DD-<topic>/`，并在有 commit 时继续创建 `docs/plans/YYYY-MM-DD-<topic>/<commitid>/` 作为版本目录。
+2. **页面清单**：从当前 diff 文档的受影响页面清单或用户提供的需求中提取。每个页面对应一个 kebab-case 的子目录名（page-slug）。
+3. **项目级事实来源**：详细设计阶段只允许从 `spec/CODING_STANDARDS.md` 获取技术栈、架构、代码规范和基类/继承约定，禁止扫描项目代码补充这些信息。
 4. **选择执行模式**（页面数量 > 1 时）：
 
 **必须使用 `AskUserQuestion` 工具**向用户提供选择（禁止仅输出文字后继续，必须调用工具等待用户回答）：
@@ -205,16 +210,13 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 **每轮只处理一个页面。** 对当前页面：
 
 **Step 6a：前端详细设计**（Frontend in scope 时执行）
-1. **检查已有前端代码**：从 6.0 预读结果中筛选与当前页面相关的 API 文件和类型文件（无需重复 Glob/Read）。如果找到：
-   - 提取所有接口的路径、HTTP 方法、函数签名
-   - 提取所有 TypeScript 接口/类型定义
-   - **这些代码定义是 Section 5（接口设计）和 Section 6（类型设计）的唯一事实来源**
+1. **读取统一规范输入**：以前置步骤已读取的 `spec/CODING_STANDARDS.md` 作为项目级唯一规范来源，并结合当前 diff 文档、PRD/原型和模板编写前端详细设计
 2. 创建页面子目录
-3. 按模板写入并保存 `<task>/<page-slug>/frontend-detail-design.md`
+3. 按模板写入并保存 `<version-root>/<page-slug>/frontend-detail-design.md`
 4. **保存前必须通过模板 Section 10 自检清单**（18 项全部 ✅ 才可保存）
 
 **Step 6b：后端详细设计**（Backend in scope 时执行，必须在 6a 之后）
-5. 写入并保存 `<task>/<page-slug>/backend-detail-design.md`
+5. 写入并保存 `<version-root>/<page-slug>/backend-detail-design.md`
 6. **保存前必须通过模板头部自检清单**（12 项全部 ✅ 才可保存）
 7. 后端文档必须在「需求输入」中引用同目录下的前端详细设计路径
 
@@ -229,18 +231,18 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 
 用户选择并行模式后，使用 Agent 工具为每个页面启动一个独立子代理，所有页面**同时**编写。
 
-**启动方式**：在同一轮中，为所有页面并行发起 Agent 调用（单条消息中多个 Agent tool call）。
+**启动方式**：在同一轮中，为所有页面并行发起 Agent 调用（单条消息中多个 Agent tool call）。**禁止**先启动部分 Agent 等其完成后再启动剩余 Agent——所有 Agent 必须在同一条消息中一次性全部发出。
 
 每个 Agent 的 prompt 必须包含：
 1. **任务说明**：为页面 `<page-slug>` 编写前端和/或后端详细设计文档
-2. **输出路径**：`<task-root>/<page-slug>/frontend-detail-design.md` 和 `backend-detail-design.md`
+2. **输出路径**：`<version-root>/<page-slug>/frontend-detail-design.md` 和 `backend-detail-design.md`
 3. **模板内容**：将 `spec/frontend/vue/detail-design-template.md` 和/或 `spec/backend/java/detail-design-template.md` 的完整内容嵌入 prompt
-4. **该页面相关的已有前端代码**：从 6.0 预读结果中筛选与当前页面相关的 API 文件和类型文件内容
-5. **需求上下文**：该页面在 diff.md 中的差异描述和确认决议，以及 Step 5 确认的设计方案中与该页面相关的部分
+4. **项目规范输入**：`spec/CODING_STANDARDS.md` 的内容或摘要，作为技术栈、架构、代码规范和基类/继承约定的唯一来源
+5. **需求上下文**：该页面在当前 diff 文档（`diff_<commitid>.md`）中的差异描述和确认决议，以及 Step 5 确认的设计方案中与该页面相关的部分
 6. **规则约束**：
    - 页面内先写前端再写后端，后端必须引用同目录前端设计
    - 文档独立性：禁止跨页面引用，内容必须完整自包含
-   - 已有前端代码优先规则
+   - 项目规范唯一来源规则
    - 保存前必须通过自检清单（前端 18 项 / 后端 12 项）
 
 **完成后处理**：
@@ -256,13 +258,13 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 
 #### 前后端写入顺序与对齐规则（串行和并行模式共用）
 
-依赖链：`已有前端代码 > 原型图/PRD → 前端详细设计 → 后端详细设计`
+依赖链：`spec/CODING_STANDARDS.md + diff_<commitid>.md + 原型图/PRD → 前端详细设计 → 后端详细设计`
 
-**已有前端代码优先规则**：如果前端页面、API 文件（`src/api/*.ts`）、类型定义文件（`src/types/api/*.ts`）已存在，前端详细设计**必须以已有代码为准**——接口路径、HTTP 方法、参数名、类型定义均从代码中提取。PRD/原型仅作为功能范围的补充参考，不得覆盖已有代码中的接口约定。
+**项目规范唯一来源规则**：详细设计阶段不得扫描项目代码去推断技术栈、模块架构、代码规范、接口约定或类型约定。上述项目级事实只允许从 `spec/CODING_STANDARDS.md` 获取。
 
 1. **先写前端**：
-   - **前端代码已存在时**：从 6.0 预读结果中提取已有的 API 文件和类型定义文件，以代码中的接口路径、HTTP 方法、参数名和类型为准填写 Section 5（接口设计）和 Section 6（类型设计）
-   - **前端代码不存在时**：字段逐项对照 `diff.md` 中 PRD 字段对比表（前端是原型的唯一翻译层）
+   - Section 1-7 的项目级规范、技术栈、架构约定统一以 `spec/CODING_STANDARDS.md` 为准
+   - Section 5（接口设计）和 Section 6（类型设计）基于当前 diff 文档、PRD/原型和 `spec/CODING_STANDARDS.md` 生成，不从现有 `src/api/**` 或 `src/types/api/**` 代码中反推
 2. **再写后端**：后端只对齐前端、不再独立对照原型。后端文档必须：
    - 接口清单覆盖前端控件矩阵中所有「调用接口」
    - 请求参数/返回结构与前端类型设计保持一致
@@ -280,7 +282,7 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 
 #### 6.2 创建 index.md
 
-所有页面的设计文件保存完毕后，在任务根目录创建 `index.md`：
+所有页面的设计文件保存完毕后，在当前版本目录创建 `index.md`：
 
 ```markdown
 # <功能名称> — 实施索引
@@ -289,7 +291,8 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 
 - **创建日期**: YYYY-MM-DD
 - **PRD**: `<prd路径>`
-- **任务根目录**: `docs/plans/YYYY-MM-DD-<topic>/`
+- **任务目录**: `docs/plans/YYYY-MM-DD-<topic>/`
+- **版本目录**: `docs/plans/YYYY-MM-DD-<topic>/<commitid>/`（无 commit 时可与任务目录相同）
 - **技术栈**: [如 Vue 3 + Spring Boot + MySQL]
 
 ## 页面清单
@@ -312,10 +315,10 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务根目录（由 prd-diff-scan �
 - 页面-API 映射从各页面的后端设计接口清单中提取
 - **去重检查**：页面清单中每个 page-slug 只能出现一次。保存前逐行扫描，发现重复行必须删除
 
-- Do NOT create plan.md, db-design.md, or diff.md here.
+- Do NOT create plan.md, db-design.md, or `diff_<commitid>.md` here.
 - Commit the design documents to git
 
-→ **CHECKPOINT**: "✅ 全部 Y 个页面的设计文档已保存到 `docs/plans/YYYY-MM-DD-<topic>/` 目录，index.md 已创建。"
+→ **CHECKPOINT**: "✅ 全部 Y 个页面的设计文档已保存到当前版本目录，index.md 已创建。"
 
 **After saving index.md, STOP.** Ask user: "设计文档已保存。是否现在进入实施计划（writing-plans）？"
 
@@ -338,8 +341,8 @@ digraph brainstorming {
     "Step 1: Explore context" [shape=box];
     "STOP: wait for user" [shape=octagon style=filled fillcolor=lightyellow];
     "Has PRD?" [shape=diamond];
-    "Step 2: Check diff.md" [shape=box];
-    "diff.md exists?" [shape=diamond];
+    "Step 2: Check diff_*.md" [shape=box];
+    "diff_*.md exists?" [shape=diamond];
     "STOP: run prd-diff-scan" [shape=octagon style=filled fillcolor=salmon];
     "Step 3: Clarify (1 question)" [shape=box];
     "STOP: wait for answer" [shape=octagon style=filled fillcolor=lightyellow];
@@ -353,11 +356,11 @@ digraph brainstorming {
 
     "Step 1: Explore context" -> "STOP: wait for user";
     "STOP: wait for user" -> "Has PRD?";
-    "Has PRD?" -> "Step 2: Check diff.md" [label="yes"];
+    "Has PRD?" -> "Step 2: Check diff_*.md" [label="yes"];
     "Has PRD?" -> "Step 3: Clarify (1 question)" [label="no"];
-    "Step 2: Check diff.md" -> "diff.md exists?";
-    "diff.md exists?" -> "Step 3: Clarify (1 question)" [label="yes"];
-    "diff.md exists?" -> "STOP: run prd-diff-scan" [label="no"];
+    "Step 2: Check diff_*.md" -> "diff_*.md exists?";
+    "diff_*.md exists?" -> "Step 3: Clarify (1 question)" [label="yes"];
+    "diff_*.md exists?" -> "STOP: run prd-diff-scan" [label="no"];
     "Step 3: Clarify (1 question)" -> "STOP: wait for answer";
     "STOP: wait for answer" -> "Step 4: Approaches";
     "Step 4: Approaches" -> "STOP: wait for choice";

@@ -23,6 +23,9 @@ Task tool (general-purpose):
 
     Read this spec file before starting implementation.
     These are mandatory conventions — your implementation MUST conform to them.
+    Treat `spec/CODING_STANDARDS.md` as the ONLY source for project-wide技术栈、架构和代码规范.
+    Do NOT scan the repository to infer conventions.
+    You may read only the specific target files you need to modify, merge, or verify safely.
 
     ## Before You Begin
 

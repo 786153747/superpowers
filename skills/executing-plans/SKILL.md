@@ -27,22 +27,16 @@ Load plan, review critically, execute tasks in batches, report for review betwee
 
 ### 延迟代码审查
 
-- **审查时机** - 所有页面功能编码完成、编译通过（后端 + 前端）后，再请求代码审查
-- **审查范围** - 对整个功能模块进行一次性审查，而非每任务审查
+- **审查时机** - 所有页面功能编码完成后，进入 Phase 2 验证流程（[`shared/phase2-verification.md`](../shared/phase2-verification.md)）
+- **审查范围** - Phase 2 的 Gate 3 (Spec Compliance) 和 Gate 4 (Code Quality) 覆盖整个功能模块
 - **例外** - 用户明确要求对特定任务进行审查
-- **修复后重新审查** - 如果审查发现问题并修复，需要再次执行 `requesting-code-review` 确认修复完成
 
 ### 工作流程
 
 | 阶段 | 操作 | 说明 |
 |------|------|------|
 | 编码中 | 不编译、不审查 | 专注代码实现，按计划逐任务推进 |
-| 编码完成（后端） | `mvn compile` | 所有后端任务完成后统一编译 |
-| 后端编译失败 | 修复代码 → 重新 `mvn compile` | 循环直到编译通过 |
-| 后端编译通过 | `npm run build` | 在 `<源码目录>/ruoyi-ui/` 执行前端编译 |
-| 前端编译失败 | 修复代码 → 重新 `npm run build` | 循环直到编译通过 |
-| 编译通过 | `requesting-code-review` | 请求一次性代码审查 |
-| 审查通过 | 联调测试 | 进入前端联调阶段 |
+| 所有页面编码完成 | Phase 2 验证流程 | 见 [`shared/phase2-verification.md`](../shared/phase2-verification.md) |
 
 ### 技能调用顺序
 
@@ -51,21 +45,15 @@ Load plan, review critically, execute tasks in batches, report for review betwee
 | 阶段 | 技能 | 用途 |
 |------|------|------|
 | **开始前** | `superpowers:using-git-worktrees` | 创建隔离工作区（仅针对用户指定的**源码目录**） |
-| **全部页面编码完成后** | `mvn compile` | 后端统一编译验证 |
-| **后端编译失败** | 修复代码 → 重新 `mvn compile` | 循环直到编译通过 |
-| **后端编译通过后** | `npm run build` | 前端统一编译验证（在 `<源码目录>/ruoyi-ui/` 目录） |
-| **前端编译失败** | 修复代码 → 重新 `npm run build` | 循环直到编译通过 |
-| **编译通过后** | `superpowers:requesting-code-review` | 请求代码审查（一次性审查整个功能模块） |
-| **收到审查反馈后** | `superpowers:receiving-code-review` | 处理审查意见 |
-| **审查意见修复后** | `superpowers:requesting-code-review` | 再次请求审查，确认修复完成 |
-| **审查通过后** | `superpowers:finishing-a-development-branch` | 完成分支（编译已通过，跳过重复测试） |
+| **所有页面编码完成后** | [`shared/phase2-verification.md`](../shared/phase2-verification.md) | Phase 2 验证流程（Gate 1-5 + Final Gate Evidence） |
+| **Phase 2 通过后** | `superpowers:finishing-a-development-branch` | 完成分支 |
 
-> **注意**：编译通过即为验证通过，不再额外调用 `verification-before-completion`（避免重复编译）。
+> **注意**：Phase 2 验证流程已统一到 [`shared/phase2-verification.md`](../shared/phase2-verification.md)，包含编译、Spec Compliance、Code Quality、Coding Standards Feedback 等 Gate。
 
 ### 注意事项
 
 - **编码阶段不审查** - 按计划逐任务推进，不每页暂停审查，直到所有页面编码完成
-- **统一审查** - 整个功能模块编码完成后，再请求一次性代码审查
+- **统一审查** - 编码完成后进入 Phase 2 验证流程，包含编译 + 分步审查（Gate 1-5）
 - `using-git-worktrees` 仅管理**用户指定的源码目录**，文档目录（`docs/plans/`）直接修改，不经过 git 工作区
 - **源码目录** - 指用户提供的包含前后端代码的项目根目录（如 `RuoYi-Vue3-TypeScript/`）
 - 创建 worktree 后，后续所有源码修改、验证命令、子代理工作目录都必须固定在同一个源码根目录；如果文档目录和源码目录不同，必须显式记录并持续使用
@@ -92,15 +80,27 @@ Load plan, review critically, execute tasks in batches, report for review betwee
 
 ## The Process
 
+### Version Directory Contract
+
+- **任务目录**：`docs/plans/YYYY-MM-DD-<topic>/`
+- **当前版本目录**：有 commit 时为 `docs/plans/YYYY-MM-DD-<topic>/<commitid>/`；无 commit 时可退化为任务目录本身
+- 本 skill 中提到的 `index.md`、`shared-plan.md`、`<page-slug>/plan.md`，默认都指**当前版本目录**中的文件
+- 当前版本目录必须先确定一次，再在整个执行阶段复用；不得从多个 commit 版本目录混读 `diff / index / plan`
+- 如果存在多个版本目录且无法唯一确定当前版本目录，必须停止并向用户确认，不能凭宽泛 Glob 结果自行挑选
+
 ### Step 1: Load and Review Plan (via index.md)
 
-1. Read `index.md` from the task directory (use Glob `docs/plans/*/index.md` to locate it)
-2. Check the **执行顺序** section to determine execution order
-3. Find the first page with `实施状态 = 未开始` or `进行中`
-4. Read that page's `plan.md` (e.g., `shared-plan.md` or `<page-slug>/plan.md`)
-5. Review the plan critically - identify any questions or concerns
-6. If concerns: Raise them with your human partner before starting
-7. If no concerns: Create TodoWrite for the current page's tasks and proceed
+1. Determine the current version directory first:
+   - Prefer the directory that contains the current `diff_<commitid>.md` and matching `index.md`
+   - Use Glob only to枚举候选，不得因为 `docs/plans/**/index.md` 命中多个结果就任意挑选一个
+   - If multiple candidates remain and you cannot uniquely identify the current version directory, STOP and ask the user
+2. Read `index.md` from the current version directory
+3. Check the **执行顺序** section to determine execution order
+4. Find the first page with `实施状态 = 未开始` or `进行中`
+5. Read that page's `plan.md` from the current version directory (e.g., `shared-plan.md` or `<page-slug>/plan.md`)
+6. Review the plan critically - identify any questions or concerns
+7. If concerns: Raise them with your human partner before starting
+8. If no concerns: Create TodoWrite for the current page's tasks and proceed
 
 ### Step 2: Execute Batch
 **Default: First 3 tasks of the current page**
@@ -111,16 +111,16 @@ For each task:
 3. Run verifications as specified
 4. Mark as completed
 5. **Update status tracking** after each task:
-   - Update the task's status in `<page>/plan.md`'s 任务状态 table (set to `已完成`)
-   - Update `index.md` 执行进度 table: increment the `已完成` count for this page
-   - On first task of a page: update `index.md` page `实施状态` to `进行中`
+   - Update the task's status in the current version directory's `<page>/plan.md` 任务状态 table (set to `已完成`)
+   - Update the current version directory's `index.md` 执行进度 table: increment the `已完成` count for this page
+   - On first task of a page: update the current version directory's `index.md` page `实施状态` to `进行中`
 
 ### 强制状态一致性规则
 
 - 只有在以下条件全部满足时，Task 才能标记为 `已完成`:
   1. 该 Task 已实际执行
   2. 计划要求的验证已执行，且退出码明确为成功
-  3. `<page>/plan.md` 与 `index.md` 的状态更新都成功
+  3. 当前版本目录中的 `<page>/plan.md` 与 `index.md` 的状态更新都成功
 - 以下情况一律不得标记 `已完成`:
   - 命令超时
   - 命令无输出且未确认退出码
@@ -147,11 +147,11 @@ Based on feedback:
 - Apply changes if needed
 - Execute next batch of current page
 - **When all tasks of current page are completed:**
-  1. Update `<page>/plan.md` 任务状态 table — all tasks `已完成`
-  2. Update `index.md` page `实施状态` to `已完成`
+  1. Update the current version directory's `<page>/plan.md` 任务状态 table — all tasks `已完成`
+  2. Update the current version directory's `index.md` page `实施状态` to `已完成`
   3. Report: "✅ 页面 `<page-slug>` 已完成。"
-  4. Check `index.md` for next incomplete page (following 执行顺序)
-  5. If more pages remain → read next page's `plan.md`, create new TodoWrite, continue execution
+  4. Check the current version directory's `index.md` for next incomplete page (following 执行顺序)
+  5. If more pages remain → read next page's `plan.md` from the current version directory, create new TodoWrite, continue execution
   6. If all pages done → proceed to Step 5
 - Repeat until all pages complete
 
@@ -159,8 +159,8 @@ Based on feedback:
 
 If the session was interrupted (context compressed, window closed, new session):
 
-1. Read `index.md` — find the first page with `实施状态 = 进行中` or `未开始`
-2. If `进行中` → read that page's `plan.md` task status table:
+1. Read the current version directory's `index.md` — find the first page with `实施状态 = 进行中` or `未开始`
+2. If `进行中` → read that page's `plan.md` task status table from the current version directory:
    - `已完成` tasks: first verify required outputs still exist on disk; if outputs are missing or clearly incomplete, downgrade to `未开始` or `进行中` before continuing
    - `进行中` task: check if the code changes exist on disk (use Glob/Read). If changes look complete, run verification; if incomplete or missing, re-execute the task
    - `未开始` tasks: proceed normally
@@ -168,20 +168,27 @@ If the session was interrupted (context compressed, window closed, new session):
 
 Do NOT assume a fresh start. Always check existing progress first.
 
-### Step 5: Complete Development
+### Step 5: Phase 2 Verification + Complete Development
 
-After all tasks complete and verified:
-- Announce: "I'm using the finishing-a-development-branch skill to complete this work."
-- **REQUIRED SUB-SKILL:** Use superpowers:finishing-a-development-branch
-- Follow that skill to verify tests, present options, execute choice
+After all pages' tasks complete:
+1. Execute Phase 2 verification flow → [`shared/phase2-verification.md`](../shared/phase2-verification.md) (Gates 1-5 + Final Gate Evidence)
+2. After all gates pass:
+   - Announce: "I'm using the finishing-a-development-branch skill to complete this work."
+   - **REQUIRED SUB-SKILL:** Use superpowers:finishing-a-development-branch
+   - Follow that skill to verify tests, present options, execute choice
 
 ## 原型文件合并规则
 
-当 Task 的「创建/修改文件」标注了合并策略（Copy / Overwrite / Merge）时，按以下方式执行。合并策略和 diff 编号（Fx）由 writing-plans 根据 diff.md 变更文件清单生成。
+当 Task 的「创建/修改文件」标注了合并策略（Copy / Overwrite / Merge）时，按以下方式执行。合并策略和 diff 编号（Fx）由 writing-plans 根据当前 diff 文档（`diff_<commitid>.md`）中的变更文件清单生成。
+
+在执行任何 Task 前：
+1. 先读取 `spec/CODING_STANDARDS.md`，将其作为技术栈、架构、代码规范的唯一来源
+2. 仅在需要编辑、合并、验证某个具体文件时读取该文件当前内容
+3. 禁止为了“探测规范”而扫描 `src/views/**`、`src/api/**`、`src/types/**` 或其他项目代码目录
 
 ### 合并模式判断（执行 Merge 任务前必读）
 
-读取 diff.md 比对基线中的 `上次 diff Commit ID`：
+读取当前 diff 文档比对基线中的 `上次 diff Commit ID`：
 
 - 不为"无" → 使用**三方合并**
 - 为"无" 或 `比对模式 = 全量扫描` → 使用**两方合并**
@@ -191,7 +198,7 @@ After all tasks complete and verified:
 适用于：原型新增的文件，开发项目中不存在。
 
 1. 读取原型文件完整内容
-2. 检查开发项目的代码规范（import 路径、组件注册方式、API 调用方式、路由配置等）
+2. 读取 `spec/CODING_STANDARDS.md`，按其中规范适配 import 路径、组件注册方式、API 调用方式、路由配置等
 3. 适配后写入开发项目对应路径
 4. 验证：文件能正常编译/运行
 
@@ -211,7 +218,7 @@ After all tasks complete and verified:
 
 #### 三方合并（有旧 Commit 时）
 
-diff.md 比对基线中的 `上次 diff Commit ID` 不为"无"时使用三方合并：
+当前 diff 文档比对基线中的 `上次 diff Commit ID` 不为"无"时使用三方合并：
 
 1. 读取原型旧版本：`git -C <原型目录> show <旧Commit>:<文件相对路径>`
 2. 读取原型新版本：当前原型文件内容
@@ -223,7 +230,7 @@ diff.md 比对基线中的 `上次 diff Commit ID` 不为"无"时使用三方合
 
 #### 两方合并（无旧 Commit / 全量扫描场景）
 
-diff.md 比对基线中 `上次 diff Commit ID` 为"无"或 `比对模式` 为"全量扫描"时，没有旧版本可做三方对比，降级为两方合并：
+当前 diff 文档比对基线中 `上次 diff Commit ID` 为"无"或 `比对模式` 为"全量扫描"时，没有旧版本可做三方对比，降级为两方合并：
 
 1. 读取原型文件（当前版本）：作为**目标状态**
 2. 读取开发项目当前文件：作为**当前状态**
@@ -273,4 +280,5 @@ diff.md 比对基线中 `上次 diff Commit ID` 为"无"或 `比对模式` 为"�
 **Required workflow skills:**
 - **superpowers:using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
 - **superpowers:writing-plans** - Creates the plan this skill executes
-- **superpowers:finishing-a-development-branch** - Complete development after all tasks
+- **[`shared/phase2-verification.md`](../shared/phase2-verification.md)** - Phase 2 verification (Gates 1-5), shared with subagent-driven-development
+- **superpowers:finishing-a-development-branch** - Complete development after all gates pass

@@ -9,9 +9,22 @@ description: "Use ONLY after brainstorming has produced saved design docs (front
 
 写导航图，不写驾驶手册。告诉执行者：去哪里（文件路径）、看什么（参考文件）、做什么（业务规则）、怎么验证（验证步骤）。**不要把完整代码写进 plan**——执行者读真实的参考文件比抄 plan 里的代码更可靠。
 
-Plan 的目标是让一个**有开发能力但不了解项目**的模型，通过读参考文件 + 遵循业务规则，产出与项目风格一致的代码。
+Plan 的目标是让一个**有开发能力但不了解项目**的模型，通过读 `spec/CODING_STANDARDS.md`、设计文档和当前 Task 明确涉及的具体文件，产出与项目风格一致的代码。
 
 原则：DRY、YAGNI、TDD。
+
+## 项目规范来源
+
+- `spec/CODING_STANDARDS.md` 是技术栈、架构、代码规范的唯一来源
+- 禁止通过扫描仓库代码来推断这些项目级约定
+- 参考文件只允许列出当前 Task **明确要修改、调用、继承或对齐**的具体文件，不得作为“扫描项目学习风格”的手段
+
+## 当前版本目录契约
+
+- `diff_<commitid>.md`、`index.md`、`frontend-detail-design.md`、`backend-detail-design.md`、`shared-plan.md`、`plan.md` 必须来自**同一个当前版本目录**
+- 当前版本目录默认取**当前 diff 文档所在目录**
+- 如果存在多个 commit 版本目录，而你无法唯一确定哪个才是本次任务的当前版本目录，必须停止并要求用户重新确认或先重跑 `prd-diff-scan`
+- 一旦当前版本目录确定，后续只允许读取该目录中的 `index.md`、设计文档和计划文件；其他版本目录一律忽略
 
 ## Prerequisites (HARD-GATE)
 
@@ -21,18 +34,21 @@ Before writing any plan, follow this decision tree in order. Stop at the first �
 Q1: 本次 session 提供了 PRD / 需求文档？
   否 → 跳到 Q4
   是 ↓
-Q2: docs/plans/*/diff.md 存在？
+Q2: docs/plans/**/diff_*.md 存在？
   否 → ⛔ STOP: "❌ 缺少差异扫描文档。请先完成 prd-diff-scan。"
   是 ↓
+  （如果只有旧 `diff.md`，也视为缺少合法差异扫描文档，必须重跑 prd-diff-scan）
+  确定当前版本目录 = 当前 diff 文档所在目录
+  如果存在多个候选版本目录且无法唯一确定当前 diff → ⛔ STOP: "❌ 当前版本目录不明确。请先确认使用哪一个 commit 版本目录。"
 Q3: diff 文档有 Git 基线且 commit 一致？
   （无 Git 基线 → 跳到 Q4）
   （执行 git -C <原型目录> log -1 --format="%H"，与 diff 文档的 Commit ID 比对）
   不一致 → ⛔ STOP: "❌ diff 文档已过期，请重新执行 prd-diff-scan。"
   一致 ↓
-Q4: index.md 和设计文件完整？（无论有无 PRD，此步必做）
-  用 Glob 检查 docs/plans/*/index.md 是否存在
+Q4: 当前版本目录中的 index.md 和设计文件完整？（无论有无 PRD，此步必做）
+  用 Glob 检查 <current-version-dir>/index.md 是否存在
   不存在 → ⛔ STOP: "❌ 缺少 index.md。请先完成 brainstorming 生成设计文档。"
-  存在 → 读取 index.md → 按页面清单检查：
+  存在 → 读取当前版本目录中的 index.md → 按页面清单检查：
   - Frontend in scope → 每个页面需有 frontend-detail-design.md
   - Backend in scope → 每个页面需有 backend-detail-design.md
   缺失 → ⛔ STOP: 列出缺失的页面和设计文件，要求先完成 brainstorming
@@ -43,7 +59,7 @@ Q5: 确定范围：
   - 两侧都在范围内且用户未缩小范围 → 每个页面的 plan.md 中按接口维度切 Task，每个 Task 同时包含后端和前端联调
 ```
 
-If all checks pass, read design document(s), diff document, and index.md as input.
+If all checks pass, read design document(s), current diff document (`diff_<commitid>.md`), index.md, and `spec/CODING_STANDARDS.md` as input. `diff / index / 设计文档` must all come from the same current version directory.
 
 Never treat a generic `继续` as approval to bypass the design gate.
 
@@ -51,7 +67,7 @@ Never treat a generic `继续` as approval to bypass the design gate.
 
 **Context:** This should be run in a dedicated worktree (created by brainstorming skill).
 
-**Save plans to:** Per-page plan files inside the task directory (see Plan Generation Flow below).
+**Save plans to:** Per-page plan files inside the current version directory (see Plan Generation Flow below).
 
 ## 执行追踪元数据（必填）
 
@@ -160,7 +176,7 @@ Task N: 前端差异修复（diff D1/D5/D6 等前端独立差异，不涉及后�
 
 ### 前端独立差异 Task
 
-diff.md 中影响范围为"前端"且不依赖任何后端接口变更的差异（如固定列、默认值、导出格式、搜索字段修正），必须有独立的 Task 覆盖。不得因为"只是前端小改动"而省略。
+当前 diff 文档中影响范围为"前端"且不依赖任何后端接口变更的差异（如固定列、默认值、导出格式、搜索字段修正），必须有独立的 Task 覆盖。不得因为"只是前端小改动"而省略。
 
 典型的前端独立差异 Task：
 ```
@@ -217,7 +233,7 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 自检方式：
 1. 列出后端详细设计中所有 Controller → 每个 Controller 都有对应 Task，且 Task 内包含完整的 Entity/Mapper/Service 链路
 2. 列出前端详细设计中所有页面 → 每个页面都有对应 Task
-3. **逐条扫描 diff.md 的 D1-D{N}** → 每个 Dx 都能在 Plan 中找到对应 Task。特别注意影响范围为"前端"的 Dx，这些经常被遗漏
+3. **逐条扫描当前 diff 文档的 D1-D{N}** → 每个 Dx 都能在 Plan 中找到对应 Task。特别注意影响范围为"前端"的 Dx，这些经常被遗漏
 4. 检查 index.md 的 API 映射：如果多个页面共用同一接口（如"是否共享 = 是"），后续页面不得重复创建 Controller/Service/Mapper
 5. 如有遗漏，补充 Task 后再保存
 
@@ -225,13 +241,13 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 
 ### 流程概述
 
-1. 读取 `index.md` 获取页面清单和页面-API 映射
-2. 读取 `diff.md` 获取差异和已确认决议
+1. 读取当前版本目录中的 `index.md` 获取页面清单和页面-API 映射
+2. 读取当前 diff 文档（`diff_<commitid>.md`）获取差异和已确认决议
 3. 检查是否有跨页面共享的基础设施任务（建表、菜单配置等）→ 如有则生成 `shared-plan.md`（参考第一个页面的 backend-detail-design.md 中的 DB 表定义和共享实体）
 4. **对每个页面**（按 index.md 页面清单顺序）：
    - 读取该页面的 `frontend-detail-design.md` 和 `backend-detail-design.md`
    - 生成 `<page-slug>/plan.md`
-5. 更新 `index.md`：填充 Plan 列链接、添加执行进度表和执行顺序
+5. 更新当前版本目录中的 `index.md`：填充 Plan 列链接、添加执行进度表和执行顺序
 
 ### 每个 plan.md 的格式
 
@@ -251,10 +267,10 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 **Tech Stack:** [Key technologies/libraries]
 
 **Design Docs:**
-- 前端详细设计: `./<page-slug>/frontend-detail-design.md`
-- 后端详细设计: `./<page-slug>/backend-detail-design.md`
+- 前端详细设计: `./frontend-detail-design.md`
+- 后端详细设计: `./backend-detail-design.md`
 
-**Master Index:** `./index.md`
+**Master Index:** `../index.md`
 
 ## 任务状态
 
@@ -268,7 +284,7 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 
 ### shared-plan.md 的内容
 
-`shared-plan.md` 包含跨页面只需执行一次的基础设施任务：
+`shared-plan.md` 包含跨页面只需执行一次的基础设施任务，并保存在当前版本目录中：
 - DB 表创建（建表 SQL，参考任意页面的 backend-detail-design.md Section 5.1）
 - 共享 Entity / DTO 创建（参考任意页面的 backend-detail-design.md Section 4.2/4.3）
 - 路由配置和菜单 SQL
@@ -278,7 +294,7 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 
 ### 更新 index.md
 
-所有 plan.md 生成完毕后，更新 `index.md`：
+所有 plan.md 生成完毕后，更新当前版本目录中的 `index.md`：
 
 1. **页面清单**的 Plan 列：从 `—` 更新为实际链接
 2. **新增执行进度表**：
@@ -319,9 +335,10 @@ Do not hard-code `superpowers:executing-plans` in generated plans when the repos
 
 **依赖**: Task X, Task Y（必须先完成）
 
-**参考文件**（实现前必须先用 Read 工具读取）:
-- Pattern: `path/to/existing/similar/file.java` — 按此文件的分层结构和代码风格
-- Framework: `path/to/base/BaseEntity.java` — 继承此基类
+**参考文件**（实现前必须先用 Read 工具读取；仅限当前 Task 明确涉及的具体文件）:
+- Modify Target: `path/to/existing/file.java` — 读取当前内容，避免覆盖已有改动
+- Dependency/Base: `path/to/base/BaseEntity.java` — 对齐继承关系或调用方式
+- Standards: `spec/CODING_STANDARDS.md` — 项目级技术栈 / 架构 / 代码规范唯一来源
 - Design: `docs/plans/xxx-detail-design.md` Section 4.2 — 字段定义
 
 **创建/修改文件**:
@@ -346,7 +363,7 @@ Do not hard-code `superpowers:executing-plans` in generated plans when the repos
 
 | 要素 | 作用 |
 |------|------|
-| **参考文件** | 执行者先读真实代码，学到 import、基类、注解、命名规范 |
+| **参考文件** | 执行者先读当前 Task 明确涉及的具体文件，理解现状；项目级规范以 `spec/CODING_STANDARDS.md` 为准 |
 | **设计文档引用** | 字段、接口、规则已在详细设计中，不重复 |
 | **业务规则** | 自然语言描述 WHAT，执行者翻译成 HOW |
 | **创建/修改文件** | 精确路径，不猜测；涉及原型文件时标注合并策略（Copy/Overwrite/Merge）和 diff 编号（Fx） |
@@ -366,7 +383,7 @@ Do not hard-code `superpowers:executing-plans` in generated plans when the repos
 - 完整的 SQL DDL（设计文档里已有，用 `Design: backend-detail-design.md Section 5.1` 引用）
 - 完整的查询 SQL（设计文档 Section 7 已有，引用即可；Task 中只写关键的 WHERE 条件说明）
 - 完整的 MyBatis XML 映射文件
-- 完整的 import 列表（从参考文件学习）
+- 完整的 import 列表（按 `spec/CODING_STANDARDS.md` 和具体目标文件保持一致）
 - 设计文档里已经写明的字段列表（直接引用 Section 编号）
 - **"同上"**：每个 Task 的参考文件必须列出完整路径，不得写"同上""同 Task 1"。执行者可能单独看某个 Task，看不到"上"是什么
 
@@ -418,7 +435,7 @@ Plan 保存前必须逐项自检：
 | 2 | 前端详细设计中每个页面 → Plan 中有对应 Task | ✅/❌ |
 | 3 | 后端详细设计 Section 4.3 中每个 DTO → Plan 中有创建文件项 | ✅/❌ |
 | 4 | Plan 中无占位符值（`XXX`、`???`、`TODO_ID`、未替换的 `{{xx}}`） | ✅/❌ |
-| 5 | diff.md 中每个差异 Dx → Plan 中有对应 Task 处理（**包括影响范围为"前端"的 Dx**，逐条核对不得遗漏） | ✅/❌ |
+| 5 | 当前 diff 文档中每个差异 Dx → Plan 中有对应 Task 处理（**包括影响范围为"前端"的 Dx**，逐条核对不得遗漏） | ✅/❌ |
 | 6 | 参考文件路径全部为真实存在的文件（用 Glob 验证），**无"同上"** | ✅/❌ |
 | 7 | Task 中**无完整 SQL DDL / 查询 SQL**（应引用设计文档 Section 编号），每个 Task ≤ 60 行 | ✅/❌ |
 | 8 | index.md 页面清单**无重复行**（每个 page-slug 只出现一次） | ✅/❌ |
@@ -432,10 +449,10 @@ After saving all page plans and updating index.md:
 
 ```
 Plan complete. Page plans saved to:
-  docs/plans/<task>/shared-plan.md (N tasks)
-  docs/plans/<task>/<page1>/plan.md (N tasks)
+  docs/plans/<task>/<commitid>/shared-plan.md (N tasks)   # 有 commit 时
+  docs/plans/<task>/<commitid>/<page1>/plan.md (N tasks)  # 有 commit 时
   ...
-Master index updated: docs/plans/<task>/index.md
+Master index updated: docs/plans/<task>/<commitid>/index.md
 ```
 
 Offer execution choice (详见 CLAUDE.md §1 执行模式选择):

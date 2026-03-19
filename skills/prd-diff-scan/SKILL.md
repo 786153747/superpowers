@@ -20,7 +20,7 @@ description: "Use when user provides PRD or requirement docs, or asks for 差异
 按顺序回答，第一个"否"决定模式，之后不再往下判断：
 
 ```
-Q1: 存在旧 diff 文档（docs/plans/*/diff.md）？
+Q1: 同任务目录下存在旧版本 diff 文档（`<旧commitid>/diff_<旧commitid>.md` 或兼容场景下的 `diff_*.md`）？
   否 → 全量扫描（读取全部原型文件）
   是 ↓
 Q2: 旧 diff 文档中记录了完整 Git 基线（有 Commit ID + Commit 时间）？
@@ -33,6 +33,13 @@ Q4: 旧 diff 的 Commit ID 是当前 HEAD 的祖先（git merge-base --is-ancest
   是 → 增量刷新（只扫描 git diff 命中的文件）
   否 → 全量扫描
 ```
+
+补充规则：
+- 差异文档文件名固定为 `diff_<40位commitSHA>.md`，其中 commitSHA 必须是**当前原型仓库 HEAD**
+- 只认版本化 diff 文件；旧 `diff.md` 一律视为**无合法基线**
+- 同一任务目录下保留历史 diff 文件，不覆盖、不删除旧的 `diff_*.md`
+- 如果 `当前原型 Commit ID != 无`，则当前版本产物必须落到 commit 命名的版本目录：`docs/plans/YYYY-MM-DD-<主题>/<当前commitid>/`
+- 该 commit 版本目录中的 diff 路径固定为：`docs/plans/YYYY-MM-DD-<主题>/<当前commitid>/diff_<当前commitid>.md`
 
 **确定模式后，在步骤 1 输出中明确写出选择了哪个模式及判断依据。**
 
@@ -60,7 +67,7 @@ else echo "FULL"; fi
 此时只允许输出类似 checkpoint：
 
 ```
-✅ 差异扫描完成，文档已保存到 `docs/plans/YYYY-MM-DD-<主题>/diff.md`。
+✅ 差异扫描完成，文档已保存到 `docs/plans/YYYY-MM-DD-<主题>/<当前原型CommitID>/diff_<当前原型CommitID>.md`。
 如需继续设计，请明确要求进入 brainstorming。
 ```
 
@@ -92,7 +99,7 @@ else echo "FULL"; fi
 - 只允许把 `git diff --name-only <旧Commit>..HEAD -- <原型目录>` 命中的原型文件作为**重新核对范围**
 - 只重新读取这些变更原型文件，并将它们映射到受影响页面 / 弹窗 / 抽屉 / 流程
 - 未受影响的页面可沿用旧 diff 中的已核对内容，不要对未变文件重新做全量扫描
-- 最终仍然要生成一份**新的完整 diff 文档**：未受影响页面**直接从旧 diff 文档中复制对应章节原文**（不重新生成），受影响页面重做步骤 4-6，并重新生成差异清单、Blockers、建议决议和落盘前自检
+- 最终仍然要生成一份**新的完整 diff 文档**：文件名必须为 `diff_<当前HEAD_SHA>.md`。如果有当前 commit，则保存到 `docs/plans/YYYY-MM-DD-<主题>/<当前HEAD_SHA>/`。未受影响页面**直接从旧 diff 文档中复制对应章节原文**（不重新生成），受影响页面重做步骤 4-6，并重新生成差异清单、Blockers、建议决议和落盘前自检
 - 如果 HEAD 已变化，但原型目录下没有任何变更文件，也要生成新的 diff 文档，明确写出“自 `<旧Commit>` 以来原型目录无变更文件”，并把 `当前原型 Commit ID / 时间` 更新到最新值
 - 如果旧 diff 中无法解析 commit id，或 `git merge-base --is-ancestor <旧Commit> HEAD` / `git diff` 失败，则回退到**全量扫描**
 
@@ -104,6 +111,34 @@ else echo "FULL"; fi
 - 外置规范文档
 
 如果用户没有提供，告知用户："请提供 PRD 或需求文档的路径"，然后等待。
+
+## Step 0：路径与基线歧义确认（开始流程前必做）
+
+在执行任何 `Read`、`Glob`、`Grep`、Git 基线命令或源码扫描之前，先确认以下 3 个输入是否明确：
+
+1. **实际修改的代码目录**：本次最终要落代码的目标项目目录
+2. **UI 原型实现目录**：用于做 PRD ↔ 当前实现对比的原型 / UI / 当前实现目录
+3. **上一次 diff 文件**：本次要复用或增量刷新的上一份版本化 diff 文档
+
+如果这 3 项中任意一项出现以下情况，则视为**不明确**：
+
+- 用户消息里没有明确给出路径
+- 本地探索能找到多个合理候选（例如多个前端目录、多个原型目录、多个任务目录或多个历史 diff）
+- 能找到候选，但无法安全判断哪个才是本次任务要用的目录 / diff
+- 当前工作目录与用户给出的目录线索明显不一致
+
+**不明确时的硬门禁**：
+
+- **必须使用 `AskUserQuestion` 工具**向用户确认
+- **不得自行猜测，不得直接继续步骤 1**
+- **用户确认后**，才能继续后续 Git 基线获取和差异扫描流程
+
+### AskUserQuestion 的提问要求
+
+- 一次最多确认这 3 项：实际修改的代码目录 / UI 原型实现目录 / 上一次 diff 文件
+- 问题中列出 2-4 个明确候选路径，并给出推荐项
+- 如果某项没有任何可靠候选，也要明确写成 `无明确候选，需要用户提供路径`
+- 等用户回答后，把最终确认结果写入步骤 1 的「比对基线」
 
 ### 原型目录与开发项目的区分
 
@@ -125,6 +160,8 @@ else echo "FULL"; fi
 **以下两项并行执行**（在同一轮对话中同时发起）：
 1. 用 Read 工具读取用户提供的 PRD / 需求文档
 2. 用 Bash 执行 Git 基线获取命令（见"Git 基线获取"节）
+
+**前提**：Step 0 中的「实际修改的代码目录」「UI 原型实现目录」「上一次 diff 文件」必须已经明确；若仍不明确，返回 Step 0 用 `AskUserQuestion` 向用户确认。
 
 完成后记录所有读取的文件路径。
 
@@ -406,7 +443,7 @@ else echo "FULL"; fi
 
 ## 步骤 6.5：变更文件清单
 
-当比对模式为**增量刷新**或**全量扫描**时，必须在 diff.md 中输出一个文件级变更表格，供后续 writing-plans / executing-plans 使用。
+当比对模式为**增量刷新**或**全量扫描**时，必须在当前 diff 文档（`diff_<commitid>.md`）中输出一个文件级变更表格，供后续 writing-plans / executing-plans 使用。
 
 ### 获取变更文件
 
@@ -531,7 +568,14 @@ else echo "FULL"; fi
 - 本次重检文件: [全部原型文件 / 文件列表 / 无变更]
 ```
 
-把以上全部内容保存到 `docs/plans/YYYY-MM-DD-<主题>/diff.md`。保存前需先创建任务目录 `docs/plans/YYYY-MM-DD-<主题>/`（如果不存在）。
+把以上全部内容保存到当前版本目录中的 diff 文件：
+
+- 有当前原型 Commit ID：`docs/plans/YYYY-MM-DD-<主题>/<当前原型CommitID>/diff_<当前原型CommitID>.md`
+- 无当前原型 Commit ID：`docs/plans/YYYY-MM-DD-<主题>/diff_<当前原型CommitID>.md`
+
+保存前需先创建任务目录 `docs/plans/YYYY-MM-DD-<主题>/`（如果不存在）。若存在当前 commit，还需创建版本目录 `docs/plans/YYYY-MM-DD-<主题>/<当前原型CommitID>/`。
+
+如果当前 HEAD 对应的同名文件已存在且比对模式为 `直接复用`，则直接返回该文件路径，不新建文件。
 
 差异扫描结果必须落盘，不能只存在于聊天记录中。
 
@@ -582,6 +626,6 @@ else echo "FULL"; fi
 - Blockers 已列出
 - 落盘前自检 8 项全部通过
 - 若原型目录位于 Git 仓库中，文档已记录 `原型目录`、`Git 仓库根目录`、`当前原型 Commit ID`、`当前原型 Commit 时间`
-- 结果已保存到 `docs/plans/YYYY-MM-DD-<主题>/diff.md`
+- 结果已保存到当前版本目录中的 `diff_<当前原型CommitID>.md`
 
 如果用户未要求继续，完成后必须停止并等待。

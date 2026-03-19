@@ -27,18 +27,19 @@ PRD/需求 → prd-diff-scan → brainstorming → writing-plans → executing-p
 
 ---
 
-## 10 条核心规则
+## 11 条核心规则
 
-1. **文档落盘**：diff.md、design.md、plan.md 必须保存到 `docs/plans/YYYY-MM-DD-<主题>/`，不能只在聊天中
+1. **文档落盘**：`diff_<commitid>.md`、design.md、plan.md 必须保存到 `docs/plans/YYYY-MM-DD-<主题>/` 下的当前版本目录（有 commit 时为 `<commitid>/`），不能只在聊天中
 2. **逐轮确认**：brainstorming 每步完成后必须等用户确认，不得连续多步（除非用户明确授权自动模式）
 3. **无 Blocker 才能继续**：差异决议中有「待确认」项？→ 停下来等用户确认
-4. **按接口维度切 Task**：每个 Task 是垂直切片（Entity→Mapper→Service→Controller），禁止按技术层横切
-5. **延迟编译**：编码阶段不编译，所有后端任务完成后再 `mvn compile`
-6. **延迟审查**：编译通过后（后端 + 前端）再请求一次性审查，不每任务审查
-7. **代码规范**：implementer 编码前必须读取 `spec/` 下的代码规范文档，Phase 2 审查后收集规范类问题反馈给用户确认是否更新规范文档
-8. **Git Worktree**：执行计划前必须调用 `using-git-worktrees` 创建隔离工作区
-9. **子代理执行**：执行 plan 用 `subagent-driven-development`，每任务 fresh subagent（仅实现，编译和审查延迟到 Phase 2）
-10. **验证优先**：声称完成前必须调用 `verification-before-completion` 跑验证命令
+4. **起始目录有歧义先问用户**：如果实际修改代码目录、UI 原型实现目录、上一次 diff 文件不明确，必须先用 `AskUserQuestion` 确认，不能靠猜继续
+5. **按接口维度切 Task**：每个 Task 是垂直切片（Entity→Mapper→Service→Controller），禁止按技术层横切
+6. **延迟编译**：编码阶段不编译，所有后端任务完成后再 `mvn compile`
+7. **延迟审查**：编译通过后（后端 + 前端）再请求一次性审查，不每任务审查
+8. **代码规范**：implementer 编码前必须读取 `spec/CODING_STANDARDS.md`，并将其作为技术栈、架构、代码规范的唯一来源；Phase 2 审查后收集规范类问题反馈给用户确认是否更新规范文档
+9. **Git Worktree**：执行计划前必须调用 `using-git-worktrees` 创建隔离工作区
+10. **子代理执行**：执行 plan 用 `subagent-driven-development`，每任务 fresh subagent（仅实现，编译和审查延迟到 Phase 2）
+11. **验证优先**：声称完成前必须调用 `verification-before-completion` 跑验证命令
 
 ---
 
@@ -46,13 +47,14 @@ PRD/需求 → prd-diff-scan → brainstorming → writing-plans → executing-p
 
 ```
 docs/plans/YYYY-MM-DD-<主题>/
-  diff.md                    # prd-diff-scan 创建
-  index.md                   # brainstorming 创建，执行中更新
-  shared-plan.md             # writing-plans 创建（可选）
-  <page-slug>/
-    frontend-detail-design.md
-    backend-detail-design.md
-    plan.md                  # writing-plans 创建，executing-plans 更新状态
+  <commitid>/                # 当前版本目录（有 commit 时）
+    diff_<commitid>.md       # prd-diff-scan 创建（保留历史版本）
+    index.md                 # brainstorming 创建，执行中更新
+    shared-plan.md           # writing-plans 创建（可选）
+    <page-slug>/
+      frontend-detail-design.md
+      backend-detail-design.md
+      plan.md                # writing-plans 创建，executing-plans 更新状态
 ```
 
 ---
