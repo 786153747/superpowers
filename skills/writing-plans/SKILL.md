@@ -214,6 +214,37 @@ Task 1: 前端差异修复（D16-D18 搜索字段修正 + D19 导出格式）
 Task 1: 创建 OrderLedgerMapper + IOrderLedgerService + OrderLedgerController ← 查同一张表，不需要独立 Mapper/Service
 ```
 
+### 跨页面依赖：拆成后置 Task，不要阻塞整页
+
+多页面场景下，默认目标是：`shared-plan.md` 完成后，**所有页面都能立即进入并行执行**。因此，不能把"本页有一小段工作依赖另一个页面"直接翻译成"整个页面依赖另一个页面"。
+
+正确切法：
+
+- 本页可独立完成的工作先拆成前面的 Task：前端差异、页面结构、独立接口、本地交互等
+- 只有真正依赖其他页面输出的那一小段工作，才单独拆成**后置 Task**
+- 跨页面共享基础设施（表、Entity、菜单、路由骨架）继续放进 `shared-plan.md`
+- **禁止**让某个页面的 `Task 1` 直接依赖其他页面；一旦 `Task 1` 跨页依赖，就等于把整页串行化了
+
+不合格：
+
+```markdown
+# order-ledger/plan.md
+Task 1: 接入复用的订单列表接口
+依赖: my-order Task 2
+```
+
+合格：
+
+```markdown
+# order-ledger/plan.md
+Task 1: 前端差异修复
+Task 2: 页面本地交互与表格结构调整
+Task 3: 接入复用的订单列表接口
+依赖: my-order Task 2
+```
+
+这样生成出来的 plan，subagent 才能在 `shared-plan.md` 完成后直接把多个页面一起拉起，并且只在最后一个显式依赖 Task 上等待。
+
 ### 禁止按技术层横切
 
 以下切法**不合格**：
@@ -238,7 +269,8 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 2. 列出前端详细设计中所有页面 → 每个页面都有对应 Task
 3. **逐条扫描当前 diff 文档的 D1-D{N}** → 每个 Dx 都能在 Plan 中找到对应 Task。特别注意影响范围为"前端"的 Dx，这些经常被遗漏
 4. 检查 index.md 的 API 映射：如果多个页面共用同一接口（如"是否共享 = 是"），后续页面不得重复创建 Controller/Service/Mapper
-5. 如有遗漏，补充 Task 后再保存
+5. 多页面场景下，检查是否存在"整页依赖另一页"的切法；如果有，必须拆成页面内可先执行的 Task + 显式后置依赖 Task
+6. 如有遗漏，补充 Task 后再保存
 
 ## Plan Generation Flow（按页面生成 plan）
 
@@ -249,8 +281,10 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 3. 检查是否有跨页面共享的基础设施任务（建表、菜单配置等）→ 如有则生成 `shared-plan.md`（参考第一个页面的 backend-detail-design.md 中的 DB 表定义和共享实体）
 4. **对每个页面**（按 index.md 页面清单顺序）：
    - 读取该页面的 `frontend-detail-design.md` 和 `backend-detail-design.md`
+   - 先写本页可独立执行的 Task，再把真正跨页面依赖的收尾动作拆成显式后置 Task
+   - 不得生成"整个 `<page>/plan.md` 依赖另一个 `<page>/plan.md`"的结构
    - 生成 `<page-slug>/plan.md`
-5. 更新当前版本目录中的 `index.md`：填充 Plan 列链接、添加执行进度表和执行顺序
+5. 更新当前版本目录中的 `index.md`：填充 Plan 列链接、添加执行进度表和执行顺序（shared 之后所有页面并行启动，页面内按 Task 依赖串行推进）
 
 ### 每个 plan.md 的格式
 
@@ -316,11 +350,12 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 ```markdown
 ## 执行顺序
 
-> shared 最先执行，之后按依赖关系排列。
+> shared 最先执行；shared 完成后，所有页面直接进入并行执行。页面内按 Task 依赖串行推进；跨页面依赖只能体现在显式拆出的后置 Task 上，不能体现在整页顺序上。
 
-1. `shared-plan.md` — [描述]（无依赖）
-2. `<page1>/plan.md` — [描述]（依赖 shared）
-3. `<page2>/plan.md` — [描述]（依赖 shared + page1）
+1. `shared-plan.md` — [描述]（前置共享任务）
+2. `<page1>/plan.md` — [描述]（shared 完成后立即并行启动）
+3. `<page2>/plan.md` — [描述]（shared 完成后立即并行启动）
+4. `<pageN>/plan.md` — [描述]（如有跨页面依赖，仅该页的后置 Task 等待上游 Task）
 ```
 
 ## Plan Document Header (for each page plan)
@@ -336,7 +371,7 @@ Do not hard-code a default execution skill in generated plans. Execution mode mu
 ````markdown
 ### Task N: [组件名称]
 
-**依赖**: Task X, Task Y（必须先完成）
+**依赖**: Task X, Task Y（必须先完成；优先引用本页前置 Task。跨页面依赖仅允许用于显式拆出的后置 Task，不得让 `Task 1` 依赖其他页面）
 
 > **路径占位符**：`[SOURCE_ROOT]` 和 `[DOC_ROOT]` 在 plan 中是占位符。实际值在执行阶段由 `using-git-worktrees` 创建 worktree 后确定，controller 负责替换为绝对路径传给 subagent。
 
@@ -372,7 +407,7 @@ Do not hard-code a default execution skill in generated plans. Execution mode mu
 | **设计文档引用** | 字段、接口、规则已在详细设计中，不重复 |
 | **业务规则** | 自然语言描述 WHAT，执行者翻译成 HOW |
 | **创建/修改文件** | 精确路径，不猜测；涉及原型文件时标注合并策略（Copy/Overwrite/Merge）和 diff 编号（Fx） |
-| **依赖关系** | 防止跳步 |
+| **依赖关系** | 防止跳步；多页面场景下仅允许显式后置 Task 依赖其他页面 |
 
 ### 什么可以写在 Task 里
 
@@ -474,7 +509,8 @@ Plan 保存前必须逐项自检：
 | 7 | Task 中**无完整 SQL DDL / 查询 SQL**（应引用设计文档 Section 编号），每个 Task ≤ 60 行 | ✅/❌ |
 | 8 | index.md 页面清单**无重复行**（每个 page-slug 只出现一次） | ✅/❌ |
 | 9 | **共享接口去重**：index.md API 映射中标记"是否共享=是"的接口，后续页面 plan 不得重复创建 Controller/Service/Mapper | ✅/❌ |
-| 10 | **无编译验证条件**：全文搜索 `mvn compile`、`npm run build`、`编译无错误`、`无 import 错误`、`无类型不匹配` — Task 中不得出现任何此类内容（CLAUDE.md Rule 6） | ✅/❌ |
+| 10 | **多页面并行友好**：不得出现"整页依赖另一页"的结构；跨页面依赖已拆成显式后置 Task，页面在 shared 后可直接并行启动 | ✅/❌ |
+| 11 | **无编译验证条件**：全文搜索 `mvn compile`、`npm run build`、`编译无错误`、`无 import 错误`、`无类型不匹配` — Task 中不得出现任何此类内容（CLAUDE.md Rule 6） | ✅/❌ |
 
 任一项为 ❌ → 补全后再保存。
 
@@ -484,7 +520,7 @@ Plan 保存前必须逐项自检：
 ## 自检总裁定: [PASS / FAIL]
 ```
 
-- 10 项全部 ✅ → `PASS`，可以落盘
+- 11 项全部 ✅ → `PASS`，可以落盘
 - 任何一项 ❌ → `FAIL`，**绝对不得落盘**。必须定位失败项、修复后重新执行完整自检，直到 `PASS` 才能保存
 - **禁止绕过**：不得在 FAIL 时以"后续补充"等理由保存半成品 plan
 

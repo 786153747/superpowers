@@ -1,15 +1,17 @@
 ---
 name: subagent-driven-development
-description: Use when executing implementation plans in the current session. Runs the `shared-plan.md` phase first, then executes page plans with streaming lanes — each page lane advances independently upon task completion, no wave synchronization barrier. A fresh implementer subagent is dispatched per task. Concurrency is capped by max_concurrency (default 3). Shared tasks may run in parallel when safe. Compilation and reviews are deferred until all tasks complete.
+description: Use when executing implementation plans in the current session. Runs the `shared-plan.md` phase first, then immediately starts all page plans as parallel streaming lanes. Tasks remain serial within each page lane. Any cross-page dependency must be split into an explicit later task instead of blocking a whole page. A fresh implementer subagent is dispatched per task. Concurrency is capped by max_concurrency (default 3). Shared tasks may run in parallel when safe. Compilation and reviews are deferred until all tasks complete.
 ---
 
 # Subagent-Driven Development
 
 Execute saved plans in the current session with a streaming lane scheduler:
 
-- `shared-plan.md` phase first (synchronized waves), then each page as an independent streaming lane
+- `shared-plan.md` phase first (synchronized waves), then all pages enter independent streaming lanes immediately
 - Shared tasks run in parallel when write sets are disjoint
 - Page lanes advance independently — no waiting for other lanes
+- Tasks stay serial within a page lane
+- Cross-page dependency work must be split into explicit later tasks, not page-level gating
 - Concurrency capped by `max_concurrency` (default 3)
 - One active task per page lane; fresh implementer subagent per task
 - Compilation and review deferred until all tasks complete
@@ -26,12 +28,14 @@ CRITICAL: The controller is an orchestrator, not an implementer.
 - Treat `[DOC_ROOT]/spec/CODING_STANDARDS.md` as the sole source for project conventions and embed its full content into every implementer prompt
 - Complete all `shared-plan.md` tasks before starting any page lane
 - Parallelize ready shared tasks when write sets are disjoint — do NOT serially drain safe-to-parallelize tasks
+- Before starting page phase, sanity-check multi-page plans: each page should have page-local work that can start immediately after `shared-plan.md`; if a page is blocked from `Task 1` by another page, stop and fix the plan decomposition instead of serializing whole pages
 - On any subagent completion, immediately scan ALL lanes and dispatch every safe next task within `max_concurrency` — do NOT wait for other in-flight subagents (no wave regression)
 - Output a **Dispatch Ticket** before every dispatch (see template below)
 - Dispatch a fresh implementer subagent per task
 - Keep at most one active task per page lane at any time
 - In shared phase, enumerate every ready shared task in the ticket and dispatch the full safe wave up to `max_concurrency`
 - In page phase, fill open slots from different ready pages in `index.md` order before waiting again
+- Treat cross-page dependencies as explicit later tasks only; launch each page's independent tasks first
 - Pass the same absolute `SOURCE_ROOT`, `DOC_ROOT`, and `VERSION_DIR` to every implementer
 - Update `plan.md` and `index.md` after each completed task
 - Answer subagent questions before the subagent proceeds
@@ -51,6 +55,8 @@ CRITICAL: The controller is an orchestrator, not an implementer.
 - Block a ready lane from advancing when concurrency allows and no safety conflict exists (lane starvation)
 - Start page phase with only the first ready page when other ready pages could fill open slots
 - Dispatch multiple ready tasks from the same page just because they are disjoint
+- Treat a whole page as blocked just because one later task depends on another page
+- Accept a multi-page plan where `Task 1` of a page depends on another page; that means the plan was decomposed incorrectly
 - Collapse multiple ready shared tasks into a single shared row and dispatch only the first one
 - Skip Dispatch Ticket output before any dispatch
 
@@ -126,6 +132,35 @@ Two tasks (shared or page) may run concurrently only when **all** are true:
 
 When the controller cannot prove write sets are disjoint → downgrade to serial.
 
+## Page Lane Contract
+
+For multi-page plans, the page phase assumes the following contract:
+
+- After `shared-plan.md` completes, **all pages should be able to start immediately**
+- Tasks inside one page remain serial and advance one by one
+- Cross-page dependencies are allowed only on **explicitly extracted later tasks**
+- A page's `Task 1` must not depend on another page; if it does, the page was serialized at the wrong level
+
+Bad decomposition:
+
+```markdown
+# order-ledger/plan.md
+Task 1: 接入复用的订单列表接口
+依赖: my-order Task 2
+```
+
+Good decomposition:
+
+```markdown
+# order-ledger/plan.md
+Task 1: 前端差异修复
+Task 2: 页面本地交互与列表结构调整
+Task 3: 接入复用的订单列表接口
+依赖: my-order Task 2
+```
+
+The controller executes the good version by launching `Task 1` for every page in parallel after `shared-plan.md`, then holding only the extracted tail task until its upstream dependency is done.
+
 ## Phase 1: Implementation
 
 ### Algorithm
@@ -142,20 +177,27 @@ while shared-plan has unfinished tasks:
         if safe_with_all(task, wave):      # apply Safety Rules
             wave.append(task)
     # MUST dispatch the full safe wave, not just the first ready task
-    dispatch_all(wave)                     # multiple Agent calls in one message
+    dispatch_all(wave)                     # ALL Agent() calls in ONE response message — mandatory
+    self_check(wave)                       # verify launched count == dispatched count
     wait_all(wave)                         # wave sync only in shared phase
     update_status(shared-plan, index.md)
 
 # ── Page Phase (streaming lanes) ──────────────────────────
+# Assumption: every page has page-local work that can start after shared phase.
+# Cross-page dependencies must only appear on explicitly extracted later tasks.
 in_flight = {}  # page → task
 
 # Initial dispatch: fill up to max_concurrency from different pages
+batch = []
 for page in index.md_order:
-    if len(in_flight) >= max_concurrency: break
+    if len(batch) >= max_concurrency: break
     task = first_ready_task(page)
-    if task and safe_with_all(task, in_flight.values()):
-        dispatch(page, task)
-        in_flight[page] = task
+    if task and safe_with_all(task, batch):
+        batch.append((page, task))
+dispatch_all(batch)                        # ALL Agent() calls in ONE response message
+self_check(batch)                          # verify launched count == dispatched count
+for page, task in batch:
+    in_flight[page] = task
 
 # Streaming loop
 while in_flight or any_lane_has_remaining_tasks:
@@ -164,13 +206,17 @@ while in_flight or any_lane_has_remaining_tasks:
     del in_flight[completed_page]
 
     # Immediately scan ALL lanes — dispatch every safe next task
+    batch = []
     for page in all_pages_with_remaining_tasks:
-        if len(in_flight) >= max_concurrency: break
+        if len(in_flight) + len(batch) >= max_concurrency: break
         if page in in_flight: continue     # max 1 task per page
         task = first_ready_task(page)
-        if task and safe_with_all(task, in_flight.values()):
-            dispatch(page, task)
-            in_flight[page] = task
+        if task and safe_with_all(task, list(in_flight.values()) + batch):
+            batch.append((page, task))
+    dispatch_all(batch)                    # ALL Agent() calls in ONE response message
+    self_check(batch)                      # verify launched count == dispatched count
+    for page, task in batch:
+        in_flight[page] = task
 
 # All lanes complete → enter Phase 2
 ```
@@ -201,18 +247,76 @@ Ticket construction rules:
 - **Shared phase**: one row per ready shared task, e.g. `shared:Task1`, `shared:Task5`; do not collapse them into one generic `shared` row
 - **Page phase**: one row per page lane, including blocked / in-flight / done lanes; do not show only the page that just completed
 - **Page phase dispatch**: if `my-order` already has an in-flight task, `my-order` must show `in-flight` and cannot receive another dispatch in the same ticket
+- **Blocked page rows**: if a page has finished its local tasks and the next task is an extracted cross-page dependency task, mark that row as `blocked` with the exact upstream task name; do not retroactively block the whole page from the start
 
 ### Common Misfires
 
 Wrong:
 - Shared phase sees `Task1`, `Task5` both ready and safe, but dispatches only `Task1`
 - Page phase starts only `my-order:Task1` even though `delivery-record` and `consignment-inventory` are also ready
+- `order-ledger` has local `Task 1` / `Task 2`, but controller holds the whole page because `Task 3` depends on `my-order`
 - `my-order:Task1` finishes and controller dispatches `my-order:Task2` + `my-order:Task3` together
+- **Ghost in-flight**: Ticket says dispatch 3 tasks, but only 1 `Agent(...)` call is made in that response; next turn claims the other 2 are "in-flight"
 
 Right:
-- Shared phase dispatches the full ready safe wave
-- Page phase fills slots from different ready pages first
+- Shared phase dispatches the full ready safe wave — all `Agent(...)` calls in one response
+- Page phase fills slots from different ready pages first — all `Agent(...)` calls in one response
+- Launch each page's local tasks first; hold only the extracted tail task that truly depends on another page
 - Same page gets its next task only after its current in-flight task completes
+- After every dispatch, output Self-Check to verify launched count == dispatched count
+
+### Hard Rule: Dispatch Must Be Real (No “Ghost In-Flight”)
+
+If a ticket claims `**This dispatch**` has N tasks, you must **actually** dispatch N subagents **in the same response message**. Do not merely print the ticket and “assume” tasks are running.
+
+**The single most common failure mode**: controller prints a ticket with 3 dispatches, then calls `Agent(...)` only once, then on the next turn treats the other 2 as “in-flight”. They were never started — they are ghosts. This is **forbidden**.
+
+#### Mandatory Execution Pattern
+
+Immediately after outputting the Dispatch Ticket, you MUST issue **all** `Agent(...)` calls **in one single response** so they run concurrently. Example for a 3-task dispatch:
+
+```
+### Dispatch Ticket #1
+- **This dispatch**: [my-order:Task1, delivery-record:Task1, consignment-inventory:Task1]
+
+(The controller’s very next action — in the SAME response — must be THREE parallel Agent calls:)
+
+Agent(Implement my-order Task 1)        ← call 1
+Agent(Implement delivery-record Task 1) ← call 2  ← ALL in the same message
+Agent(Implement consignment-inventory Task 1) ← call 3
+```
+
+**Wrong** (serial / ghost):
+```
+Response 1: Ticket says dispatch 3 → Agent(my-order Task 1) only
+Response 2: “delivery-record:Task1 and consignment-inventory:Task1 are still in-flight” ← GHOST! They were never started
+```
+
+**Right** (true parallel):
+```
+Response 1: Ticket says dispatch 3 → Agent(my-order Task 1) + Agent(delivery-record Task 1) + Agent(consignment-inventory Task 1) all in the same response
+```
+
+#### Rules
+
+- **Same response, same message**: all N `Agent(...)` calls from one ticket go in one response. No splitting across turns.
+- **Never list a task in `In-flight` unless you have truly started it** — you must have an agent handle/ID or explicit “agent started” record.
+- **Runtime limitation fallback**: if your environment cannot keep multiple subagents running concurrently (e.g., the subagent call blocks until completion), then set `max_concurrency = 1` and run strictly serial — and the ticket must reflect that (no fake in-flight lanes).
+
+#### Post-Dispatch Self-Check (mandatory)
+
+After all `Agent(...)` calls from a ticket have been issued, output a self-check block **before doing anything else**:
+
+```markdown
+#### Self-Check Ticket #N
+- Ticket dispatched: [page1:taskA, page2:taskB, page3:taskC]  (count: 3)
+- Agents actually launched: [agent-id-1, agent-id-2, agent-id-3] (count: 3)
+- Match: ✅ 3 == 3
+```
+
+If the counts do not match → **STOP**. Do not proceed. Launch the missing agents immediately, or downgrade `max_concurrency` and re-issue the ticket.
+
+（硬规则）票里写了几个 `This dispatch`，就必须在同一条回复里真的发出去几个子代理调用（Agent tool calls）。如果只发了 1 个就进入下一轮，其余的就是”幽灵 in-flight”——严禁。发完后必须输出 Self-Check 验证数量一致。
 
 ### Compact Example
 
@@ -223,22 +327,36 @@ Shared phase (max_concurrency=3):
     T5 = no deps
     T2/T3/T4 = depend on T1
   Wave 1 ticket rows: shared:T1, shared:T5
-    → dispatch shared:T1 + shared:T5
+    → ONE response with: Agent(shared:T1) + Agent(shared:T5)   ← 2 Agent calls in same message
+    → Self-Check: dispatched=2, launched=2, match ✅
   Wave 2 ticket rows: shared:T2, shared:T3, shared:T4
-    → dispatch shared:T2 + shared:T3 + shared:T4
+    → ONE response with: Agent(shared:T2) + Agent(shared:T3) + Agent(shared:T4)
+    → Self-Check: dispatched=3, launched=3, match ✅
 
 Page phase (max_concurrency=3, pages: my-order, delivery-record, consignment-inventory, order-ledger):
+  order-ledger plan:
+    T1 = frontend diff fix                     # no cross-page deps
+    T2 = page-local interaction wiring         # no cross-page deps
+    T3 = reuse order list response fields      # depends on my-order:T2
+
   Ticket #1 [shared complete]:
-    dispatch my-order:T1, delivery-record:T1, consignment-inventory:T1
-    hold order-ledger (depends on my-order)
+    → ONE response with: Agent(my-order:T1) + Agent(delivery-record:T1) + Agent(order-ledger:T1)
+    → Self-Check: dispatched=3, launched=3, match ✅
+    hold consignment-inventory only because no slot is open
 
-  Ticket #2 [my-order:T1 done while other two still running]:
-    dispatch my-order:T2 only
-    do NOT dispatch my-order:T3 in the same ticket
+  Ticket #2 [order-ledger:T1 done while other two still running]:
+    → ONE response with: Agent(order-ledger:T2) only     ← only 1 slot open
+    → Self-Check: dispatched=1, launched=1, match ✅
+    do NOT dispatch order-ledger:T3 yet
 
-  Ticket #3 [delivery-record:T1 done]:
-    dispatch delivery-record:T2
+  Ticket #3 [my-order:T1 done]:
+    → ONE response with: Agent(my-order:T2)
+    → Self-Check: dispatched=1, launched=1, match ✅
     keep scanning all lanes after every completion
+
+  Ticket #4 [order-ledger:T2 done but my-order:T2 not done]:
+    → order-ledger row = blocked on my-order:T2
+    → do NOT block the page earlier than this extracted tail task
 ```
 
 ## Per-Task Dispatch

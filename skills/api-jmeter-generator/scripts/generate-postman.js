@@ -312,7 +312,6 @@ function buildScript(listen, execLines) {
     script: {
       exec: execLines,
       type: 'text/javascript',
-      packages: {},
     },
   };
 }
@@ -446,7 +445,6 @@ function buildRequestItem(name, request, event, description) {
     name,
     description: description || '',
     event: event || [],
-    auth: {},
     request,
     response: [],
     protocolProfileBehavior: {
@@ -460,7 +458,6 @@ function buildLoginItem(auth, baseUrlMeta) {
   return buildRequestItem(
     'Login',
     {
-      auth: {},
       method: auth.method,
       header: [
         buildHeader('Content-Type', 'application/json'),
@@ -477,7 +474,6 @@ function buildLoginItem(auth, baseUrlMeta) {
 function buildApiRequest(api, auth, baseUrlMeta) {
   const hasBody = Boolean(api.params && api.params.type === 'body');
   const request = {
-    auth: {},
     method: api.method || 'GET',
     header: buildHeaders(api, auth, hasBody),
     url: buildUrlObject(baseUrlMeta.rawBaseUrl, api.path, api.params, baseUrlMeta),
@@ -501,8 +497,6 @@ function buildGroupItem(name, items) {
     name,
     description: '',
     item: items,
-    event: buildEmptyEvents(),
-    auth: {},
   };
 }
 
@@ -536,7 +530,6 @@ function buildPostmanCollection(data) {
     item: Array.from(groupedItems.entries()).map(([name, items]) => buildGroupItem(name, items)),
     variable: buildCollectionVariables(baseUrl, auth),
     event: [],
-    auth: {},
   };
 }
 
