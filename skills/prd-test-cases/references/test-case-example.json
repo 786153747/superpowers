@@ -60,14 +60,14 @@
             }
           ],
           "testData": "订单编号: ORD-20260301",
-          "relatedDiff": ""
+          "relatedDiff": "D2"
         },
         {
           "id": "TC-MO-03",
-          "priority": "P1",
+          "priority": "P0",
           "category": "正向主流程",
           "scenario": "新增订单-正常流程",
-          "precondition": "用户已登录且有新增权限",
+          "precondition": "用户已登录且有新增权限，供应商“测试供应商A”为启用状态",
           "steps": [
             {
               "stepNo": 1,
@@ -76,23 +76,13 @@
             },
             {
               "stepNo": 2,
-              "action": "填写订单编号: ORD-TEST-001",
-              "expected": "输入框正常显示"
+              "action": "填写订单编号: ORD-TEST-001，选择供应商: 测试供应商A，填写金额: 1000.00",
+              "expected": "表单各字段正常显示"
             },
             {
               "stepNo": 3,
-              "action": "选择供应商: 测试供应商A",
-              "expected": "下拉框正常选择"
-            },
-            {
-              "stepNo": 4,
-              "action": "填写金额: 1000.00",
-              "expected": "金额输入框正常显示"
-            },
-            {
-              "stepNo": 5,
               "action": "点击「确定」按钮",
-              "expected": "弹窗关闭，提示「新增成功」，列表中可查到新订单"
+              "expected": "弹窗关闭，提示「新增成功」，列表中可查到新订单，状态默认为“草稿”"
             }
           ],
           "testData": "订单编号: ORD-TEST-001, 供应商: 测试供应商A, 金额: 1000.00",
@@ -102,25 +92,46 @@
           "id": "TC-MO-04",
           "priority": "P1",
           "category": "反向校验",
-          "scenario": "新增订单-必填字段为空",
-          "precondition": "用户已登录且有新增权限",
+          "scenario": "新增订单-订单编号重复不允许提交",
+          "precondition": "用户已登录且有新增权限，数据库中已存在订单编号 ORD-EXIST-001",
           "steps": [
             {
               "stepNo": 1,
-              "action": "点击「新增」按钮",
-              "expected": "弹出新增订单对话框"
+              "action": "点击「新增」按钮并填写订单编号 ORD-EXIST-001、供应商、金额等必填信息",
+              "expected": "表单允许正常填写"
             },
             {
               "stepNo": 2,
-              "action": "不填写任何字段，直接点击「确定」",
-              "expected": "必填字段（订单编号、供应商）显示红色校验提示，表单未提交"
+              "action": "点击「确定」按钮",
+              "expected": "系统提示“订单编号已存在”或同等业务提示，表单不提交，列表数据不新增"
             }
           ],
-          "testData": "",
+          "testData": "已存在订单编号: ORD-EXIST-001",
           "relatedDiff": "D3"
         },
         {
           "id": "TC-MO-05",
+          "priority": "P1",
+          "category": "反向校验",
+          "scenario": "已提交订单不允许删除",
+          "precondition": "用户已登录且有删除权限，列表中存在状态为“已提交”的订单 ORD-SUB-001",
+          "steps": [
+            {
+              "stepNo": 1,
+              "action": "在列表中定位订单 ORD-SUB-001 并点击「删除」",
+              "expected": "弹出删除确认或直接发起删除校验"
+            },
+            {
+              "stepNo": 2,
+              "action": "确认删除操作",
+              "expected": "系统提示“当前状态不允许删除”或同等业务提示，订单仍保留在列表中，状态不变"
+            }
+          ],
+          "testData": "订单编号: ORD-SUB-001, 状态: 已提交",
+          "relatedDiff": "D4"
+        },
+        {
+          "id": "TC-MO-06",
           "priority": "P2",
           "category": "边界场景",
           "scenario": "空数据状态展示",
@@ -134,7 +145,7 @@
             {
               "stepNo": 2,
               "action": "点击「搜索」按钮",
-              "expected": "表格显示「暂无数据」，分页总条数为 0"
+              "expected": "表格显示“暂无数据”，分页总条数为 0"
             },
             {
               "stepNo": 3,
@@ -143,10 +154,10 @@
             }
           ],
           "testData": "不存在的订单编号: NOT-EXIST-999",
-          "relatedDiff": ""
+          "relatedDiff": "D6"
         },
         {
-          "id": "TC-MO-06",
+          "id": "TC-MO-07",
           "priority": "P1",
           "category": "权限控制",
           "scenario": "无新增权限用户不显示新增按钮",

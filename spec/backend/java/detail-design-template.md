@@ -49,18 +49,18 @@
 
 ### 3.1 接口清单
 
-| 场景 | 方法 | 路径 | 权限 | Controller |
-| --- | --- | --- | --- | --- |
-| 列表 | GET | `/{{module}}/{{resource}}/list` | `{{module}}:{{resource}}:list` | {{Xxx}}Controller |
-| 明细 | GET | `/{{module}}/{{resource}}/{id}` | `{{module}}:{{resource}}:query` | {{Xxx}}Controller |
-| 新增 | POST | `/{{module}}/{{resource}}` | `{{module}}:{{resource}}:add` | {{Xxx}}Controller |
-| 修改 | PUT | `/{{module}}/{{resource}}` | `{{module}}:{{resource}}:edit` | {{Xxx}}Controller |
-| 删除 | DELETE | `/{{module}}/{{resource}}/{ids}` | `{{module}}:{{resource}}:remove` | {{Xxx}}Controller |
-| 导出 | POST | `/{{module}}/{{resource}}/export` | `{{module}}:{{resource}}:export` | {{Xxx}}Controller |
+| 场景 | 方法 | 路径 | Content-Type | 权限 | Controller |
+| --- | --- | --- | --- | --- | --- |
+| 列表 | GET | `/{{module}}/{{resource}}/list` | 无（无请求体） | `{{module}}:{{resource}}:list` | {{Xxx}}Controller |
+| 明细 | GET | `/{{module}}/{{resource}}/{id}` | 无（无请求体） | `{{module}}:{{resource}}:query` | {{Xxx}}Controller |
+| 新增 | POST | `/{{module}}/{{resource}}` | `application/json` | `{{module}}:{{resource}}:add` | {{Xxx}}Controller |
+| 修改 | PUT | `/{{module}}/{{resource}}` | `application/json` | `{{module}}:{{resource}}:edit` | {{Xxx}}Controller |
+| 删除 | DELETE | `/{{module}}/{{resource}}/{ids}` | 无（无请求体） | `{{module}}:{{resource}}:remove` | {{Xxx}}Controller |
+| 导出 | POST | `/{{module}}/{{resource}}/export` | `application/x-www-form-urlencoded` 或 无（以设计为准） | `{{module}}:{{resource}}:export` | {{Xxx}}Controller |
 
 ### 3.2 接口详细定义
 
-> 每个接口写：权限标注 + 请求参数/DTO + 响应结构。
+> 每个接口写：权限标注 + Content-Type + 请求参数/DTO + 响应结构。
 > 写操作接口（POST/PUT/DELETE）还必须写「业务逻辑」，用有序步骤描述完整实现：
 > 校验 → 前置状态检查 → 核心操作（含涉及的表和关键字段）→ 异常分支 → 返回值。
 > 禁止只写结论不写过程。
@@ -68,6 +68,7 @@
 #### GET `/{{module}}/{{resource}}/list`
 
 - **权限**: `@PreAuthorize("@ss.hasPermi('{{module}}:{{resource}}:list')")`
+- **Content-Type**: 无（无请求体）
 
 **请求参数（Query）：**
 
@@ -91,6 +92,7 @@
 
 - **权限**: `@PreAuthorize("@ss.hasPermi('{{module}}:{{resource}}:confirm')")`
 - **日志**: `@Log(title = "{{功能名称}}", businessType = BusinessType.UPDATE)`
+- **Content-Type**: `application/json`
 
 **请求体 DTO：**
 
@@ -115,6 +117,7 @@ confirm(ids):
 
 - **权限**: `@PreAuthorize("@ss.hasPermi('{{module}}:{{resource}}:remove')")`
 - **日志**: `@Log(title = "{{功能名称}}", businessType = BusinessType.DELETE)`
+- **Content-Type**: 无（无请求体）
 
 **请求参数：** `ids`（路径参数，逗号分隔的 Long 数组）
 

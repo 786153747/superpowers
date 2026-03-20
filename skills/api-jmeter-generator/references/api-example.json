@@ -22,7 +22,8 @@
   "apis": [
     {
       "id": "API-01",
-      "name": "查询订单列表",
+      "name": "查询订单列表-草稿单筛选",
+      "scenarioType": "query-positive",
       "method": "GET",
       "path": "/aftermarket/order/list",
       "controller": "AftermarketOrderController",
@@ -33,7 +34,7 @@
           { "name": "pageNum", "value": "1" },
           { "name": "pageSize", "value": "10" },
           { "name": "orderNo", "value": "" },
-          { "name": "status", "value": "" }
+          { "name": "status", "value": "DRAFT" }
         ]
       },
       "assertions": [
@@ -44,7 +45,8 @@
     },
     {
       "id": "API-02",
-      "name": "新增订单",
+      "name": "新增订单-草稿单创建成功",
+      "scenarioType": "write-positive",
       "method": "POST",
       "path": "/aftermarket/order",
       "controller": "AftermarketOrderController",
@@ -60,50 +62,78 @@
       },
       "assertions": [
         { "type": "status", "value": "200" },
-        { "type": "jsonpath", "path": "$.code", "value": "200" }
+        { "type": "jsonpath", "path": "$.code", "value": "200" },
+        { "type": "jsonpath", "path": "$.data.orderId", "condition": "exists" },
+        { "type": "jsonpath", "path": "$.data.status", "value": "DRAFT" }
       ]
     },
     {
       "id": "API-03",
-      "name": "查询订单详情",
-      "method": "GET",
-      "path": "/aftermarket/order/{orderId}",
-      "controller": "AftermarketOrderController",
-      "contentType": "application/x-www-form-urlencoded",
-      "params": {
-        "type": "path",
-        "fields": [
-          { "name": "orderId", "value": "1" }
-        ]
-      },
-      "assertions": [
-        { "type": "status", "value": "200" },
-        { "type": "jsonpath", "path": "$.code", "value": "200" },
-        { "type": "jsonpath", "path": "$.data.orderId", "condition": "exists" }
-      ]
-    },
-    {
-      "id": "API-04",
-      "name": "修改订单",
-      "method": "PUT",
+      "name": "新增订单-重复订单编号被拒绝",
+      "scenarioType": "business-negative",
+      "method": "POST",
       "path": "/aftermarket/order",
       "controller": "AftermarketOrderController",
       "contentType": "application/json",
       "params": {
         "type": "body",
         "json": {
-          "orderId": 1,
-          "remark": "JMeter修改测试-${__time(yyyyMMddHHmmss)}"
+          "orderNo": "ORD-EXIST-001",
+          "supplierId": 1,
+          "amount": 1000.00,
+          "remark": "重复订单号测试"
         }
       },
       "assertions": [
         { "type": "status", "value": "200" },
-        { "type": "jsonpath", "path": "$.code", "value": "200" }
+        { "type": "jsonpath", "path": "$.code", "value": "500" },
+        { "type": "jsonpath", "path": "$.msg", "value": "订单编号已存在" }
+      ]
+    },
+    {
+      "id": "API-04",
+      "name": "提交订单-草稿单成功",
+      "scenarioType": "state-transition-positive",
+      "method": "POST",
+      "path": "/aftermarket/order/submit/{orderId}",
+      "controller": "AftermarketOrderController",
+      "contentType": "application/json",
+      "params": {
+        "type": "path",
+        "fields": [
+          { "name": "orderId", "value": "1001" }
+        ]
+      },
+      "assertions": [
+        { "type": "status", "value": "200" },
+        { "type": "jsonpath", "path": "$.code", "value": "200" },
+        { "type": "jsonpath", "path": "$.data.status", "value": "SUBMITTED" }
       ]
     },
     {
       "id": "API-05",
-      "name": "删除订单",
+      "name": "提交订单-已提交单重复提交被拒绝",
+      "scenarioType": "business-negative",
+      "method": "POST",
+      "path": "/aftermarket/order/submit/{orderId}",
+      "controller": "AftermarketOrderController",
+      "contentType": "application/json",
+      "params": {
+        "type": "path",
+        "fields": [
+          { "name": "orderId", "value": "1002" }
+        ]
+      },
+      "assertions": [
+        { "type": "status", "value": "200" },
+        { "type": "jsonpath", "path": "$.code", "value": "500" },
+        { "type": "jsonpath", "path": "$.msg", "value": "当前状态不允许重复提交" }
+      ]
+    },
+    {
+      "id": "API-06",
+      "name": "删除订单-已发货订单不允许删除",
+      "scenarioType": "business-negative",
       "method": "DELETE",
       "path": "/aftermarket/order/{orderIds}",
       "controller": "AftermarketOrderController",
@@ -111,25 +141,28 @@
       "params": {
         "type": "path",
         "fields": [
-          { "name": "orderIds", "value": "1" }
+          { "name": "orderIds", "value": "1003" }
         ]
       },
       "assertions": [
         { "type": "status", "value": "200" },
-        { "type": "jsonpath", "path": "$.code", "value": "200" }
+        { "type": "jsonpath", "path": "$.code", "value": "500" },
+        { "type": "jsonpath", "path": "$.msg", "value": "已发货订单不允许删除" }
       ]
     },
     {
-      "id": "API-06",
-      "name": "导出订单",
+      "id": "API-07",
+      "name": "导出订单-草稿单筛选导出",
+      "scenarioType": "export-positive",
       "method": "POST",
       "path": "/aftermarket/order/export",
       "controller": "AftermarketOrderController",
       "contentType": "application/x-www-form-urlencoded",
+      "notes": "二进制响应通常只做状态码校验，文件名与列头建议人工补充验证。",
       "params": {
         "type": "query",
         "fields": [
-          { "name": "orderNo", "value": "" }
+          { "name": "status", "value": "DRAFT" }
         ]
       },
       "assertions": [

@@ -83,6 +83,14 @@ Task tool (general-purpose):
     - Do not fall back to the main repository root or another checkout.
     - If you cannot access this exact directory, stop and report the problem immediately.
 
+    ## Parallel Work Context
+
+    - You are **not alone** in this worktree. Other implementers may be working on other disjoint tasks at the same time.
+    - Your ownership is limited to this task's explicit write set. Do not expand scope unless the controller asks you to.
+    - Do NOT revert, overwrite, or "clean up" unrelated changes made by other implementers.
+    - If you encounter unexpected edits inside a file you must touch, preserve them if possible. If you cannot safely preserve them, stop and ask the controller.
+    - Prefer minimal, task-scoped edits. Do not refactor neighboring code unless the task requires it.
+
     ## Before You Begin
 
     If you have questions about:
@@ -107,10 +115,11 @@ Task tool (general-purpose):
 
     Once you're clear on requirements:
     1. Implement exactly what the task specifies
-    2. Write tests (following TDD if task says to)
-    3. ⛔ Do NOT compile or build — see FORBIDDEN ACTIONS above
-    4. Do NOT commit — the controller handles commits after all tasks complete
-    5. Report back
+    2. Stay within the assigned file ownership / write set unless the controller explicitly expands it
+    3. Write tests (following TDD if task says to)
+    4. ⛔ Do NOT compile or build — see FORBIDDEN ACTIONS above
+    5. Do NOT commit — the controller handles commits after all tasks complete
+    6. Report back
 
     **While you work:** If you encounter something unexpected or unclear, **ask questions**.
     It's always OK to pause and clarify. Don't guess or make assumptions.

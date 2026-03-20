@@ -37,6 +37,10 @@ function normalizeAuth(auth) {
   };
 }
 
+function buildCollectionId() {
+  return `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+}
+
 function replacePathParams(apiPath, params) {
   let resolvedPath = apiPath || '';
   if (!params || params.type !== 'path' || !Array.isArray(params.fields)) {
@@ -53,44 +57,151 @@ function replacePathParams(apiPath, params) {
   return resolvedPath;
 }
 
-function buildQueryString(fields) {
-  if (!Array.isArray(fields) || fields.length === 0) {
+function buildQueryEntries(params) {
+  if (!params || params.type !== 'query' || !Array.isArray(params.fields)) {
+    return [];
+  }
+
+  return params.fields.map((field) => ({
+    key: formatValue(field.name),
+    value: formatValue(field.value),
+    disabled: false,
+  }));
+}
+
+function buildQueryString(queryEntries) {
+  if (!Array.isArray(queryEntries) || queryEntries.length === 0) {
     return '';
   }
 
-  return fields
-    .map((field) => {
-      const key = encodeURIComponent(formatValue(field.name));
-      const rawValue = formatValue(field.value);
+  return queryEntries
+    .map((entry) => {
+      const key = encodeURIComponent(formatValue(entry.key));
+      const rawValue = formatValue(entry.value);
       const value = isPostmanVariable(rawValue) ? rawValue : encodeURIComponent(rawValue);
       return `${key}=${value}`;
     })
     .join('&');
 }
 
-function buildRawUrl(baseUrl, api) {
-  const resolvedPath = replacePathParams(api.path, api.params);
-  const queryString = api.params && api.params.type === 'query'
-    ? buildQueryString(api.params.fields)
-    : '';
+function parseBaseUrlMeta(baseUrl) {
+  const rawBaseUrl = String(baseUrl || '').trim();
+  if (!rawBaseUrl) {
+    return {
+      rawBaseUrl: '',
+      protocol: undefined,
+      host: [],
+      port: undefined,
+    };
+  }
 
-  const trimmedBaseUrl = String(baseUrl || '').replace(/\/+$/, '');
-  const normalizedPath = resolvedPath.startsWith('/') ? resolvedPath : `/${resolvedPath}`;
-  const rawUrl = `${trimmedBaseUrl}${normalizedPath}`;
-  return queryString ? `${rawUrl}?${queryString}` : rawUrl;
+  try {
+    const parsed = new URL(rawBaseUrl);
+    return {
+      rawBaseUrl: rawBaseUrl.replace(/\/+$/, ''),
+      protocol: parsed.protocol ? parsed.protocol.replace(':', '') : undefined,
+      host: parsed.hostname ? parsed.hostname.split('.').filter(Boolean) : [],
+      port: parsed.port || undefined,
+    };
+  } catch (error) {
+    return {
+      rawBaseUrl: rawBaseUrl.replace(/\/+$/, ''),
+      protocol: undefined,
+      host: [],
+      port: undefined,
+    };
+  }
+}
+
+function buildUrlObject(displayBaseUrl, apiPath, params, baseUrlMeta) {
+  const resolvedPath = replacePathParams(apiPath, params);
+  const normalizedPath = (resolvedPath || '').startsWith('/')
+    ? resolvedPath
+    : `/${resolvedPath || ''}`;
+  const trimmedDisplayBaseUrl = String(displayBaseUrl || '').replace(/\/+$/, '');
+  const rawBase = trimmedDisplayBaseUrl || baseUrlMeta.rawBaseUrl || '';
+  const queryEntries = buildQueryEntries(params);
+  const queryString = buildQueryString(queryEntries);
+  const raw = queryString
+    ? `${rawBase}${normalizedPath}?${queryString}`
+    : `${rawBase}${normalizedPath}`;
+
+  const url = {
+    raw,
+    protocol: baseUrlMeta.protocol,
+    host: baseUrlMeta.host,
+    port: baseUrlMeta.port,
+    path: normalizedPath
+      .split('/')
+      .filter(Boolean)
+      .map((segment) => decodeURIComponent(segment)),
+    query: queryEntries,
+    variable: [],
+  };
+
+  if (!url.protocol) {
+    delete url.protocol;
+  }
+  if (!url.port) {
+    delete url.port;
+  }
+
+  return url;
+}
+
+function buildHeader(key, value, description) {
+  const header = {
+    key,
+    value,
+  };
+  if (description) {
+    header.description = description;
+  }
+  return header;
+}
+
+function buildHeaders(api, auth, hasBody) {
+  const headers = [];
+
+  if (hasBody && api.contentType) {
+    headers.push(buildHeader('Content-Type', api.contentType));
+  }
+
+  if (auth.headerName) {
+    headers.push(buildHeader(auth.headerName, `${auth.headerPrefix || ''}{{token}}`));
+  }
+
+  return headers;
 }
 
 function buildRequestBody(contentType, payload) {
   const language = contentType && contentType.includes('json') ? 'json' : 'text';
+  const raw = typeof payload === 'string'
+    ? payload
+    : JSON.stringify(payload || {}, null, 2);
+
   return {
     mode: 'raw',
-    raw: JSON.stringify(payload || {}, null, 2),
+    raw,
     options: {
       raw: {
         language,
       },
     },
   };
+}
+
+function buildLoginBody(authBody) {
+  if (!authBody || typeof authBody !== 'object' || Array.isArray(authBody)) {
+    return buildRequestBody('application/json', authBody);
+  }
+
+  const payload = {};
+  for (const [key, value] of Object.entries(authBody)) {
+    payload[key] = typeof value === 'string' ? `{{${key}}}` : value;
+  }
+
+  return buildRequestBody('application/json', payload);
 }
 
 function parseSimpleJsonPath(expression) {
@@ -195,6 +306,24 @@ function buildScriptPrelude() {
   ];
 }
 
+function buildScript(listen, execLines) {
+  return {
+    listen,
+    script: {
+      exec: execLines,
+      type: 'text/javascript',
+      packages: {},
+    },
+  };
+}
+
+function buildEmptyEvents() {
+  return [
+    buildScript('prerequest', []),
+    buildScript('test', []),
+  ];
+}
+
 function buildLoginEvents(auth) {
   const lines = [
     'pm.test("Login status is 200", function () {',
@@ -218,37 +347,31 @@ function buildLoginEvents(auth) {
     lines.push(`// Unsupported tokenExtract JSONPath: ${auth.tokenExtract}`);
   }
 
-  return [
-    {
-      listen: 'test',
-      script: {
-        type: 'text/javascript',
-        exec: lines,
-      },
-    },
-  ];
+  return [buildScript('test', lines)];
 }
 
 function buildAssertionEvents(api) {
   if (!Array.isArray(api.assertions) || api.assertions.length === 0) {
-    return undefined;
+    return [];
   }
 
   const hasJsonAssertions = api.assertions.some((assertion) => assertion.type === 'jsonpath');
   const lines = [];
 
   for (const assertion of api.assertions) {
-    if (assertion.type === 'status') {
-      const statusCode = Number(assertion.value);
-      lines.push(`pm.test("Status is ${assertion.value}", function () {`);
-      if (Number.isFinite(statusCode)) {
-        lines.push(`  pm.response.to.have.status(${statusCode});`);
-      } else {
-        lines.push(`  pm.expect(String(pm.response.code)).to.eql(${JSON.stringify(formatValue(assertion.value))});`);
-      }
-      lines.push('});');
-      lines.push('');
+    if (assertion.type !== 'status') {
+      continue;
     }
+
+    const statusCode = Number(assertion.value);
+    lines.push(`pm.test("Status is ${assertion.value}", function () {`);
+    if (Number.isFinite(statusCode)) {
+      lines.push(`  pm.response.to.have.status(${statusCode});`);
+    } else {
+      lines.push(`  pm.expect(String(pm.response.code)).to.eql(${JSON.stringify(formatValue(assertion.value))});`);
+    }
+    lines.push('});');
+    lines.push('');
   }
 
   if (hasJsonAssertions) {
@@ -287,15 +410,7 @@ function buildAssertionEvents(api) {
     lines.push('');
   }
 
-  return [
-    {
-      listen: 'test',
-      script: {
-        type: 'text/javascript',
-        exec: lines,
-      },
-    },
-  ];
+  return [buildScript('test', lines)];
 }
 
 function buildCollectionVariables(baseUrl, auth) {
@@ -303,10 +418,12 @@ function buildCollectionVariables(baseUrl, auth) {
     {
       key: 'baseUrl',
       value: formatValue(baseUrl),
+      type: 'string',
     },
     {
       key: 'token',
       value: '',
+      type: 'string',
     },
   ];
 
@@ -316,6 +433,7 @@ function buildCollectionVariables(baseUrl, auth) {
       variables.push({
         key,
         value,
+        type: 'string',
       });
     }
   }
@@ -323,96 +441,102 @@ function buildCollectionVariables(baseUrl, auth) {
   return variables;
 }
 
-function buildLoginBody(authBody) {
-  if (!authBody || typeof authBody !== 'object' || Array.isArray(authBody)) {
-    return buildRequestBody('application/json', authBody);
-  }
-
-  const payload = {};
-  for (const [key, value] of Object.entries(authBody)) {
-    payload[key] = typeof value === 'string' ? `{{${key}}}` : value;
-  }
-
-  return buildRequestBody('application/json', payload);
+function buildRequestItem(name, request, event, description) {
+  return {
+    name,
+    description: description || '',
+    event: event || [],
+    auth: {},
+    request,
+    response: [],
+    protocolProfileBehavior: {
+      strictSSL: false,
+      followRedirects: true,
+    },
+  };
 }
 
-function buildApiRequest(api, auth, baseUrl) {
-  const headers = [];
-  if (api.contentType) {
-    headers.push({
-      key: 'Content-Type',
-      value: api.contentType,
-      type: 'text',
-    });
-  }
+function buildLoginItem(auth, baseUrlMeta) {
+  return buildRequestItem(
+    'Login',
+    {
+      auth: {},
+      method: auth.method,
+      header: [
+        buildHeader('Content-Type', 'application/json'),
+      ],
+      url: buildUrlObject(baseUrlMeta.rawBaseUrl, auth.loginPath, null, baseUrlMeta),
+      body: buildLoginBody(auth.body),
+      description: 'Login request used to capture the token into {{token}}.',
+    },
+    buildLoginEvents(auth),
+    ''
+  );
+}
 
-  if (auth.headerName) {
-    headers.push({
-      key: auth.headerName,
-      value: `${auth.headerPrefix || ''}{{token}}`,
-      type: 'text',
-    });
-  }
-
+function buildApiRequest(api, auth, baseUrlMeta) {
+  const hasBody = Boolean(api.params && api.params.type === 'body');
   const request = {
-    method: api.method,
-    header: headers,
-    url: buildRawUrl('{{baseUrl}}', api),
-    description: api.controller ? `Controller: ${api.controller}` : undefined,
+    auth: {},
+    method: api.method || 'GET',
+    header: buildHeaders(api, auth, hasBody),
+    url: buildUrlObject(baseUrlMeta.rawBaseUrl, api.path, api.params, baseUrlMeta),
+    description: api.controller ? `Controller: ${api.controller}` : '',
   };
 
-  if (api.params && api.params.type === 'body') {
-    request.body = buildRequestBody(api.contentType, api.params.json);
+  if (hasBody) {
+    request.body = buildRequestBody(api.contentType || 'application/json', api.params.json);
   }
 
-  const item = {
-    name: api.id ? `${api.id}: ${api.name}` : (api.name || api.path),
+  return buildRequestItem(
+    api.id ? `${api.id}: ${api.name}` : (api.name || api.path),
     request,
+    buildAssertionEvents(api),
+    api.notes || ''
+  );
+}
+
+function buildGroupItem(name, items) {
+  return {
+    name,
+    description: '',
+    item: items,
+    event: buildEmptyEvents(),
+    auth: {},
   };
-
-  const events = buildAssertionEvents(api);
-  if (events) {
-    item.event = events;
-  }
-
-  return item;
 }
 
 function buildPostmanCollection(data) {
   const auth = normalizeAuth(data.auth);
-  const variables = buildCollectionVariables(data.baseUrl || 'http://localhost:8080', auth);
-  const items = [];
+  const baseUrl = data.baseUrl || 'http://localhost:8080';
+  const baseUrlMeta = parseBaseUrlMeta(baseUrl);
+  const groupedItems = new Map();
 
-  items.push({
-    name: 'Login',
-    request: {
-      method: auth.method,
-      header: [
-        {
-          key: 'Content-Type',
-          value: 'application/json',
-          type: 'text',
-        },
-      ],
-      url: `{{baseUrl}}${auth.loginPath}`,
-      body: buildLoginBody(auth.body),
-      description: 'Login request used to capture the token into {{token}}.',
-    },
-    event: buildLoginEvents(auth),
-  });
+  function pushToGroup(groupName, item) {
+    const key = groupName || 'Requests';
+    if (!groupedItems.has(key)) {
+      groupedItems.set(key, []);
+    }
+    groupedItems.get(key).push(item);
+  }
+
+  pushToGroup('Authentication', buildLoginItem(auth, baseUrlMeta));
 
   for (const api of data.apis || []) {
-    items.push(buildApiRequest(api, auth, data.baseUrl));
+    pushToGroup(api.controller || 'Requests', buildApiRequest(api, auth, baseUrlMeta));
   }
 
   return {
     info: {
+      _postman_id: buildCollectionId(),
       name: `${data.projectName || 'API'} Collection`,
       description: 'Generated from api.json by api-jmeter-generator.',
       schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
     },
-    variable: variables,
-    item: items,
+    item: Array.from(groupedItems.entries()).map(([name, items]) => buildGroupItem(name, items)),
+    variable: buildCollectionVariables(baseUrl, auth),
+    event: [],
+    auth: {},
   };
 }
 
@@ -425,10 +549,14 @@ function generatePostman(jsonPath, outputPath) {
   const collection = buildPostmanCollection(data);
   fs.writeFileSync(resolvedOutputPath, `${JSON.stringify(collection, null, 2)}\n`, 'utf-8');
 
+  const requestCount = Array.isArray(collection.item)
+    ? collection.item.reduce((sum, group) => sum + (Array.isArray(group.item) ? group.item.length : 0), 0)
+    : 0;
+
   return {
     outputPath: resolvedOutputPath,
     apiCount: Array.isArray(data.apis) ? data.apis.length : 0,
-    requestCount: Array.isArray(collection.item) ? collection.item.length : 0,
+    requestCount,
   };
 }
 

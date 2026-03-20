@@ -1,97 +1,91 @@
 ---
 name: subagent-driven-development
-description: Use when executing implementation plans in the current session. Runs the `shared-plan.md` phase first, then executes page plans with true page-parallel / task-serial waves using a fresh implementer subagent per task. Parallel means multiple Agent tool calls in the same wave, not sequential dispatch and not same-page fanout. Shared tasks may run in parallel when safe. Compilation and reviews are deferred until all tasks complete.
+description: Use when executing implementation plans in the current session. Runs the `shared-plan.md` phase first, then executes page plans with streaming lanes — each page lane advances independently upon task completion, no wave synchronization barrier. A fresh implementer subagent is dispatched per task. Concurrency is capped by max_concurrency (default 3). Shared tasks may run in parallel when safe. Compilation and reviews are deferred until all tasks complete.
 ---
 
 # Subagent-Driven Development
 
-Execute saved plans in the current session with a staged scheduler:
+Execute saved plans in the current session with a streaming lane scheduler:
 
-- Run the `shared-plan.md` phase first.
-- Inside the shared phase, run ready shared tasks in parallel when their write sets are disjoint.
-- After shared work completes, run page plans in parallel.
-- Inside each page, execute tasks serially.
-- Dispatch a fresh implementer subagent per task.
-- Defer compilation and review until all implementation tasks are complete.
+- `shared-plan.md` phase first (synchronized waves), then each page as an independent streaming lane
+- Shared tasks run in parallel when write sets are disjoint
+- Page lanes advance independently — no waiting for other lanes
+- Concurrency capped by `max_concurrency` (default 3)
+- One active task per page lane; fresh implementer subagent per task
+- Compilation and review deferred until all tasks complete
 
-This skill is the same-session executor. It is optimized for steady progress with strong controller discipline and low context pollution.
+Use this skill when `writing-plans` has created plans and you want to execute in the current session. Prefer `executing-plans` for a separate parallel session.
 
-## When To Use
-
-Use this skill when:
-
-- `writing-plans` has already created `shared-plan.md`, page `plan.md` files, and `index.md`
-- You want to execute the plan in the current conversation
-- The work can benefit from safe page-level parallelism
-
-Prefer `executing-plans` when you want a separate parallel execution session instead of continuing in the current one.
-
-## Core Principle
-
-`shared-plan.md` phase first + shared-task parallelism when safe + true multi-agent page waves (one next task per ready page) + fresh subagent per task + deferred compilation + deferred review = fast execution with clearer ownership and fewer missed pages.
-
-## Controller Role Boundaries
+## Controller Role
 
 CRITICAL: The controller is an orchestrator, not an implementer.
 
-### Controller MUST
+### MUST
 
-- Read `index.md`, `shared-plan.md`, and page `plan.md` files
-- Treat `[DOC_ROOT]/spec/CODING_STANDARDS.md` as the only source for project-wide module layout, package conventions, controller placement, entity placement, and coding standards
-- Create a TodoWrite plan for the execution session
-- Execute the `shared-plan.md` phase to completion before starting any page lane
-- Parallelize ready shared tasks when their write sets are disjoint
+- Read `index.md`, `shared-plan.md`, and all page `plan.md` files before starting
+- Treat `[DOC_ROOT]/spec/CODING_STANDARDS.md` as the sole source for project conventions and embed its full content into every implementer prompt
+- Complete all `shared-plan.md` tasks before starting any page lane
+- Parallelize ready shared tasks when write sets are disjoint — do NOT serially drain safe-to-parallelize tasks
+- On any subagent completion, immediately scan ALL lanes and dispatch every safe next task within `max_concurrency` — do NOT wait for other in-flight subagents (no wave regression)
+- Output a **Dispatch Ticket** before every dispatch (see template below)
 - Dispatch a fresh implementer subagent per task
-- Keep at most one active task per page at any time
-- When a wave has 2+ safe tasks, dispatch 2+ implementer subagents in the same message and same wave
+- Keep at most one active task per page lane at any time
+- In shared phase, enumerate every ready shared task in the ticket and dispatch the full safe wave up to `max_concurrency`
+- In page phase, fill open slots from different ready pages in `index.md` order before waiting again
+- Pass the same absolute `SOURCE_ROOT`, `DOC_ROOT`, and `VERSION_DIR` to every implementer
+- Update `plan.md` and `index.md` after each completed task
 - Answer subagent questions before the subagent proceeds
-- Track and pass the same absolute `SOURCE_ROOT` to every implementer and verification command
-- Track and use the same absolute `DOC_ROOT` for all design and plan reads plus status write-backs
-- Update `plan.md` and `index.md` after each completed task or wave
-- Run compilation and review only after all implementation tasks are complete
 
-### Controller MUST NOT
+### MUST NOT
 
-- Write implementation code directly
-- Scan the repository to rediscover Maven/module structure, controller package layout, entity locations, or other project-wide conventions already defined in `CODING_STANDARDS.md`
+**Role boundaries:**
+- Write implementation code directly — if you catch yourself doing this, stop and dispatch a subagent
+- Scan the repository to rediscover conventions already in `CODING_STANDARDS.md`
+
+**Scheduling discipline:**
 - Start any page task before `shared-plan.md` is complete
-- Dispatch two tasks from the same page in the same wave
-- Call something "parallel" when only one implementer subagent was dispatched
-- Use multiple tasks from one page to imitate page-level parallelism while another ready page is idle
-- Compile between tasks
-- Dispatch reviewers between tasks
-- Treat timeout, missing exit code, missing agent handle, or `No task found with ID` as success
-- Batch-mark multiple `未开始` tasks as `已完成`
-- Mix source edits between the main repository root and the selected worktree after a worktree is chosen
-- Declare completion before all final gates pass
+- Dispatch two tasks from the same page concurrently
+- Exceed `max_concurrency` limit
+- Wait for all in-flight subagents before dispatching new tasks (wave regression)
+- Serially drain ready shared tasks after proving they are safe to parallelize
+- Block a ready lane from advancing when concurrency allows and no safety conflict exists (lane starvation)
+- Start page phase with only the first ready page when other ready pages could fill open slots
+- Dispatch multiple ready tasks from the same page just because they are disjoint
+- Collapse multiple ready shared tasks into a single shared row and dispatch only the first one
+- Skip Dispatch Ticket output before any dispatch
 
-If you catch yourself writing implementation code instead of dispatching a subagent, stop and dispatch the appropriate task.
+**Build/review discipline:**
+- Compile or dispatch reviewers during Phase 1
+- Pass unsanitized Task text containing `验证:` or `mvn compile` to an implementer (CLAUDE.md Rule 6)
+
+**Status discipline:**
+- Treat timeout, missing exit code, agent handle lost, or `No task found with ID` as success
+- Batch-mark multiple `未开始` tasks as `已完成`
+- Let a page advance after a `NOT COMPLETE` task
+- Mix source edits between main repo and worktree after worktree is chosen
+- Declare "实施完成" or "可以部署" before all Phase 2 gates pass and Final Gate Evidence is output
 
 ## Required Inputs (Hard Gate)
 
-Before Phase 1, the controller must have **all** of the following. **Any missing item = STOP, do not proceed.**
+Before Phase 1, **all** of the following must exist. Any missing = STOP.
 
-- `DOC_ROOT`: absolute path to the docs workspace
-- `PROJECT_ROOT`: absolute path to the main source repository
-- `SOURCE_ROOT`: absolute path to the selected worktree — **MUST be created via `superpowers:using-git-worktrees` before Phase 1 starts (CLAUDE.md Rule 9)**. If no worktree exists, invoke `using-git-worktrees` now. Do NOT use `PROJECT_ROOT` directly as `SOURCE_ROOT`.
-- `VERSION_DIR`: absolute path to the current version directory (e.g., `[DOC_ROOT]/docs/plans/2026-03-20-xxx/abc123/`)
-- `CODING_STANDARDS` content: controller must read `[DOC_ROOT]/spec/CODING_STANDARDS.md` once and cache its content for embedding into every implementer prompt
-- `index.md`
-- `shared-plan.md` when it exists
-- Every page `plan.md` referenced by `index.md`
+| Input | Description |
+|-------|-------------|
+| `DOC_ROOT` | Absolute path to docs workspace (= CWD) |
+| `PROJECT_ROOT` | Absolute path to main source repository |
+| `SOURCE_ROOT` | Absolute path to worktree — **must** be created via `using-git-worktrees` (CLAUDE.md Rule 9). Must ≠ `PROJECT_ROOT`. |
+| `VERSION_DIR` | Absolute path to current version directory (e.g., `[DOC_ROOT]/docs/plans/2026-03-20-xxx/abc123/`) |
+| `CODING_STANDARDS` | Content of `[DOC_ROOT]/spec/CODING_STANDARDS.md`, read once and cached |
+| Plan files | `index.md`, `shared-plan.md` (if exists), all page `plan.md` |
 
-### Pre-Phase-1 Checklist (controller must verify before dispatching any task)
+### Pre-Phase-1 Checklist
 
 ```
-☐ Worktree created via using-git-worktrees? → SOURCE_ROOT recorded
-☐ SOURCE_ROOT ≠ PROJECT_ROOT? (must be a worktree, not the main repo)
-☐ DOC_ROOT set to CWD absolute path?
-☐ VERSION_DIR set to current version directory absolute path?
+☐ Worktree created? → SOURCE_ROOT recorded, SOURCE_ROOT ≠ PROJECT_ROOT
+☐ DOC_ROOT, VERSION_DIR set?
 ☐ CODING_STANDARDS.md read and cached?
-☐ index.md read? All page plan.md files read?
+☐ index.md + all plan.md files read?
 ```
-
-If any checkbox fails, fix it before proceeding. **Starting Phase 1 without a worktree is a hard violation of CLAUDE.md Rule 9.**
 
 ## Frontend Execution Mode (前端执行模式)
 
@@ -119,476 +113,200 @@ If any checkbox fails, fix it before proceeding. **Starting Phase 1 without a wo
 
 ## Prompt Templates
 
-- `./implementer-prompt.md`: implementer subagent
-- `./spec-reviewer-prompt.md`: spec compliance reviewer in Phase 2
-- `./code-quality-reviewer-prompt.md`: code quality reviewer in Phase 2
+- `./implementer-prompt.md` · `./spec-reviewer-prompt.md` · `./code-quality-reviewer-prompt.md`
+
+## Dispatch Safety Rules
+
+Two tasks (shared or page) may run concurrently only when **all** are true:
+
+- Do not modify the same files
+- Do not compete for shared ownership (controller, service, mapper, entity, DTO, route, menu seed)
+- Do not depend on each other
+- `index.md` execution order does not require one to wait for the other
+
+When the controller cannot prove write sets are disjoint → downgrade to serial.
 
 ## Phase 1: Implementation
 
-### Scheduler Model
+### Algorithm
 
-This skill uses a staged scheduler. That scheduler is authoritative and replaces a global ready-queue model.
+```
+max_concurrency = 3
 
-1. Execute the `shared-plan.md` phase first.
-2. Inside the shared phase, dispatch one or more ready shared tasks in parallel when they do not touch the same files.
-3. Do not start any page task until the entire shared phase is complete.
-4. After shared work completes, treat each page `plan.md` as one execution lane.
-5. In each wave, pick at most one next ready task from each ready page.
-6. Dispatch those per-page next tasks in parallel.
-7. Wait for the whole wave to finish.
-8. Update task status and progress tracking.
-9. Advance each page lane to its next ready task.
-10. Repeat until all page lanes are complete.
+# ── Shared Phase (wave sync) ──────────────────────────────
+while shared-plan has unfinished tasks:
+    ready = [t for t in shared_tasks_in_plan_order if deps_met(t)]
+    wave = []
+    for task in ready:
+        if len(wave) >= max_concurrency: break
+        if safe_with_all(task, wave):      # apply Safety Rules
+            wave.append(task)
+    # MUST dispatch the full safe wave, not just the first ready task
+    dispatch_all(wave)                     # multiple Agent calls in one message
+    wait_all(wave)                         # wave sync only in shared phase
+    update_status(shared-plan, index.md)
 
-The unit of parallelism is not "all ready tasks everywhere". It is "the next ready task from each ready page".
+# ── Page Phase (streaming lanes) ──────────────────────────
+in_flight = {}  # page → task
 
-### What Counts As Parallel
+# Initial dispatch: fill up to max_concurrency from different pages
+for page in index.md_order:
+    if len(in_flight) >= max_concurrency: break
+    task = first_ready_task(page)
+    if task and safe_with_all(task, in_flight.values()):
+        dispatch(page, task)
+        in_flight[page] = task
 
-For this skill, "parallel" has a strict meaning:
+# Streaming loop
+while in_flight or any_lane_has_remaining_tasks:
+    completed_page, completed_task = wait_for_any()
+    update_status(completed_page, completed_task, plan.md, index.md)
+    del in_flight[completed_page]
 
-- Multiple implementer subagents are dispatched in the same wave
-- Those dispatches happen in the same controller message, not one-by-one across separate turns
-- In shared waves, each dispatched task belongs to the current ready shared-task set
-- In page waves, each dispatched task belongs to a different ready page
+    # Immediately scan ALL lanes — dispatch every safe next task
+    for page in all_pages_with_remaining_tasks:
+        if len(in_flight) >= max_concurrency: break
+        if page in in_flight: continue     # max 1 task per page
+        task = first_ready_task(page)
+        if task and safe_with_all(task, in_flight.values()):
+            dispatch(page, task)
+            in_flight[page] = task
 
-These do **not** count as valid parallelism:
+# All lanes complete → enter Phase 2
+```
 
-- Running one subagent now and another later
-- Running one ready shared task now and another ready shared task later without a concrete safety conflict
-- Running two tasks from the same page while other ready pages are waiting
-- Writing a Todo list for multiple pages but dispatching only one implementer
+### Dispatch Ticket (mandatory before every dispatch)
 
-### Shared Work First
+Before dispatching any shared wave or page task(s), output this ticket. **Skipping the ticket = invalid dispatch.**
 
-`shared-plan.md` owns all cross-page bootstrap work, including examples such as:
+```markdown
+### Dispatch Ticket #N
+- **Trigger**: [initial | shared_wave | task_completed(page=X, task=Y)]
+- **In-flight**: [page:task, ...] (M / max_concurrency)
+- **Open slots**: max_concurrency - M = ?
+- **Lane scan**:
+  | Page / Lane | Status | Next ready task | Safe? | Dispatch? |
+  |-------------|--------|-----------------|-------|-----------|
+  | ... | idle/in-flight/done | Task N / none | ✅/❌(reason) | yes/no |
+- **This dispatch**: [page1:taskA, page2:taskB, ...]
+```
 
-- shared tables
-- shared entities or DTOs
-- menu and route bootstrap
-- one-time infrastructure
+The ticket forces you to:
+1. List ALL lanes (prevents lane starvation)
+2. Count open slots (prevents wave regression)
+3. Safety-check each idle lane (prevents skipped dispatches)
+4. Record decisions (auditable)
 
-If `shared-plan.md` exists:
+Ticket construction rules:
+- **Shared phase**: one row per ready shared task, e.g. `shared:Task1`, `shared:Task5`; do not collapse them into one generic `shared` row
+- **Page phase**: one row per page lane, including blocked / in-flight / done lanes; do not show only the page that just completed
+- **Page phase dispatch**: if `my-order` already has an in-flight task, `my-order` must show `in-flight` and cannot receive another dispatch in the same ticket
 
-- its tasks may run in parallel when their write sets are disjoint
-- conflicting shared tasks must downgrade to serial
-- the shared phase must fully finish before any page lane starts
+### Common Misfires
 
-### Shared-Parallel Enforcement
+Wrong:
+- Shared phase sees `Task1`, `Task5` both ready and safe, but dispatches only `Task1`
+- Page phase starts only `my-order:Task1` even though `delivery-record` and `consignment-inventory` are also ready
+- `my-order:Task1` finishes and controller dispatches `my-order:Task2` + `my-order:Task3` together
 
-During the shared phase, you MUST dispatch multiple shared tasks in the same wave whenever all of the following are true:
+Right:
+- Shared phase dispatches the full ready safe wave
+- Page phase fills slots from different ready pages first
+- Same page gets its next task only after its current in-flight task completes
 
-- 2 or more shared tasks are ready
-- their write sets are disjoint
-- they do not compete for shared ownership
-- they do not depend on each other
+### Compact Example
 
-Do NOT fall back to serial execution merely because "conservative is safer" once the controller has already proven the tasks are safe to parallelize.
+```
+Shared phase (max_concurrency=3):
+  shared deps:
+    T1 = no deps
+    T5 = no deps
+    T2/T3/T4 = depend on T1
+  Wave 1 ticket rows: shared:T1, shared:T5
+    → dispatch shared:T1 + shared:T5
+  Wave 2 ticket rows: shared:T2, shared:T3, shared:T4
+    → dispatch shared:T2 + shared:T3 + shared:T4
 
-Correct shared-phase behavior:
+Page phase (max_concurrency=3, pages: my-order, delivery-record, consignment-inventory, order-ledger):
+  Ticket #1 [shared complete]:
+    dispatch my-order:T1, delivery-record:T1, consignment-inventory:T1
+    hold order-ledger (depends on my-order)
 
-- If Task 1 is the only ready shared task, dispatch only Task 1
-- After Task 1 completes, recompute ready shared tasks
-- If Task 2, Task 3, and Task 4 are all now ready and safe, dispatch all 3 in the same shared wave using multiple Agent tool calls in the same message
+  Ticket #2 [my-order:T1 done while other two still running]:
+    dispatch my-order:T2 only
+    do NOT dispatch my-order:T3 in the same ticket
 
-Serial shared execution is valid only when the controller can point to a concrete dependency or write-set / ownership conflict.
+  Ticket #3 [delivery-record:T1 done]:
+    dispatch delivery-record:T2
+    keep scanning all lanes after every completion
+```
 
-### Page Lanes
+## Per-Task Dispatch
 
-After shared work:
+- Dispatch a fresh implementer subagent per task (never one agent for the whole page)
+- Provide: task text, `SOURCE_ROOT`, `DOC_ROOT`, `VERSION_DIR`, embedded `CODING_STANDARDS` content
+- Replace design doc references in task text with `VERSION_DIR`-based absolute paths
+- Make the task's file ownership explicit so the implementer knows its expected write set
+- Tell every implementer it is not alone in the worktree: do not revert unrelated edits, and raise conflicts instead of silently overwriting them
 
-- Each page listed in `index.md` becomes one lane
-- Only one task in a page lane may be active at a time
-- A page lane advances only after its current task is explicitly completed
-- Different pages may progress in the same wave
+### Sanitize Task Text Before Dispatch
 
-### Determining The Next Ready Task
+1. Strip `验证:` / `**验证**:` subsections entirely
+2. Delete lines containing: `mvn`, `mvn compile`, `npm run build`, `gradle build`, `tsc`, `编译无错误`, `无 import 错误`, `无类型不匹配`
+3. Note any stripping in dispatch log; do not block dispatch
 
-For each page lane:
-
-1. Read its `plan.md` task table and task dependency declarations
-2. Find the first unfinished task whose dependencies are satisfied
-3. Select only that single task for the current wave
-
-If no task in a page is ready, that page does not participate in the current wave.
-
-### Page-Wave Safety Rules
-
-Two pages may run in the same wave only when all of the following are true:
-
-- Their selected tasks do not modify the same files
-- Their selected tasks do not compete for shared API ownership
-- Their selected tasks do not depend on each other
-- `index.md` execution order does not require one page to wait for the other
-
-Downgrade to serial when any of the following are true:
-
-- The selected tasks touch the same file
-- One page reuses a shared controller/service/mapper that is still being created by another page
-- A page-level dependency or execution-order prerequisite is not yet satisfied
-- The controller cannot prove the write sets are disjoint
-
-Conservative serialization is correct behavior.
-
-### Shared-Phase Safety Rules
-
-Two shared tasks may run in the same shared wave only when all of the following are true:
-
-- They do not modify the same files
-- They do not compete for shared ownership of the same controller, service, mapper, entity, DTO, route, or menu seed
-- They do not depend on each other
-
-Downgrade shared work to serial when the controller cannot prove the shared write sets are disjoint.
-
-### Per-Task Dispatch
-
-Even though the scheduler is page-oriented, the implementer unit is still task-oriented:
-
-- Dispatch a fresh implementer subagent per task
-- Provide the task implementation text, required context, `SOURCE_ROOT`, `DOC_ROOT`, and `VERSION_DIR`
-- If a legacy plan still contains a `验证:` / `**验证**:` subsection inside the Task, strip that subsection before dispatching the implementer
-- **Controller 必须在 prompt 中嵌入 `spec/CODING_STANDARDS.md` 的完整内容**，implementer 不再需要自行读取此文件
-- **Controller 必须传入 `VERSION_DIR`**（精确到 commit 版本目录的绝对路径，如 `[DOC_ROOT]/docs/plans/2026-03-20-xxx/abc123/`），implementer 用此路径直接读取设计文档，不需要自行拼接
-- Task 的参考文件中引用设计文档时，controller 替换为 `VERSION_DIR` 下的绝对路径
-- Answer clarifying questions
-- Wait for an explicit completion report
-
-Do not dispatch one long-running implementer for the entire page. Fresh subagent per task remains the default.
-
-#### ⛔ HARD GATE: Sanitize Task Text Before Dispatch
-
-Before pasting any Task text into an implementer prompt, the controller MUST sanitize it:
-
-1. **Search for `验证:` or `**验证**:`** — if found, DELETE that entire subsection (from the `验证:` heading to the next `###` heading or end of Task). Do NOT pass it to the implementer.
-2. **Search for banned keywords**: `mvn`, `mvn compile`, `npm run build`, `gradle build`, `tsc`, `编译无错误`, `无 import 错误`, `无类型不匹配`. If any appear as a completion condition or verification step, DELETE the line containing them.
-3. **If the Task text survives sanitization unchanged** — great, proceed normally.
-4. **If you had to strip content** — note it in your wave log but do NOT block dispatch.
-
-Failure to sanitize = compilation leaks into the implementer, violating CLAUDE.md Rule 6.
-
-### Phase 1 Loop
-
-**CRITICAL — Shared-Parallel Enforcement:** Inside the shared phase, if 2+ shared tasks are ready and safe, you MUST dispatch them together in the same wave. Do NOT serially drain ready shared tasks one-by-one after you have already determined their write sets are disjoint and dependencies are satisfied.
-
-**CRITICAL — Page-Parallel Enforcement:** After shared work completes, you MUST dispatch multiple pages in the same wave. Do NOT run all tasks of one page before starting another page. The correct behavior is: pick the next ready task from EACH ready page, dispatch them ALL in parallel (one Agent tool call per task, all in the same message), then wait for the wave to complete. Running pages sequentially (finishing page A entirely before starting page B) is a violation of the scheduler model.
-
-Repeat the following loop:
-
-1. If `shared-plan.md` has unfinished work, build a shared-task wave from all ready shared tasks with disjoint write sets
-2. Dispatch the shared wave and wait for every shared subagent
-3. Update `shared-plan.md` and the `shared` row in `index.md`
-4. Repeat shared waves until the shared phase is complete
-5. **Then build the page wave: for EACH ready page, select its next ready task → collect ALL selected tasks → dispatch ALL of them in parallel using multiple Agent tool calls in a single message**
-6. Wait for every subagent in the page wave
-7. For each successful task, update status and progress
-8. For any failed or incomplete task, keep that page in place and do not advance it
-9. Recompute the next wave — again selecting one task per ready page and dispatching in parallel
-10. When no shared task and no page task remain, enter Phase 2
-
-### Wave Dispatch Evidence (Mandatory)
-
-Before dispatching any shared wave or page wave, the controller must explicitly reason about the wave composition.
-
-For a shared wave:
-
-- List all ready shared tasks
-- List the subset selected for this wave
-- If only one shared task is dispatched while another shared task is ready, record the concrete file-level or ownership conflict
-- If 2+ ready shared tasks are safe and only 1 is dispatched, the wave is invalid and must be rebuilt
-
-For a page wave:
-
-- List all ready pages
-- For each ready page, list its selected next task
-- If 2+ ready pages exist and only 1 page is dispatched, STOP and document the concrete safety reason before continuing
-- If another ready page is safe but omitted, the wave is invalid and must be rebuilt
-- A page wave where all dispatched tasks belong to the same page is invalid unless every other page is blocked or unsafe
-
-### Status Updates After Each Task
+## Status Updates
 
 After each completed task:
 
-1. Update the relevant task row in `<page>/plan.md` or `shared-plan.md` to `已完成`
-2. Update the `index.md` execution progress table
-3. On the first completed task of a page, set that page's `实施状态` to `进行中`
-4. When all tasks of a page are complete, set that page's `实施状态` to `已完成`
-5. For `shared-plan.md`, update only the `shared` row in execution progress; do not mark any page `进行中` or `已完成` because of shared work alone
+1. Update task row in `plan.md` / `shared-plan.md` to `已完成`
+2. Update `index.md` execution progress
+3. First completed task of a page → set `实施状态` to `进行中`
+4. All tasks of a page complete → set `实施状态` to `已完成`
+5. Shared tasks only update the `shared` row — not any page
 
-Status write-backs always target the docs workspace under `DOC_ROOT`, never the worktree.
+Status write-backs always target `DOC_ROOT`, never the worktree.
 
-### Hard Rules For Marking Completion
+### Completion Rules
 
-A task may be marked `已完成` only when all of the following are true:
+Mark `已完成` only when ALL are true:
+1. Implementer returns `STATUS: COMPLETE`
+2. Result includes actual modified file list
+3. No unhandled blocker
+4. `plan.md` and `index.md` write-backs succeed
 
-1. The implementer subagent explicitly returns `STATUS: COMPLETE`
-2. The result includes the actual modified file list
-3. The result clearly says the task is implemented with no unhandled blocker
-4. The `plan.md` and `index.md` write-backs both succeed
+**编译不是 Task 完成条件** — 编译错误统一由 Phase 2 检查。
 
-**不在单个 Task 中检查编译**：编译错误（import 缺失、类型不匹配等）统一由 Phase 2 Gate 1/2 检查，不作为 Task 完成条件。
+Never mark `已完成` on: agent handle lost, `No task found with ID`, timeout, `Error editing file`, completion inferred from file existence, or undispatched task.
 
-Never mark `已完成` when any of the following happens:
-
-- agent handle lost
-- `No task found with ID`
-- command timeout
-- `Error editing file`
-- completion inferred only from file existence
-- task was never actually dispatched
-
-If a status update fails:
-
-- Keep the task in its prior state or mark it `进行中`
-- Do not advance that page to the next task until the write-back problem is fixed
+If status write-back fails → keep prior state, do not advance the lane.
 
 ## Worktree Binding
 
-After creating a worktree:
-
-- Record its absolute path as `SOURCE_ROOT`
-- Record the docs workspace absolute path as `DOC_ROOT`
-- Use `SOURCE_ROOT` for all code edits, build commands, and implementer working directories
-- Use `DOC_ROOT` for spec reads, design reads, `index.md`, and `plan.md` writes
-
-Do not switch source editing back and forth between the main repository and the worktree without an explicit reason.
+- `SOURCE_ROOT` = worktree path → all code edits, builds, implementer working dirs
+- `DOC_ROOT` = docs workspace → spec reads, design reads, `index.md`/`plan.md` writes
+- Do not switch editing between main repo and worktree without explicit reason
 
 ## Phase 2: Verification
 
-Entry condition:
+Entry: all tasks in `shared-plan.md` + all page `plan.md` files complete.
 
-- all tasks in `shared-plan.md` are complete, if `shared-plan.md` exists
-- all tasks in all page `plan.md` files are complete
+**Phase 2 = 5 sequential Gates. 编译通过 ≠ 完成。必须走完全部 Gate + 输出 Final Gate Evidence 才能宣布完成。**
 
-**Phase 2 是 5 个 Gate 的顺序流水线，编译通过不等于 Phase 2 完成。必须走完全部 Gate 并输出 Final Gate Evidence 才能宣布完成。**
+| Gate | Action | On failure |
+|------|--------|------------|
+| 1 | `mvn compile` | fix → recompile → loop |
+| 2 | `npm run build` | fix → rebuild → loop |
+| 3 | Spec Compliance — `AskUserQuestion` → dispatch `spec-reviewer-prompt.md` | fix → re-review |
+| 4 | Code Quality — `AskUserQuestion` → dispatch `code-quality-reviewer-prompt.md` | fix → re-review |
+| 5 | Coding Standards Feedback → propose updates to `CODING_STANDARDS.md` | user confirms |
 
-### Gate 流程（严格按序执行）
-
-1. **Gate 1: Backend Compilation** — `mvn compile`，失败则 fix → 重编 → 循环
-2. **Gate 2: Frontend Compilation** — `npm run build`，失败则 fix → 重编 → 循环
-3. **Gate 3: Spec Compliance** — 编译通过后，用 `AskUserQuestion` 询问用户是否执行（默认执行）。执行时 dispatch spec-reviewer subagent（用 `./spec-reviewer-prompt.md`），审查**全部已实现代码**
-4. **Gate 4: Code Quality** — Gate 3 完成后，用 `AskUserQuestion` 询问用户是否执行（默认执行）。执行时 dispatch code-quality-reviewer subagent（用 `./code-quality-reviewer-prompt.md`），审查**全部已实现代码**
-5. **Gate 5: Coding Standards Feedback** — 收集 Gate 3/4 发现的规范类问题，呈现给用户确认是否更新 `spec/CODING_STANDARDS.md`
-
-### Hard Gate Rules
-
-- **编译通过 ≠ Phase 2 完成**。Gate 1/2 通过后必须继续 Gate 3/4/5
-- **不得跳过 Final Gate Evidence**。5 个 Gate 全部执行（或用户明确跳过）后，必须输出 Final Gate Evidence 表格
-- **不得在 Final Gate Evidence 输出前宣布"实施完成"或"可以部署"**
-- Gate 3/4 只有用户明确说"跳过"才能跳过，其他任何回复均视为执行
+Gate 3/4 only skipped when user explicitly says "跳过". All gates done → output **Final Gate Evidence** table.
 
 详见 [`shared/phase2-verification.md`](../shared/phase2-verification.md)。
 
-If a Phase 2 gate fails:
-
-- dispatch a fresh fix subagent for the failing issue
-- rerun the failed gate
-- repeat until the gate passes or a real blocker remains
-
-## Example Workflow
-
-```text
-You: I'm using Subagent-Driven Development to execute this plan.
-
-[Read index.md -> find execution order]
-[Read shared-plan.md -> extract shared tasks]
-[Read page plans -> build page lanes: my-order, delivery-record, consignment-inventory, order-ledger]
-
---- Phase 1: Implementation ---
-
-Wave 0a: shared phase
-  shared Task 1
-  shared Task 2
-  [Dispatch 2 implementer subagents in parallel]
-  [All returned]
-  [Update shared-plan.md + shared row in index.md]
-
-Wave 0b: remaining shared work
-  [Detect shared Task 3 touches the same bootstrap files]
-  [Run shared Task 3 serially]
-  [Shared phase complete]
-
-Wave 1: one ready task per page
-  my-order Task 1
-  delivery-record Task 1
-  consignment-inventory Task 1
-  [Dispatch 3 implementer subagents in parallel]
-  [All returned]
-  [Update page plans + index.md]
-
-Wave 2: advance each page by one task
-  my-order Task 2
-  delivery-record Task 2
-  [Detect order-ledger Task 1 touches shared OrderController]
-  [Hold order-ledger for now]
-  [Dispatch my-order + delivery-record]
-  [Update page plans + index.md]
-
-Wave 3:
-  my-order Task 3
-  order-ledger Task 1
-  [Now safe to run together]
-  [Dispatch 2 implementer subagents]
-  [Update page plans + index.md]
-
-[Repeat until shared row and all page rows are complete]
-
---- Phase 2: Verification ---
-
-[Gate 1: mvn compile → pass]
-[Gate 2: npm run build → pass]
-[Gate 3: AskUserQuestion "是否执行 Spec Compliance 审查？" → 用户确认 → dispatch spec-reviewer subagent → pass]
-[Gate 4: AskUserQuestion "是否执行 Code Quality 审查？" → 用户确认 → dispatch code-quality-reviewer subagent → pass]
-[Gate 5: collect convention issues → present to user → update CODING_STANDARDS if approved]
-[Output Final Gate Evidence table]
-[All gates ✅ → invoke finishing-a-development-branch]
-```
-
-## Advantages
-
-### Compared To A Global Ready Queue
-
-- Easier to reason about progress page by page
-- Shared bootstrap still gets useful parallelism before page work starts
-- Lower chance of missing a page entirely
-- Lower chance of dispatching two conflicting tasks from the same page
-- Better alignment with `index.md`, per-page `plan.md`, and per-page implementation status
-
-### Compared To Full Page Serialization
-
-- Multiple pages can still make progress in the same wave
-- The controller keeps useful parallelism without losing page ownership clarity
-
-### Compared To Per-Task Compilation And Review
-
-- One compilation phase instead of compiling between tasks
-- One review phase over the full implementation
-- Better cross-task consistency checks in review
-
-## Red Flags
-
-Never:
-
-- **start Phase 1 without creating a worktree via `using-git-worktrees`** (CLAUDE.md Rule 9)
-- **serially drain ready shared tasks** after proving they are safe to run together
-- **run all tasks of one page before starting another page** — after shared phase, each wave must include one task per ready page
-- start page tasks before `shared-plan.md` completes
-- run unsafe shared tasks in parallel when they touch the same shared files
-- dispatch two tasks from the same page at once
-- run two pages in parallel when their next tasks share write targets
-- compile or review during Phase 1
-- skip status write-backs
-- ignore subagent questions
-- let a page advance after a `NOT COMPLETE` task
-- fix implementation code manually as controller
-- **pass unsanitized Task text containing `验证:` or `mvn compile` to an implementer** (CLAUDE.md Rule 6 — strip before dispatch)
-- **declare "实施完成" or "可以部署" after compilation passes without completing Gate 3/4/5 and outputting Final Gate Evidence**
-
-## Known Failure Modes
-
-### Failure Mode 1: Controller Becomes Implementer
-
-The controller reads code, edits source files, fixes build errors, and declares tasks complete without dispatching implementers.
-
-Detection:
-
-- If you are writing implementation code instead of dispatching a subagent, you have violated the controller role.
-
-### Failure Mode 2: Shared Work Is Bypassed
-
-The controller starts page work before the cross-page bootstrap is done.
-
-Detection:
-
-- A page task is running while `shared-plan.md` still contains unfinished tasks.
-
-### Failure Mode 3: Unsafe Shared Parallelism
-
-The controller runs two shared tasks in parallel even though they modify the same shared files or compete for the same shared ownership.
-
-Detection:
-
-- Two in-flight shared tasks touch the same bootstrap file, shared controller, shared service, shared mapper, shared entity, shared DTO, route, or menu seed.
-
-### Failure Mode 9: Sequential Shared Execution
-
-The controller executes ready shared tasks one-by-one even though multiple shared tasks are already safe to run in parallel.
-
-Detection:
-
-- Shared Task B and Shared Task C are both ready after Shared Task A completes, but only one Agent tool call is dispatched for the next shared wave.
-- The controller says "根据保守策略先串行执行" even after explicitly stating the write sets are disjoint and there is no dependency conflict.
-
-Fix: Recompute the ready shared set and dispatch every safe shared task in the same wave using multiple Agent tool calls in a single message.
-
-### Failure Mode 7: Sequential Page Execution
-
-The controller finishes ALL tasks of one page before starting ANY task of another page, instead of running page waves in parallel.
-
-Detection:
-
-- Page B has zero completed tasks while Page A already has 3+ completed tasks, even though Page B has no dependency on Page A.
-- Only one Agent tool call is dispatched per wave when multiple pages have ready tasks.
-- Two Agent tool calls are dispatched, but they both belong to the same page while another page is ready.
-
-Fix: After shared phase completes, each wave MUST include one task from EVERY ready page (unless safety rules prevent it). Use multiple Agent tool calls in a single message.
-
-### Failure Mode 8: No Worktree Created
-
-The controller starts Phase 1 without creating a worktree, using PROJECT_ROOT directly as SOURCE_ROOT.
-
-Detection:
-
-- SOURCE_ROOT equals PROJECT_ROOT or is never set.
-- No `using-git-worktrees` invocation before the first implementer dispatch.
-
-Fix: Always invoke `using-git-worktrees` before Phase 1. SOURCE_ROOT must be a worktree path, not the main repo.
-
-### Failure Mode 4: Two Tasks From The Same Page Run Together
-
-The controller dispatches parallel tasks that both belong to the same page.
-
-Detection:
-
-- More than one in-flight subagent is working on the same page lane in the same wave.
-- Another page has a ready next task, but the wave still uses two slots on the same page.
-
-Fix: Reduce the page to one in-flight task. Rebuild the wave so each ready page contributes at most one task.
-
-### Failure Mode 5: No Status Updates
-
-Implementation finishes, but `plan.md` and `index.md` were never updated.
-
-Detection:
-
-- A task result exists, but the corresponding task row and execution progress are stale.
-
-### Failure Mode 6: Phase 2 Truncated After Compilation
-
-The controller runs Gate 1/2 (compilation), sees them pass, then declares "实施完成" or "可以部署" without executing Gate 3 (Spec Review), Gate 4 (Code Quality), Gate 5 (Coding Standards Feedback), and without outputting Final Gate Evidence.
-
-Detection:
-
-- Compilation passed but no spec-reviewer or code-quality-reviewer subagent was dispatched.
-- No Final Gate Evidence table was output.
-- Controller said "完成" or "下一步可以部署" immediately after compilation.
-
 ## Integration
 
-Required workflow skills:
+Required: `using-git-worktrees`, `writing-plans`, `finishing-a-development-branch`, `verification-before-completion`
 
-- `superpowers:using-git-worktrees`
-- `superpowers:writing-plans`
-- `superpowers:finishing-a-development-branch`
-- `superpowers:verification-before-completion`
-
-Phase 2 reviewer prompts:
-
-- `./spec-reviewer-prompt.md`
-- `./code-quality-reviewer-prompt.md`
-
-Subagents should use:
-
-- `superpowers:test-driven-development`
-
-Alternative workflow:
-
-- `superpowers:executing-plans` for a separate parallel execution session
+Alternative: `executing-plans` (separate parallel session)
