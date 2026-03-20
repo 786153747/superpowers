@@ -483,8 +483,8 @@ Master index updated: docs/plans/<task>/<commitid>/index.md
 
 Use this exact choice set:
 
-1. **Subagent-Driven (current session)** → `superpowers:subagent-driven-development`
-2. **Parallel Session (new session)** → `superpowers:executing-plans`
+1. **Subagent-Driven (当前会话)** — 使用 `superpowers:subagent-driven-development` 在当前会话中逐任务执行
+2. **Parallel Session (独立会话)** — 使用 `superpowers:executing-plans` 在独立会话中执行
 
 After the user chooses:
 

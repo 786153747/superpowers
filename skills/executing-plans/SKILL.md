@@ -82,6 +82,21 @@ Load plan, review critically, execute tasks in batches, report for review betwee
 
 ## The Process
 
+### Frontend Execution Mode (前端执行模式)
+
+当 plan 中包含前端 Task 时，执行开始前必须用 `AskUserQuestion` 询问用户：
+
+- 问题：`前端 Task 的执行模式：`
+- 选项 1：**复制原型 + 适配**（推荐） — 直接从原型目录复制前端文件到项目，按 CODING_STANDARDS 做最小适配（import 路径、API 调用等）。速度快，适合原型可直接使用的场景
+- 选项 2：**根据设计文档生成** — 基于前端详细设计文档全新生成代码。完整但较慢，适合原型与实际需求差异较大的场景
+
+**复制原型模式**：
+1. 从当前版本目录的 `diff.md`「比对基线」节提取 `原型目录` 路径和 `开发项目路径前缀`
+2. 执行前端 Task 时，读取原型源文件 → 按 CODING_STANDARDS 适配（import 路径、API 前缀、组件注册方式等）→ 写入目标路径
+3. 不从设计文档重新生成前端代码
+
+**设计文档生成模式**：按正常流程执行，根据前端详细设计文档编写代码。
+
 ### Version Directory Contract
 
 - **任务目录**：`docs/plans/YYYY-MM-DD-<topic>/`
@@ -175,12 +190,30 @@ Do NOT assume a fresh start. Always check existing progress first.
 
 ### Step 5: Phase 2 Verification + Complete Development
 
-After all pages' tasks complete:
-1. Execute Phase 2 verification flow → [`shared/phase2-verification.md`](../shared/phase2-verification.md) (Gates 1-5 + Final Gate Evidence)
-2. After all gates pass:
-   - Announce: "I'm using the finishing-a-development-branch skill to complete this work."
-   - **REQUIRED SUB-SKILL:** Use superpowers:finishing-a-development-branch
-   - Follow that skill to verify tests, present options, execute choice
+After all pages' tasks complete,进入 Phase 2。**Phase 2 是 5 个 Gate 的顺序流水线，编译通过不等于 Phase 2 完成。必须走完全部 Gate 并输出 Final Gate Evidence 才能宣布完成。**
+
+详见 [`shared/phase2-verification.md`](../shared/phase2-verification.md)。
+
+#### Gate 流程（严格按序执行）
+
+1. **Gate 1: Backend Compilation** — `mvn compile`，失败则 fix → 重编 → 循环
+2. **Gate 2: Frontend Compilation** — `npm run build`，失败则 fix → 重编 → 循环
+3. **Gate 3: Spec Compliance** — 编译通过后，用 `AskUserQuestion` 询问用户是否执行（默认执行）。执行时 dispatch spec-reviewer subagent，审查**全部已实现代码**
+4. **Gate 4: Code Quality** — Gate 3 完成后，用 `AskUserQuestion` 询问用户是否执行（默认执行）。执行时 dispatch code-quality-reviewer subagent，审查**全部已实现代码**
+5. **Gate 5: Coding Standards Feedback** — 收集 Gate 3/4 发现的规范类问题，呈现给用户确认是否更新 `spec/CODING_STANDARDS.md`
+6. **Final Gate Evidence** — 输出 5 Gate 结果表格
+
+#### Hard Gate Rules
+
+- **编译通过 ≠ Phase 2 完成**。Gate 1/2 通过后必须继续 Gate 3/4/5
+- **不得跳过 Final Gate Evidence**。5 个 Gate 全部执行（或用户明确跳过）后，必须输出 Final Gate Evidence 表格
+- **不得在 Final Gate Evidence 输出前宣布"实施完成"或"可以部署"**
+
+#### After all gates pass:
+
+- Announce: "I'm using the finishing-a-development-branch skill to complete this work."
+- **REQUIRED SUB-SKILL:** Use superpowers:finishing-a-development-branch
+- Follow that skill to verify tests, present options, execute choice
 
 ## 原型文件合并规则
 
@@ -275,6 +308,7 @@ After all pages' tasks complete:
 - Between batches: just report and wait
 - Stop when blocked, don't guess
 - Never start implementation on main/master branch without explicit user consent
+- **编译通过 ≠ 完成**：Phase 2 有 5 个 Gate，必须走完全部并输出 Final Gate Evidence 才能宣布完成
 
 ## Integration
 

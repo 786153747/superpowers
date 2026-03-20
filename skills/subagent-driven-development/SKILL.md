@@ -71,10 +71,35 @@ Before Phase 1, the controller must have:
 - `DOC_ROOT`: absolute path to the docs workspace
 - `PROJECT_ROOT`: absolute path to the main source repository
 - `SOURCE_ROOT`: absolute path to the selected worktree
-- Current version directory under `DOC_ROOT`
+- `VERSION_DIR`: absolute path to the current version directory (e.g., `[DOC_ROOT]/docs/plans/2026-03-20-xxx/abc123/`)
+- `CODING_STANDARDS` content: controller must read `[DOC_ROOT]/spec/CODING_STANDARDS.md` once and cache its content for embedding into every implementer prompt
 - `index.md`
 - `shared-plan.md` when it exists
 - Every page `plan.md` referenced by `index.md`
+
+## Frontend Execution Mode (前端执行模式)
+
+当 plan 中包含前端 Task 时，Phase 1 开始前必须用 `AskUserQuestion` 询问用户：
+
+- 问题：`前端 Task 的执行模式：`
+- 选项 1：**复制原型 + 适配**（推荐） — 直接从原型目录复制前端文件到项目，按 CODING_STANDARDS 做最小适配（import 路径、API 调用等）。速度快，适合原型可直接使用的场景
+- 选项 2：**根据设计文档生成** — 基于前端详细设计文档全新生成代码。完整但较慢，适合原型与实际需求差异较大的场景
+
+### 复制原型模式
+
+选择复制原型时：
+
+1. **提取原型目录**：从 `VERSION_DIR/diff.md` 的「比对基线」节读取 `原型目录` 路径
+2. **构建文件映射**：根据 diff.md 的变更文件清单，建立原型文件路径 → 开发项目目标路径的映射表（注意 `开发项目路径前缀`，如 `frontend/`）
+3. **传给 implementer**：在 implementer prompt 中增加以下信息：
+   - `PROTOTYPE_DIR`: 原型目录绝对路径
+   - `FRONTEND_MODE: copy` 标记
+   - 当前 Task 涉及的原型源文件路径 → 目标文件路径映射
+4. **Implementer 行为**：读取原型文件 → 按 CODING_STANDARDS 适配（import 路径、API 前缀、组件注册方式等）→ 写入目标路径。不从设计文档重新生成
+
+### 设计文档生成模式
+
+选择生成模式时，按正常流程执行：implementer 根据前端详细设计文档编写代码，不读取原型文件。
 
 ## Prompt Templates
 
@@ -168,7 +193,10 @@ Downgrade shared work to serial when the controller cannot prove the shared writ
 Even though the scheduler is page-oriented, the implementer unit is still task-oriented:
 
 - Dispatch a fresh implementer subagent per task
-- Provide the full task text, required context, `SOURCE_ROOT`, and `DOC_ROOT`
+- Provide the full task text, required context, `SOURCE_ROOT`, `DOC_ROOT`, and `VERSION_DIR`
+- **Controller 必须在 prompt 中嵌入 `spec/CODING_STANDARDS.md` 的完整内容**，implementer 不再需要自行读取此文件
+- **Controller 必须传入 `VERSION_DIR`**（精确到 commit 版本目录的绝对路径，如 `[DOC_ROOT]/docs/plans/2026-03-20-xxx/abc123/`），implementer 用此路径直接读取设计文档，不需要自行拼接
+- Task 的参考文件中引用设计文档时，controller 替换为 `VERSION_DIR` 下的绝对路径
 - Answer clarifying questions
 - Wait for an explicit completion report
 
@@ -245,15 +273,24 @@ Entry condition:
 - all tasks in `shared-plan.md` are complete, if `shared-plan.md` exists
 - all tasks in all page `plan.md` files are complete
 
-Then run the normal deferred verification flow:
+**Phase 2 是 5 个 Gate 的顺序流水线，编译通过不等于 Phase 2 完成。必须走完全部 Gate 并输出 Final Gate Evidence 才能宣布完成。**
 
-1. Backend compilation
-2. Frontend compilation
-3. Spec review
-4. Code quality review
-5. Final gate evidence
+### Gate 流程（严格按序执行）
 
-Use [`shared/phase2-verification.md`](../shared/phase2-verification.md) for the full verification process.
+1. **Gate 1: Backend Compilation** — `mvn compile`，失败则 fix → 重编 → 循环
+2. **Gate 2: Frontend Compilation** — `npm run build`，失败则 fix → 重编 → 循环
+3. **Gate 3: Spec Compliance** — 编译通过后，用 `AskUserQuestion` 询问用户是否执行（默认执行）。执行时 dispatch spec-reviewer subagent（用 `./spec-reviewer-prompt.md`），审查**全部已实现代码**
+4. **Gate 4: Code Quality** — Gate 3 完成后，用 `AskUserQuestion` 询问用户是否执行（默认执行）。执行时 dispatch code-quality-reviewer subagent（用 `./code-quality-reviewer-prompt.md`），审查**全部已实现代码**
+5. **Gate 5: Coding Standards Feedback** — 收集 Gate 3/4 发现的规范类问题，呈现给用户确认是否更新 `spec/CODING_STANDARDS.md`
+
+### Hard Gate Rules
+
+- **编译通过 ≠ Phase 2 完成**。Gate 1/2 通过后必须继续 Gate 3/4/5
+- **不得跳过 Final Gate Evidence**。5 个 Gate 全部执行（或用户明确跳过）后，必须输出 Final Gate Evidence 表格
+- **不得在 Final Gate Evidence 输出前宣布"实施完成"或"可以部署"**
+- Gate 3/4 只有用户明确说"跳过"才能跳过，其他任何回复均视为执行
+
+详见 [`shared/phase2-verification.md`](../shared/phase2-verification.md)。
 
 If a Phase 2 gate fails:
 
@@ -311,11 +348,13 @@ Wave 3:
 
 --- Phase 2: Verification ---
 
-[mvn compile]
-[npm run build]
-[dispatch spec reviewer]
-[dispatch quality reviewer]
-[output final gate evidence]
+[Gate 1: mvn compile → pass]
+[Gate 2: npm run build → pass]
+[Gate 3: AskUserQuestion "是否执行 Spec Compliance 审查？" → 用户确认 → dispatch spec-reviewer subagent → pass]
+[Gate 4: AskUserQuestion "是否执行 Code Quality 审查？" → 用户确认 → dispatch code-quality-reviewer subagent → pass]
+[Gate 5: collect convention issues → present to user → update CODING_STANDARDS if approved]
+[Output Final Gate Evidence table]
+[All gates ✅ → invoke finishing-a-development-branch]
 ```
 
 ## Advantages
@@ -352,6 +391,7 @@ Never:
 - ignore subagent questions
 - let a page advance after a `NOT COMPLETE` task
 - fix implementation code manually as controller
+- **declare "实施完成" or "可以部署" after compilation passes without completing Gate 3/4/5 and outputting Final Gate Evidence**
 
 ## Known Failure Modes
 
@@ -394,6 +434,16 @@ Implementation finishes, but `plan.md` and `index.md` were never updated.
 Detection:
 
 - A task result exists, but the corresponding task row and execution progress are stale.
+
+### Failure Mode 6: Phase 2 Truncated After Compilation
+
+The controller runs Gate 1/2 (compilation), sees them pass, then declares "实施完成" or "可以部署" without executing Gate 3 (Spec Review), Gate 4 (Code Quality), Gate 5 (Coding Standards Feedback), and without outputting Final Gate Evidence.
+
+Detection:
+
+- Compilation passed but no spec-reviewer or code-quality-reviewer subagent was dispatched.
+- No Final Gate Evidence table was output.
+- Controller said "完成" or "下一步可以部署" immediately after compilation.
 
 ## Integration
 
