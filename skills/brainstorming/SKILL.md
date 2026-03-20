@@ -223,7 +223,7 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务目录
 **每轮只处理一个页面。** 对当前页面：
 
 **Step 6a：前端详细设计**（Frontend in scope 时执行）
-1. **读取统一规范输入**：以前置步骤已读取的 `spec/CODING_STANDARDS.md` 作为项目级唯一规范来源，并结合当前 diff 文档、PRD/原型和模板编写前端详细设计
+1. **读取统一规范输入**：以前置步骤已读取的 `spec/CODING_STANDARDS.md` 作为项目级唯一规范来源，并结合当前 diff 文档和模板编写前端详细设计。只有在主代理已显式提供 PRD/原型的**确切绝对路径**，且确实需要核对字段/控件/权限细节时，才允许读取 PRD/原型；**禁止**子代理自行搜索 PRD/原型文件
 2. 创建页面子目录
 3. 按模板写入并保存 `<version-root>/<page-slug>/frontend-detail-design.md`
 4. **保存前必须通过模板 Section 10 自检清单**（18 项全部 ✅ 才可保存）
@@ -251,20 +251,26 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务目录
 2. **输出路径**：`<version-root>/<page-slug>/frontend-detail-design.md` 和 `backend-detail-design.md`（使用 Step 2 确定的确切版本目录的**绝对路径**，不得让子代理自行 glob 查找）
 3. **模板内容**：将 `spec/frontend/vue/detail-design-template.md` 和/或 `spec/backend/java/detail-design-template.md` 的完整内容嵌入 prompt
 4. **项目规范输入**：`spec/CODING_STANDARDS.md` 的内容或摘要，作为技术栈、架构、代码规范和基类/继承约定的唯一来源
-5. **需求上下文**：该页面在当前 diff 文档（`diff.md`）中的差异描述和确认决议，以及 Step 5 确认的设计方案中与该页面相关的部分
+5. **需求上下文**：该页面在当前 diff 文档（`diff.md`）中的差异描述和确认决议，以及 Step 5 确认的设计方案中与该页面相关的部分。若需要补充需求材料，主代理必须在 prompt 中显式给出这些材料的**绝对路径**（如 `DIFF_PATH`、`PRD_PATHS`、`26 个字段定义.md` 路径），不得让子代理自行发现
 6. **规则约束**：
    - 页面内先写前端再写后端，后端必须引用同目录前端设计
    - 文档独立性：禁止跨页面引用，内容必须完整自包含
    - 项目规范唯一来源规则
    - 保存前必须通过自检清单（前端 18 项 / 后端 12 项）
-7. **路径上下文**：传入 `DOC_ROOT`（CWD 绝对路径），子代理用此路径读取 `spec/` 和 `docs/plans/` 下的文件。如果涉及读取代码文件，传入 `PROJECT_ROOT`
-8. **变更文件清单**（commit-diff 驱动的精准读取）：
+7. **路径上下文**：传入 `DOC_ROOT`（CWD 绝对路径）和 `PROJECT_ROOT`。除此之外，必须额外传入 `ALLOWED_READ_PATHS`（允许读取的绝对路径白名单）；子代理不得把 `DOC_ROOT` / `PROJECT_ROOT` 当作扫描根目录
+8. **精准读取白名单**（主代理负责收敛上下文，子代理不得自行发现）：
+   - `ALLOWED_READ_PATHS` 至少包含：`spec/CODING_STANDARDS.md`、当前页面输出所依赖的 `DIFF_PATH`、以及模板/需求明确需要的补充材料路径
+   - 如果需要读取现有代码来理解当前实现，只能传入与本页直接相关的**精确文件路径**；优先传本页页面/API/类型文件，以及最多 1-3 个后端代表性样例文件
+   - **不得**传目录路径、模块路径或通配模式代替精确文件路径
+   - 子代理只允许读取 `ALLOWED_READ_PATHS` 中的文件；若缺少必要上下文，必须显式报告缺失路径，由主代理补充，**不得自行 Search/Glob**
+   - 明确禁止：`Search("**/diff.md")`、`Search("**/PRD*.md")`、`Search("ruoyi-rest/**/domain/*.java")`、`Search("ruoyi-rest/**/*Controller.java")`、`Search("**/*.java")`、`Search("**/order*.xml")` 等模糊检索
+9. **变更文件清单**（commit-diff 驱动的精准读取）：
    - 主代理在启动子代理前，根据 diff 文档中的 Git 基线（旧 Commit → 当前 Commit）执行 `git diff --name-only <old-commit> <new-commit>` 获取本次变更的文件列表
-   - 将变更文件的**绝对路径列表**嵌入子代理 prompt，标注为"本次需关注的已修改文件"
-   - 子代理只需读取这些变更文件（而非整个项目），结合 `spec/CODING_STANDARDS.md` 和 diff 文档编写设计
+   - 将变更文件的**绝对路径列表**嵌入子代理 prompt，标注为"本次需关注的已修改文件"，并一并加入 `ALLOWED_READ_PATHS`
+   - 子代理只需读取这些变更文件（而非整个项目），结合 `spec/CODING_STANDARDS.md`、`DIFF_PATH` 和主代理显式传入的补充材料编写设计
    - 如果无 Git 基线（无 commit 场景），此项跳过，子代理按 diff 文档中的页面描述编写设计，不读取项目代码
 
-9. **完成回报约束**：
+10. **完成回报约束**：
    - 子代理最终回复必须明确列出本页实际写入的文件绝对路径
    - 仅当本页范围内要求的文件都已落盘时，子代理才可声明该页完成
    - 若缺少 `frontend-detail-design.md` 或 `backend-detail-design.md` 中任一必需文件，子代理必须显式报告缺失，不得说“已完成”
@@ -295,6 +301,10 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务目录
 依赖链：`spec/CODING_STANDARDS.md + diff.md + 原型图/PRD → 前端详细设计 → 后端详细设计`
 
 **项目规范唯一来源规则**：详细设计阶段不得扫描项目代码去推断技术栈、模块架构、代码规范、接口约定或类型约定。上述项目级事实只允许从 `spec/CODING_STANDARDS.md` 获取。
+
+**PRD 使用边界**：详细设计读取 PRD 的唯一目的，是在 diff 文档未展开完整字段/控件/权限描述时做需求保真校对，例如 diff 里只写了“同订单管理列表字段”这类摘要描述。若 diff 已给出足够信息，或主代理未提供 PRD 的确切绝对路径，则**不读取 PRD**，更不得自行搜索 `PRD*.md`。
+
+**代码读取边界**：读取现有 `.vue` / `.ts` / `.java` / `.xml` 的唯一目的，是理解本页当前实现或本次变更，不是发现项目规范。若确需参考现有后端写法，必须由主代理传入 1-3 个精确样例文件路径，禁止扫描 `domain/`、`controller/`、`mapper/` 等目录。
 
 1. **先写前端**：
    - Section 1-7 的项目级规范、技术栈、架构约定统一以 `spec/CODING_STANDARDS.md` 为准

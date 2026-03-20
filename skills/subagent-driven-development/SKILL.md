@@ -1,6 +1,6 @@
 ---
 name: subagent-driven-development
-description: Use when executing implementation plans in the current session. Runs the `shared-plan.md` phase first, then executes page plans with page-parallel / task-serial waves using a fresh implementer subagent per task. Shared tasks may run in parallel when safe. Compilation and reviews are deferred until all tasks complete.
+description: Use when executing implementation plans in the current session. Runs the `shared-plan.md` phase first, then executes page plans with true page-parallel / task-serial waves using a fresh implementer subagent per task. Parallel means multiple Agent tool calls in the same wave, not sequential dispatch and not same-page fanout. Shared tasks may run in parallel when safe. Compilation and reviews are deferred until all tasks complete.
 ---
 
 # Subagent-Driven Development
@@ -28,7 +28,7 @@ Prefer `executing-plans` when you want a separate parallel execution session ins
 
 ## Core Principle
 
-`shared-plan.md` phase first + shared-task parallelism when safe + page-parallel / task-serial waves + fresh subagent per task + deferred compilation + deferred review = fast execution with clearer ownership and fewer missed pages.
+`shared-plan.md` phase first + shared-task parallelism when safe + true multi-agent page waves (one next task per ready page) + fresh subagent per task + deferred compilation + deferred review = fast execution with clearer ownership and fewer missed pages.
 
 ## Controller Role Boundaries
 
@@ -43,6 +43,7 @@ CRITICAL: The controller is an orchestrator, not an implementer.
 - Parallelize ready shared tasks when their write sets are disjoint
 - Dispatch a fresh implementer subagent per task
 - Keep at most one active task per page at any time
+- When a wave has 2+ safe tasks, dispatch 2+ implementer subagents in the same message and same wave
 - Answer subagent questions before the subagent proceeds
 - Track and pass the same absolute `SOURCE_ROOT` to every implementer and verification command
 - Track and use the same absolute `DOC_ROOT` for all design and plan reads plus status write-backs
@@ -55,6 +56,8 @@ CRITICAL: The controller is an orchestrator, not an implementer.
 - Scan the repository to rediscover Maven/module structure, controller package layout, entity locations, or other project-wide conventions already defined in `CODING_STANDARDS.md`
 - Start any page task before `shared-plan.md` is complete
 - Dispatch two tasks from the same page in the same wave
+- Call something "parallel" when only one implementer subagent was dispatched
+- Use multiple tasks from one page to imitate page-level parallelism while another ready page is idle
 - Compile between tasks
 - Dispatch reviewers between tasks
 - Treat timeout, missing exit code, missing agent handle, or `No task found with ID` as success
@@ -64,18 +67,31 @@ CRITICAL: The controller is an orchestrator, not an implementer.
 
 If you catch yourself writing implementation code instead of dispatching a subagent, stop and dispatch the appropriate task.
 
-## Required Inputs
+## Required Inputs (Hard Gate)
 
-Before Phase 1, the controller must have:
+Before Phase 1, the controller must have **all** of the following. **Any missing item = STOP, do not proceed.**
 
 - `DOC_ROOT`: absolute path to the docs workspace
 - `PROJECT_ROOT`: absolute path to the main source repository
-- `SOURCE_ROOT`: absolute path to the selected worktree
+- `SOURCE_ROOT`: absolute path to the selected worktree — **MUST be created via `superpowers:using-git-worktrees` before Phase 1 starts (CLAUDE.md Rule 9)**. If no worktree exists, invoke `using-git-worktrees` now. Do NOT use `PROJECT_ROOT` directly as `SOURCE_ROOT`.
 - `VERSION_DIR`: absolute path to the current version directory (e.g., `[DOC_ROOT]/docs/plans/2026-03-20-xxx/abc123/`)
 - `CODING_STANDARDS` content: controller must read `[DOC_ROOT]/spec/CODING_STANDARDS.md` once and cache its content for embedding into every implementer prompt
 - `index.md`
 - `shared-plan.md` when it exists
 - Every page `plan.md` referenced by `index.md`
+
+### Pre-Phase-1 Checklist (controller must verify before dispatching any task)
+
+```
+☐ Worktree created via using-git-worktrees? → SOURCE_ROOT recorded
+☐ SOURCE_ROOT ≠ PROJECT_ROOT? (must be a worktree, not the main repo)
+☐ DOC_ROOT set to CWD absolute path?
+☐ VERSION_DIR set to current version directory absolute path?
+☐ CODING_STANDARDS.md read and cached?
+☐ index.md read? All page plan.md files read?
+```
+
+If any checkbox fails, fix it before proceeding. **Starting Phase 1 without a worktree is a hard violation of CLAUDE.md Rule 9.**
 
 ## Frontend Execution Mode (前端执行模式)
 
@@ -126,6 +142,22 @@ This skill uses a staged scheduler. That scheduler is authoritative and replaces
 
 The unit of parallelism is not "all ready tasks everywhere". It is "the next ready task from each ready page".
 
+### What Counts As Parallel
+
+For this skill, "parallel" has a strict meaning:
+
+- Multiple implementer subagents are dispatched in the same wave
+- Those dispatches happen in the same controller message, not one-by-one across separate turns
+- In shared waves, each dispatched task belongs to the current ready shared-task set
+- In page waves, each dispatched task belongs to a different ready page
+
+These do **not** count as valid parallelism:
+
+- Running one subagent now and another later
+- Running one ready shared task now and another ready shared task later without a concrete safety conflict
+- Running two tasks from the same page while other ready pages are waiting
+- Writing a Todo list for multiple pages but dispatching only one implementer
+
 ### Shared Work First
 
 `shared-plan.md` owns all cross-page bootstrap work, including examples such as:
@@ -140,6 +172,25 @@ If `shared-plan.md` exists:
 - its tasks may run in parallel when their write sets are disjoint
 - conflicting shared tasks must downgrade to serial
 - the shared phase must fully finish before any page lane starts
+
+### Shared-Parallel Enforcement
+
+During the shared phase, you MUST dispatch multiple shared tasks in the same wave whenever all of the following are true:
+
+- 2 or more shared tasks are ready
+- their write sets are disjoint
+- they do not compete for shared ownership
+- they do not depend on each other
+
+Do NOT fall back to serial execution merely because "conservative is safer" once the controller has already proven the tasks are safe to parallelize.
+
+Correct shared-phase behavior:
+
+- If Task 1 is the only ready shared task, dispatch only Task 1
+- After Task 1 completes, recompute ready shared tasks
+- If Task 2, Task 3, and Task 4 are all now ready and safe, dispatch all 3 in the same shared wave using multiple Agent tool calls in the same message
+
+Serial shared execution is valid only when the controller can point to a concrete dependency or write-set / ownership conflict.
 
 ### Page Lanes
 
@@ -193,7 +244,8 @@ Downgrade shared work to serial when the controller cannot prove the shared writ
 Even though the scheduler is page-oriented, the implementer unit is still task-oriented:
 
 - Dispatch a fresh implementer subagent per task
-- Provide the full task text, required context, `SOURCE_ROOT`, `DOC_ROOT`, and `VERSION_DIR`
+- Provide the task implementation text, required context, `SOURCE_ROOT`, `DOC_ROOT`, and `VERSION_DIR`
+- If a legacy plan still contains a `验证:` / `**验证**:` subsection inside the Task, strip that subsection before dispatching the implementer
 - **Controller 必须在 prompt 中嵌入 `spec/CODING_STANDARDS.md` 的完整内容**，implementer 不再需要自行读取此文件
 - **Controller 必须传入 `VERSION_DIR`**（精确到 commit 版本目录的绝对路径，如 `[DOC_ROOT]/docs/plans/2026-03-20-xxx/abc123/`），implementer 用此路径直接读取设计文档，不需要自行拼接
 - Task 的参考文件中引用设计文档时，controller 替换为 `VERSION_DIR` 下的绝对路径
@@ -202,7 +254,22 @@ Even though the scheduler is page-oriented, the implementer unit is still task-o
 
 Do not dispatch one long-running implementer for the entire page. Fresh subagent per task remains the default.
 
+#### ⛔ HARD GATE: Sanitize Task Text Before Dispatch
+
+Before pasting any Task text into an implementer prompt, the controller MUST sanitize it:
+
+1. **Search for `验证:` or `**验证**:`** — if found, DELETE that entire subsection (from the `验证:` heading to the next `###` heading or end of Task). Do NOT pass it to the implementer.
+2. **Search for banned keywords**: `mvn`, `mvn compile`, `npm run build`, `gradle build`, `tsc`, `编译无错误`, `无 import 错误`, `无类型不匹配`. If any appear as a completion condition or verification step, DELETE the line containing them.
+3. **If the Task text survives sanitization unchanged** — great, proceed normally.
+4. **If you had to strip content** — note it in your wave log but do NOT block dispatch.
+
+Failure to sanitize = compilation leaks into the implementer, violating CLAUDE.md Rule 6.
+
 ### Phase 1 Loop
+
+**CRITICAL — Shared-Parallel Enforcement:** Inside the shared phase, if 2+ shared tasks are ready and safe, you MUST dispatch them together in the same wave. Do NOT serially drain ready shared tasks one-by-one after you have already determined their write sets are disjoint and dependencies are satisfied.
+
+**CRITICAL — Page-Parallel Enforcement:** After shared work completes, you MUST dispatch multiple pages in the same wave. Do NOT run all tasks of one page before starting another page. The correct behavior is: pick the next ready task from EACH ready page, dispatch them ALL in parallel (one Agent tool call per task, all in the same message), then wait for the wave to complete. Running pages sequentially (finishing page A entirely before starting page B) is a violation of the scheduler model.
 
 Repeat the following loop:
 
@@ -210,13 +277,31 @@ Repeat the following loop:
 2. Dispatch the shared wave and wait for every shared subagent
 3. Update `shared-plan.md` and the `shared` row in `index.md`
 4. Repeat shared waves until the shared phase is complete
-5. Then build the page wave by selecting at most one next ready task per ready page
-6. Dispatch the page wave
-7. Wait for every subagent in the page wave
-8. For each successful task, update status and progress
-9. For any failed or incomplete task, keep that page in place and do not advance it
-10. Recompute the next wave
-11. When no shared task and no page task remain, enter Phase 2
+5. **Then build the page wave: for EACH ready page, select its next ready task → collect ALL selected tasks → dispatch ALL of them in parallel using multiple Agent tool calls in a single message**
+6. Wait for every subagent in the page wave
+7. For each successful task, update status and progress
+8. For any failed or incomplete task, keep that page in place and do not advance it
+9. Recompute the next wave — again selecting one task per ready page and dispatching in parallel
+10. When no shared task and no page task remain, enter Phase 2
+
+### Wave Dispatch Evidence (Mandatory)
+
+Before dispatching any shared wave or page wave, the controller must explicitly reason about the wave composition.
+
+For a shared wave:
+
+- List all ready shared tasks
+- List the subset selected for this wave
+- If only one shared task is dispatched while another shared task is ready, record the concrete file-level or ownership conflict
+- If 2+ ready shared tasks are safe and only 1 is dispatched, the wave is invalid and must be rebuilt
+
+For a page wave:
+
+- List all ready pages
+- For each ready page, list its selected next task
+- If 2+ ready pages exist and only 1 page is dispatched, STOP and document the concrete safety reason before continuing
+- If another ready page is safe but omitted, the wave is invalid and must be rebuilt
+- A page wave where all dispatched tasks belong to the same page is invalid unless every other page is blocked or unsafe
 
 ### Status Updates After Each Task
 
@@ -382,6 +467,9 @@ Wave 3:
 
 Never:
 
+- **start Phase 1 without creating a worktree via `using-git-worktrees`** (CLAUDE.md Rule 9)
+- **serially drain ready shared tasks** after proving they are safe to run together
+- **run all tasks of one page before starting another page** — after shared phase, each wave must include one task per ready page
 - start page tasks before `shared-plan.md` completes
 - run unsafe shared tasks in parallel when they touch the same shared files
 - dispatch two tasks from the same page at once
@@ -391,6 +479,7 @@ Never:
 - ignore subagent questions
 - let a page advance after a `NOT COMPLETE` task
 - fix implementation code manually as controller
+- **pass unsanitized Task text containing `验证:` or `mvn compile` to an implementer** (CLAUDE.md Rule 6 — strip before dispatch)
 - **declare "实施完成" or "可以部署" after compilation passes without completing Gate 3/4/5 and outputting Final Gate Evidence**
 
 ## Known Failure Modes
@@ -419,6 +508,40 @@ Detection:
 
 - Two in-flight shared tasks touch the same bootstrap file, shared controller, shared service, shared mapper, shared entity, shared DTO, route, or menu seed.
 
+### Failure Mode 9: Sequential Shared Execution
+
+The controller executes ready shared tasks one-by-one even though multiple shared tasks are already safe to run in parallel.
+
+Detection:
+
+- Shared Task B and Shared Task C are both ready after Shared Task A completes, but only one Agent tool call is dispatched for the next shared wave.
+- The controller says "根据保守策略先串行执行" even after explicitly stating the write sets are disjoint and there is no dependency conflict.
+
+Fix: Recompute the ready shared set and dispatch every safe shared task in the same wave using multiple Agent tool calls in a single message.
+
+### Failure Mode 7: Sequential Page Execution
+
+The controller finishes ALL tasks of one page before starting ANY task of another page, instead of running page waves in parallel.
+
+Detection:
+
+- Page B has zero completed tasks while Page A already has 3+ completed tasks, even though Page B has no dependency on Page A.
+- Only one Agent tool call is dispatched per wave when multiple pages have ready tasks.
+- Two Agent tool calls are dispatched, but they both belong to the same page while another page is ready.
+
+Fix: After shared phase completes, each wave MUST include one task from EVERY ready page (unless safety rules prevent it). Use multiple Agent tool calls in a single message.
+
+### Failure Mode 8: No Worktree Created
+
+The controller starts Phase 1 without creating a worktree, using PROJECT_ROOT directly as SOURCE_ROOT.
+
+Detection:
+
+- SOURCE_ROOT equals PROJECT_ROOT or is never set.
+- No `using-git-worktrees` invocation before the first implementer dispatch.
+
+Fix: Always invoke `using-git-worktrees` before Phase 1. SOURCE_ROOT must be a worktree path, not the main repo.
+
 ### Failure Mode 4: Two Tasks From The Same Page Run Together
 
 The controller dispatches parallel tasks that both belong to the same page.
@@ -426,6 +549,9 @@ The controller dispatches parallel tasks that both belong to the same page.
 Detection:
 
 - More than one in-flight subagent is working on the same page lane in the same wave.
+- Another page has a ready next task, but the wave still uses two slots on the same page.
+
+Fix: Reduce the page to one in-flight task. Rebuild the wave so each ready page contributes at most one task.
 
 ### Failure Mode 5: No Status Updates
 

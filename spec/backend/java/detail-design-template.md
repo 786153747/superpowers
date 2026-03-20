@@ -5,7 +5,8 @@
 
 ## 需求输入
 
-- **PRD**: `[PRD 文档路径]`
+- **Diff**: `[diff.md 路径]`
+- **PRD**: `[主代理传入的 PRD 文档路径；若未传入则写“无（以 diff.md 为准）”]`
 - **前端详细设计**: `./frontend-detail-design.md`
 - **项目规范**: `@spec/CODING_STANDARDS.md`
 

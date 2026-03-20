@@ -127,9 +127,10 @@ Load plan, review critically, execute tasks in batches, report for review betwee
 
 For each task:
 1. Mark as in_progress
-2. Follow each step exactly (plan has bite-sized steps)
-3. Mark as completed
-4. **Update status tracking** after each task:
+2. **⛔ Sanitize Task text**: before executing, check if the Task contains `验证:`/`**验证**:` subsection or banned keywords (`mvn`, `npm run build`, `compile`, `编译无错误`). If found, mentally skip those lines — do NOT execute them. Compilation is Phase 2 only.
+3. Follow each step exactly (plan has bite-sized steps)
+4. Mark as completed — **completion = code files written correctly, NOT "编译通过"**
+5. **Update status tracking** after each task:
    - Update the task's status in the current version directory's `<page>/plan.md` 任务状态 table (set to `已完成`)
    - Update the current version directory's `index.md` 执行进度 table: increment the `已完成` count for this page
    - On first task of a page: update the current version directory's `index.md` page `实施状态` to `进行中`

@@ -149,6 +149,8 @@ Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
 - worktree 将在此目录下创建
 - 如果 MEMORY.md 中记录了上次使用的路径，作为推荐选项
 - 如果 CWD 本身就是代码项目（`docs/plans/` 和源码在同一目录），`PROJECT_ROOT` = CWD
+- `AskUserQuestion` 的固定选项里只放真实候选路径，**不要添加“其他路径”/“Other”这类兜底选项**
+- 如果用户要输入自定义路径，直接使用工具自带的自由输入项（例如 `Type something.`），不要重复造一个不可输入的“其他路径”
 
 确认后记录：
 - `PROJECT_ROOT` = 用户确认的实际代码项目路径

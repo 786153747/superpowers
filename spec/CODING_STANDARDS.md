@@ -1132,3 +1132,288 @@ mvn clean compile
 - [ ] 包含 `del_flag` 逻辑删除字段
 - [ ] 包含 `create_time`, `update_time` 等审计字段
 - [ ] 主键索引和查询字段索引已创建
+
+---
+
+### 十二、SQL 风格规范
+
+若依项目使用 MyBatis XML 映射文件编写 SQL，以下为统一的 SQL 编码风格。
+
+#### 1. 通用格式规则
+
+- **SQL 关键字大写**：`SELECT`、`FROM`、`WHERE`、`INSERT`、`UPDATE`、`DELETE`、`AND`、`OR`、`LEFT JOIN`、`ORDER BY`、`GROUP BY` 等
+- **表名/列名小写蛇形**：`t_order`、`order_no`、`create_time`
+- **缩进**：使用 4 个空格，不使用 Tab
+- **每个主要子句独占一行**：`SELECT`、`FROM`、`WHERE`、`ORDER BY` 等各占一行
+- **逗号前置**：多列/多条件时，逗号放在行首便于注释和增减字段
+
+#### 2. Mapper XML 结构规范
+
+**namespace**：与 Mapper 接口全限定名一致
+
+```xml
+<mapper namespace="com.ruoyi.system.mapper.OrderMapper">
+```
+
+**resultMap 定义**：
+- id 命名：`{Entity}Result`
+- 主键用 `<id>`，普通字段用 `<result>`
+- `property` 对应 Java 字段（小驼峰），`column` 对应数据库列（蛇形）
+
+```xml
+<resultMap type="Order" id="OrderResult">
+    <id     property="id"          column="id"           />
+    <result property="orderNo"     column="order_no"     />
+    <result property="materialNo"  column="material_no"  />
+    <result property="quantity"    column="quantity"      />
+    <result property="orderDate"   column="order_date"    />
+    <result property="delFlag"     column="del_flag"      />
+    <result property="createBy"    column="create_by"     />
+    <result property="createTime"  column="create_time"   />
+    <result property="updateBy"    column="update_by"     />
+    <result property="updateTime"  column="update_time"   />
+    <result property="remark"      column="remark"        />
+</resultMap>
+```
+
+**sql 片段**：提取公共列列表，避免重复
+
+```xml
+<sql id="selectOrderVo">
+    SELECT id
+        , order_no
+        , material_no
+        , quantity
+        , order_date
+        , del_flag
+        , create_by
+        , create_time
+        , update_by
+        , update_time
+        , remark
+    FROM t_order
+</sql>
+```
+
+#### 3. 查询语句（SELECT）
+
+**单表查询**：
+
+```xml
+<select id="selectOrderList" parameterType="Order" resultMap="OrderResult">
+    <include refid="selectOrderVo"/>
+    <where>
+        del_flag = '0'
+        <if test="orderNo != null and orderNo != ''">
+            AND order_no LIKE CONCAT('%', #{orderNo}, '%')
+        </if>
+        <if test="materialNo != null and materialNo != ''">
+            AND material_no = #{materialNo}
+        </if>
+        <if test="params.beginOrderDate != null and params.beginOrderDate != ''">
+            AND order_date &gt;= #{params.beginOrderDate}
+        </if>
+        <if test="params.endOrderDate != null and params.endOrderDate != ''">
+            AND order_date &lt;= #{params.endOrderDate}
+        </if>
+    </where>
+    ORDER BY create_time DESC
+</select>
+```
+
+**按主键查询**：
+
+```xml
+<select id="selectOrderById" parameterType="Long" resultMap="OrderResult">
+    <include refid="selectOrderVo"/>
+    WHERE id = #{id}
+      AND del_flag = '0'
+</select>
+```
+
+**多表关联查询**：
+- 表别名使用有意义的缩写（`o` = order，`m` = material）
+- JOIN 条件紧跟 JOIN 语句
+- 关联查询不使用 `<include>`，直接写完整 SELECT 列
+
+```xml
+<select id="selectOrderWithMaterial" parameterType="Order" resultMap="OrderMaterialResult">
+    SELECT o.id
+        , o.order_no
+        , o.quantity
+        , m.material_name
+        , m.spec
+    FROM t_order o
+    LEFT JOIN t_material m ON m.material_no = o.material_no
+    <where>
+        o.del_flag = '0'
+        <if test="orderNo != null and orderNo != ''">
+            AND o.order_no = #{orderNo}
+        </if>
+    </where>
+    ORDER BY o.create_time DESC
+</select>
+```
+
+#### 4. 新增语句（INSERT）
+
+- 使用 `<trim>` 实现动态插入，只插入非空字段
+- `suffixOverrides` 去除末尾多余逗号
+- `useGeneratedKeys="true"` + `keyProperty="id"` 回填主键
+
+```xml
+<insert id="insertOrder" parameterType="Order" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO t_order
+    <trim prefix="(" suffix=")" suffixOverrides=",">
+        <if test="orderNo != null and orderNo != ''">order_no,</if>
+        <if test="materialNo != null and materialNo != ''">material_no,</if>
+        <if test="quantity != null">quantity,</if>
+        <if test="orderDate != null">order_date,</if>
+        <if test="delFlag != null and delFlag != ''">del_flag,</if>
+        <if test="createBy != null and createBy != ''">create_by,</if>
+        <if test="createTime != null">create_time,</if>
+        <if test="updateBy != null and updateBy != ''">update_by,</if>
+        <if test="updateTime != null">update_time,</if>
+        <if test="remark != null">remark,</if>
+    </trim>
+    <trim prefix="VALUES (" suffix=")" suffixOverrides=",">
+        <if test="orderNo != null and orderNo != ''">#{orderNo},</if>
+        <if test="materialNo != null and materialNo != ''">#{materialNo},</if>
+        <if test="quantity != null">#{quantity},</if>
+        <if test="orderDate != null">#{orderDate},</if>
+        <if test="delFlag != null and delFlag != ''">#{delFlag},</if>
+        <if test="createBy != null and createBy != ''">#{createBy},</if>
+        <if test="createTime != null">#{createTime},</if>
+        <if test="updateBy != null and updateBy != ''">#{updateBy},</if>
+        <if test="updateTime != null">#{updateTime},</if>
+        <if test="remark != null">#{remark},</if>
+    </trim>
+</insert>
+```
+
+#### 5. 更新语句（UPDATE）
+
+- 使用 `<trim>` 或 `<set>` 动态拼接
+- 只更新非空字段
+- WHERE 条件必须包含主键
+
+```xml
+<update id="updateOrder" parameterType="Order">
+    UPDATE t_order
+    <trim prefix="SET" suffixOverrides=",">
+        <if test="orderNo != null and orderNo != ''">order_no = #{orderNo},</if>
+        <if test="materialNo != null and materialNo != ''">material_no = #{materialNo},</if>
+        <if test="quantity != null">quantity = #{quantity},</if>
+        <if test="orderDate != null">order_date = #{orderDate},</if>
+        <if test="delFlag != null and delFlag != ''">del_flag = #{delFlag},</if>
+        <if test="createBy != null and createBy != ''">create_by = #{createBy},</if>
+        <if test="createTime != null">create_time = #{createTime},</if>
+        <if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
+        <if test="updateTime != null">update_time = #{updateTime},</if>
+        <if test="remark != null">remark = #{remark},</if>
+    </trim>
+    WHERE id = #{id}
+</update>
+```
+
+#### 6. 删除语句（DELETE）
+
+**逻辑删除（推荐）**：更新 `del_flag` 字段，不物理删除数据
+
+```xml
+<update id="deleteOrderByIds" parameterType="String">
+    UPDATE t_order SET del_flag = '2' WHERE id IN
+    <foreach item="id" collection="array" open="(" separator="," close=")">
+        #{id}
+    </foreach>
+</update>
+
+<update id="deleteOrderById" parameterType="Long">
+    UPDATE t_order SET del_flag = '2' WHERE id = #{id}
+</update>
+```
+
+**物理删除（仅特殊场景使用）**：
+
+```xml
+<delete id="deleteOrderByIds" parameterType="String">
+    DELETE FROM t_order WHERE id IN
+    <foreach item="id" collection="array" open="(" separator="," close=")">
+        #{id}
+    </foreach>
+</delete>
+```
+
+#### 7. 批量操作
+
+**批量插入**：使用 `<foreach>` 拼接 VALUES
+
+```xml
+<insert id="batchInsertOrder" parameterType="java.util.List">
+    INSERT INTO t_order (order_no, material_no, quantity, order_date, create_by, create_time)
+    VALUES
+    <foreach item="item" collection="list" separator=",">
+        (#{item.orderNo}, #{item.materialNo}, #{item.quantity}, #{item.orderDate}, #{item.createBy}, #{item.createTime})
+    </foreach>
+</insert>
+```
+
+#### 8. 动态条件规范
+
+| 场景 | 写法 |
+|------|------|
+| 字符串非空判断 | `<if test="name != null and name != ''">` |
+| 数值非空判断 | `<if test="quantity != null">` |
+| 模糊查询 | `LIKE CONCAT('%', #{keyword}, '%')` |
+| 日期范围（开始） | `AND date_col &gt;= #{params.beginDate}` |
+| 日期范围（结束） | `AND date_col &lt;= #{params.endDate}` |
+| IN 查询 | `<foreach item="id" collection="array" open="(" separator="," close=")">#{id}</foreach>` |
+| 多条件选择 | 使用 `<choose><when>...<otherwise>...</choose>` |
+
+#### 9. DDL 建表规范
+
+```sql
+CREATE TABLE t_order (
+    id              BIGINT(20)      NOT NULL AUTO_INCREMENT  COMMENT '主键',
+    order_no        VARCHAR(64)     NOT NULL DEFAULT ''      COMMENT '订单编号',
+    material_no     VARCHAR(64)     NOT NULL DEFAULT ''      COMMENT '物料号',
+    quantity        DECIMAL(20,6)   NOT NULL DEFAULT 0       COMMENT '数量',
+    order_date      DATE            NULL     DEFAULT NULL    COMMENT '下单日期',
+    status          CHAR(1)         NOT NULL DEFAULT '0'     COMMENT '状态（0正常 1停用）',
+    del_flag        CHAR(1)         NOT NULL DEFAULT '0'     COMMENT '删除标志（0存在 2删除）',
+    create_by       VARCHAR(64)     NOT NULL DEFAULT ''      COMMENT '创建者',
+    create_time     DATETIME        NULL     DEFAULT NULL    COMMENT '创建时间',
+    update_by       VARCHAR(64)     NOT NULL DEFAULT ''      COMMENT '更新者',
+    update_time     DATETIME        NULL     DEFAULT NULL    COMMENT '更新时间',
+    remark          VARCHAR(500)    NULL     DEFAULT NULL    COMMENT '备注',
+    PRIMARY KEY (id)
+) ENGINE=InnoDB AUTO_INCREMENT=1 COMMENT='订单表';
+
+-- 索引：按查询频率创建
+CREATE INDEX idx_order_no       ON t_order (order_no);
+CREATE INDEX idx_material_no    ON t_order (material_no);
+CREATE INDEX idx_order_date     ON t_order (order_date);
+```
+
+**DDL 要点**：
+
+| 规则 | 说明 |
+|------|------|
+| 表名 | `t_` 前缀 + 蛇形命名（系统表用 `sys_` 前缀） |
+| 主键 | `BIGINT(20) NOT NULL AUTO_INCREMENT` |
+| 字符串 | `VARCHAR(n)` 指定合理长度，短字段用 `CHAR` |
+| 金额/数量 | `DECIMAL(20,6)` 禁止使用 `FLOAT`/`DOUBLE` |
+| 状态字段 | `CHAR(1)` + COMMENT 标注每个值含义 |
+| 逻辑删除 | `del_flag CHAR(1) NOT NULL DEFAULT '0'` |
+| 审计字段 | 必须包含 `create_by`、`create_time`、`update_by`、`update_time` |
+| COMMENT | 每个字段和表都必须有中文注释 |
+| 引擎 | 统一使用 `InnoDB` |
+| 索引 | 查询条件字段建索引，命名 `idx_{表名简写}_{字段名}` |
+
+#### 10. SQL 安全规范
+
+- **禁止拼接 SQL**：所有参数使用 `#{}` 预编译占位符，防止 SQL 注入
+- **`${}` 仅限安全场景**：仅用于动态表名、列名排序等不可预编译的场景，且必须在代码层做白名单校验
+- **禁止 SELECT \***：明确列出所有需要的字段
+- **逻辑删除优先**：默认所有查询加 `del_flag = '0'` 过滤条件
+- **分页必须使用框架**：通过 `startPage()` 调用 PageHelper，禁止手写 LIMIT

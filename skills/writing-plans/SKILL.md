@@ -7,7 +7,7 @@ description: "Use ONLY after brainstorming has produced saved design docs (front
 
 ## Overview
 
-写导航图，不写驾驶手册。告诉执行者：去哪里（文件路径）、看什么（参考文件）、做什么（业务规则）、怎么验证（验证步骤）。**不要把完整代码写进 plan**——执行者读真实的参考文件比抄 plan 里的代码更可靠。
+写导航图，不写驾驶手册。告诉执行者：去哪里（文件路径）、看什么（参考文件）、做什么（业务规则）。**不要把完整代码写进 plan**——执行者读真实的参考文件比抄 plan 里的代码更可靠。
 
 Plan 的目标是让一个**有开发能力但不了解项目**的模型，通过读 `spec/CODING_STANDARDS.md`、设计文档和当前 Task 明确涉及的具体文件，产出与项目风格一致的代码。
 
@@ -144,19 +144,19 @@ Task 中**不得出现无法直接执行的占位符**。以下内容在 Plan �
 
 ```
 Task 1: 建表（前置，只做一次）
-Task 2: 订单列表接口（Entity + Mapper + XML + Service + Controller）→ 可独立验证
-Task 3: 订单确认接口（Service 方法 + Controller 端点）→ 可独立验证
-Task 4: 发货记录查询接口（Entity + Mapper + XML + Service + Controller）→ 可独立验证
-Task 5: 寄售库存查询接口（Entity + Mapper + XML + Service + Controller）→ 可独立验证
+Task 2: 订单列表接口（Entity + Mapper + XML + Service + Controller）
+Task 3: 订单确认接口（Service 方法 + Controller 端点）
+Task 4: 发货记录查询接口（Entity + Mapper + XML + Service + Controller）
+Task 5: 寄售库存查询接口（Entity + Mapper + XML + Service + Controller）
 ```
 
-**优势**：每个 Task 完成后立即可验证；不会出现"Controller 写了但 Service/Mapper 遗漏"的断层。
+**优势**：每个 Task 都是独立闭环；不会出现"Controller 写了但 Service/Mapper 遗漏"的断层。
 
 **注意**：如果多个接口共用同一个 Entity，在第一个用到它的 Task 里创建，后续 Task 注明"Entity 已在 Task N 创建"。
 
 ### 纯前端：按页面维度切
 
-每个 Task 对应一个页面，改完即可在浏览器验证：
+每个 Task 对应一个页面，范围清晰：
 
 ```
 Task 1: myOrder.vue — 补按钮 + 权限控制
@@ -190,7 +190,6 @@ Task N: [页面名] 前端差异修复
   1. D1: 表格固定列 — 序号/状态/订单编号/行项目/物料号/物料名称列添加 fixed="left"
   2. D5: 发货默认数量 — el-input-number 默认值改为 row.remainingQuantity
   3. D26: 确认弹窗补物料品牌列
-  验证: npm run build 无 TS 错误；浏览器验证固定列效果
 ```
 
 ### 复用接口的页面：不重复创建后端
@@ -332,7 +331,7 @@ Do not hard-code a default execution skill in generated plans. Execution mode mu
 
 ## Task Structure（核心）
 
-每个 Task 包含 6 个关键要素：
+每个 Task 包含 5 个关键要素：
 
 ````markdown
 ### Task N: [组件名称]
@@ -394,6 +393,33 @@ Do not hard-code a default execution skill in generated plans. Execution mode mu
 - **编译相关的完成条件**：不得在 Task 中写"编译无错误"、"无 import 错误"、"无类型不匹配警告"等编译验证条件——编译检查由 CLAUDE.md Rule 6（延迟编译）在所有 Task 完成后统一执行
 - **"同上"**：每个 Task 的参考文件必须列出完整路径，不得写"同上""同 Task 1"。执行者可能单独看某个 Task，看不到"上"是什么
 
+### ⛔ BANNED — 以下内容出现在 Task 中 = Plan 不合格
+
+Task 中禁止出现以下任何模式。如果你生成的 Task 包含这些内容，**必须删除后再保存**：
+
+```
+# 禁止的验证/编译段
+验证:
+**验证**:
+验证：
+
+# 禁止的编译命令
+mvn compile
+mvn package
+npm run build
+gradle build
+tsc
+
+# 禁止的编译完成条件
+编译无错误
+无编译错误
+无 import 错误
+无类型不匹配
+compile without error
+```
+
+**为什么**：Task 中的 `验证:` 段会被弱模型当作执行指令，导致 implementer subagent 在编码阶段运行编译命令，违反延迟编译规则（CLAUDE.md Rule 6）。即使 implementer prompt 中有"忽略验证段"的兜底指令，弱模型也会直接执行看到的命令。唯一可靠的防线是**在源头就不生成这些内容**。
+
 ## 反面示例
 
 **不合格：Task 里写完整代码**
@@ -448,6 +474,7 @@ Plan 保存前必须逐项自检：
 | 7 | Task 中**无完整 SQL DDL / 查询 SQL**（应引用设计文档 Section 编号），每个 Task ≤ 60 行 | ✅/❌ |
 | 8 | index.md 页面清单**无重复行**（每个 page-slug 只出现一次） | ✅/❌ |
 | 9 | **共享接口去重**：index.md API 映射中标记"是否共享=是"的接口，后续页面 plan 不得重复创建 Controller/Service/Mapper | ✅/❌ |
+| 10 | **无编译验证条件**：全文搜索 `mvn compile`、`npm run build`、`编译无错误`、`无 import 错误`、`无类型不匹配` — Task 中不得出现任何此类内容（CLAUDE.md Rule 6） | ✅/❌ |
 
 任一项为 ❌ → 补全后再保存。
 
@@ -457,7 +484,7 @@ Plan 保存前必须逐项自检：
 ## 自检总裁定: [PASS / FAIL]
 ```
 
-- 9 项全部 ✅ → `PASS`，可以落盘
+- 10 项全部 ✅ → `PASS`，可以落盘
 - 任何一项 ❌ → `FAIL`，**绝对不得落盘**。必须定位失败项、修复后重新执行完整自检，直到 `PASS` 才能保存
 - **禁止绕过**：不得在 FAIL 时以"后续补充"等理由保存半成品 plan
 

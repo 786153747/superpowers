@@ -42,6 +42,8 @@ CLI 工作目录（CWD）与实际代码项目目录可能不同。以下变量�
 
 `PROJECT_ROOT` 通常由 `using-superpowers` 第零步确认。但如果 skill 被单独调用（跳过了 using-superpowers），任何需要操作代码目录的 skill 在首次使用 `PROJECT_ROOT` 前，必须检查当前会话是否已确认过。**未确认时必须用 `AskUserQuestion` 向用户确认，不得猜测。**
 
+`AskUserQuestion` 用于路径确认时，固定选项里只放真实候选路径；不要添加“其他路径”/“Other”这类兜底选项。需要自定义路径时，直接使用工具自带的自由输入能力。
+
 ---
 
 ## 核心工作流程

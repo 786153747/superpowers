@@ -10,7 +10,7 @@ Task tool (general-purpose):
 
     ## Task Description
 
-    [FULL TEXT of task from plan - paste it here, don't make subagent read file]
+    [TASK IMPLEMENTATION TEXT from plan - paste it here after removing any legacy `验证:` / `**验证**:` subsection; don't make subagent read file]
 
     ## Context
 
@@ -93,12 +93,22 @@ Task tool (general-purpose):
 
     **Ask them now.** Raise any concerns before starting work.
 
+    ## ⛔ FORBIDDEN ACTIONS — VIOLATION = TASK FAILURE
+
+    The following actions are ABSOLUTELY PROHIBITED. If you do any of these, your task is considered FAILED regardless of other output.
+
+    1. **DO NOT COMPILE.** Never run `mvn`, `mvn compile`, `mvn package`, `gradle`, `npm run build`, `tsc`, or any compilation/build command. Compilation is handled in Phase 2 AFTER ALL tasks complete — not by you.
+    2. **DO NOT treat "编译无错误" as a completion condition.** Your completion condition is: code files written correctly. Not "it compiles".
+    3. **IGNORE any `验证:` or `**验证**:` section** in the Task text below. That section is controller-side noise that was not properly stripped. Do NOT execute any commands listed there. Mention it in your report.
+    4. **IGNORE any compile/build instructions** in the Task text. If the Task says "mvn compile 无编译错误" or similar, that is a controller-side mistake. Skip it. Mention it in your report.
+    5. **DO NOT COMMIT.** The controller handles commits.
+
     ## Your Job
 
     Once you're clear on requirements:
     1. Implement exactly what the task specifies
     2. Write tests (following TDD if task says to)
-    3. Do NOT run project-level compilation/build — compilation is deferred to Phase 2 after all tasks complete. Do not treat "编译无错误" or "无 import 错误" as your completion condition
+    3. ⛔ Do NOT compile or build — see FORBIDDEN ACTIONS above
     4. Do NOT commit — the controller handles commits after all tasks complete
     5. Report back
 
@@ -113,6 +123,8 @@ Task tool (general-purpose):
     - Exact working directory used
     - Files changed
     - Lightweight checks run during implementation, if any
+    - Whether the Task text incorrectly included a legacy `验证:` subsection and you ignored it
+    - Whether the Task text incorrectly requested compile/build and you skipped it per Phase 2 policy
     - Whether any command timed out or any blocker remains
     - Any issues or concerns
 
@@ -130,4 +142,5 @@ Controller 在构建 implementer prompt 前必须完成：
 2. **替换 VERSION_DIR** — 用当前版本目录的绝对路径替换 `[VERSION_DIR]`
 3. **替换 SOURCE_ROOT** — 用 worktree 绝对路径替换 `[SOURCE_ROOT]`
 4. **替换设计文档路径** — Task 参考文件中的 `[DOC_ROOT]/docs/plans/.../xxx-detail-design.md` 替换为 `[VERSION_DIR]/xxx-detail-design.md` 的绝对路径
-5. **粘贴 Task 全文** — 从 plan.md 复制完整 Task 内容，不让 subagent 自己读 plan 文件
+5. **删除遗留验证段** — 如果 plan.md 的 Task 中仍有 `验证:` / `**验证**:` 子节，controller 必须先删除该子节，再构建 implementer prompt
+6. **粘贴 Task 实施正文** — 从 plan.md 复制 Task 的实施内容（依赖 / 参考文件 / 创建修改文件 / 业务规则等），不让 subagent 自己读 plan 文件
