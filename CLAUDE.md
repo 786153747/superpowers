@@ -8,8 +8,10 @@
 - PRD 差异扫描 → `superpowers:prd-diff-scan`
 - 设计文档 → `superpowers:brainstorming`
 - 实施计划 → `superpowers:writing-plans`
-- 执行计划 → `superpowers:executing-plans`
+- 执行计划 → 先让用户二选一：`superpowers:subagent-driven-development` 或 `superpowers:executing-plans`
 - 会话启动检查 → `superpowers:using-superpowers`
+
+**执行模式选择补充**：`writing-plans` 落盘后，若用户尚未明确选择执行方式，必须使用 `AskUserQuestion` 让用户二选一：当前会话执行用 `subagent-driven-development`，独立并行会话执行用 `executing-plans`。未明确选择前，不得默认进入任一执行 skill。
 
 ---
 
@@ -41,7 +43,7 @@ CLI 工作目录（CWD）与实际代码项目目录可能不同。以下变量�
 ## 核心工作流程
 
 ```
-PRD/需求 → prd-diff-scan → brainstorming → writing-plans → executing-plans → requesting-code-review
+PRD/需求 → prd-diff-scan → brainstorming → writing-plans → 选择执行模式 → (subagent-driven-development | executing-plans) → requesting-code-review
                                     ↓
                             docs/plans/YYYY-MM-DD-<主题>/
 ```
@@ -79,7 +81,7 @@ docs/plans/YYYY-MM-DD-<主题>/
     <page-slug>/
       frontend-detail-design.md
       backend-detail-design.md
-      plan.md                # writing-plans 创建，executing-plans 更新状态
+      plan.md                # writing-plans 创建，执行 skill 更新状态（subagent-driven-development / executing-plans）
 ```
 
 ---

@@ -113,9 +113,8 @@ Load plan, review critically, execute tasks in batches, report for review betwee
 For each task:
 1. Mark as in_progress
 2. Follow each step exactly (plan has bite-sized steps)
-3. Run verifications as specified
-4. Mark as completed
-5. **Update status tracking** after each task:
+3. Mark as completed
+4. **Update status tracking** after each task:
    - Update the task's status in the current version directory's `<page>/plan.md` 任务状态 table (set to `已完成`)
    - Update the current version directory's `index.md` 执行进度 table: increment the `已完成` count for this page
    - On first task of a page: update the current version directory's `index.md` page `实施状态` to `进行中`
@@ -124,8 +123,9 @@ For each task:
 
 - 只有在以下条件全部满足时，Task 才能标记为 `已完成`:
   1. 该 Task 已实际执行
-  2. 计划要求的验证已执行，且退出码明确为成功
+  2. 代码文件已按计划创建或修改
   3. 当前版本目录中的 `<page>/plan.md` 与 `index.md` 的状态更新都成功
+- **不在单个 Task 中检查编译**：编译错误（import 缺失、类型不匹配等）统一由 Phase 2 Gate 1/2 检查，不作为 Task 完成条件
 - 以下情况一律不得标记 `已完成`:
   - 命令超时
   - 命令无输出且未确认退出码
@@ -205,7 +205,6 @@ After all pages' tasks complete:
 1. 读取原型文件完整内容
 2. 读取 `spec/CODING_STANDARDS.md`，按其中规范适配 import 路径、组件注册方式、API 调用方式、路由配置等
 3. 适配后写入开发项目对应路径
-4. 验证：文件能正常编译/运行
 
 ### Overwrite（直接覆盖）
 
@@ -213,7 +212,6 @@ After all pages' tasks complete:
 
 1. 读取原型文件最新版本
 2. 直接写入开发项目对应路径
-3. 验证：文件能正常编译/运行
 
 ### Merge（智能合并）
 
@@ -231,7 +229,6 @@ After all pages' tasks complete:
 4. 对比原型旧→新：理解原型改了什么（新增了哪些控件、修改了哪些字段、删除了什么）
 5. 把原型的改动应用到开发项目文件上，同时保留开发项目的本地改动（如权限控制、本地 API 封装、自定义样式等）
 6. 如果两边改动有冲突（改了同一区域），**停下来让用户决定**，不得自行拍板
-7. 验证：文件能正常编译/运行
 
 #### 两方合并（无旧 Commit / 全量扫描场景）
 
@@ -243,7 +240,6 @@ After all pages' tasks complete:
 4. 对于**只存在于原型**的内容（新控件、新字段、新逻辑）→ 合入开发项目文件
 5. 对于**只存在于开发项目**的内容（本地适配、自定义逻辑）→ 保留
 6. 对于**两边都有但不一致**的区域 → **停下来让用户决定**，展示两边差异让用户选择
-7. 验证：合并后文件能正常编译/运行
 
 > 两方合并比三方合并更保守：因为缺少旧基线，无法区分"原型新增"和"原型原有但开发项目删除"，所以对不确定的差异一律询问用户。
 

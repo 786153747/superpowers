@@ -11,6 +11,10 @@ Git worktrees create isolated workspaces sharing the same repository, allowing w
 
 **Core principle:** Systematic directory selection + safety verification = reliable isolation.
 
+Worktree creation is an isolation step, not a repository-discovery step.
+Do not scan application code to infer project structure before creating the worktree.
+If project-type context is needed, use `[DOC_ROOT]/spec/CODING_STANDARDS.md` when available; otherwise use only minimal root indicators such as `pom.xml`, `package.json`, or other top-level build files.
+
 **Announce at start:** "I'm using the using-git-worktrees skill to set up an isolated workspace."
 
 ## Directory Selection Process
@@ -102,7 +106,7 @@ cd "$path"
 
 ### 3. Run Project Setup (Optional — Skip for Java/Maven Projects)
 
-Auto-detect and run appropriate setup **only if necessary**. For Java/Maven projects, worktree shares the same `.m2` repository cache — skip this step. For frontend projects, `node_modules` is usually gitignored and won't be in the worktree, but `npm install` should be deferred to when it's actually needed (e.g., before `npm run build` in Phase 2).
+Auto-detect and run appropriate setup **only if necessary**. Determine the project type from `[DOC_ROOT]/spec/CODING_STANDARDS.md` first when available; otherwise use only minimal root indicators. Do **not** inspect controller packages, entity classes, or other application code to decide this. For Java/Maven projects, worktree shares the same `.m2` repository cache — skip this step. For frontend projects, `node_modules` is usually gitignored and won't be in the worktree, but `npm install` should be deferred to when it's actually needed (e.g., before `npm run build` in Phase 2).
 
 ```bash
 # Only run if the project requires local dependency installation AND

@@ -260,7 +260,7 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 ```markdown
 # <页面名称> Implementation Plan
 
-> **Execution:** Follow repository execution rules in `CLAUDE.md`. Default to `superpowers:subagent-driven-development` for current-session execution; use `superpowers:executing-plans` only for a separate parallel session.
+> **Execution:** After plan generation, the controller must ask the user to choose execution mode per `CLAUDE.md`: `superpowers:subagent-driven-development` for current-session execution, or `superpowers:executing-plans` for a separate parallel session. Do not assume a default without explicit user choice.
 
 **Goal:** [一句话描述本页面构建什么]
 
@@ -328,7 +328,7 @@ Plan 生成后，必须自检：**设计文档中每个独立模块（Controller
 
 **Every page plan MUST start with the header shown in Plan Generation Flow above.**
 
-Do not hard-code `superpowers:executing-plans` in generated plans when the repository root `CLAUDE.md` requires another default executor. The generated header must defer to the repository rule and mention `executing-plans` only as the separate-session option.
+Do not hard-code a default execution skill in generated plans. Execution mode must be chosen after plan generation via explicit user confirmation, and the generated header should defer to the repository rule instead of assuming either executor.
 
 ## Task Structure（核心）
 
@@ -391,6 +391,7 @@ Do not hard-code `superpowers:executing-plans` in generated plans when the repos
 - 完整的 MyBatis XML 映射文件
 - 完整的 import 列表（按 `spec/CODING_STANDARDS.md` 和具体目标文件保持一致）
 - 设计文档里已经写明的字段列表（直接引用 Section 编号）
+- **编译相关的完成条件**：不得在 Task 中写"编译无错误"、"无 import 错误"、"无类型不匹配警告"等编译验证条件——编译检查由 CLAUDE.md Rule 6（延迟编译）在所有 Task 完成后统一执行
 - **"同上"**：每个 Task 的参考文件必须列出完整路径，不得写"同上""同 Task 1"。执行者可能单独看某个 Task，看不到"上"是什么
 
 ## 反面示例
@@ -430,6 +431,7 @@ public class Order extends BaseEntity {
 - 禁止占位符值（XXX、???、TODO_ID）
 - 每个 DTO 都有创建 Task
 - **Task 中不写验证和提交**——由 CLAUDE.md Rule 6/7 在所有 Task 完成后统一处理
+- **Task 中不写编译完成条件**——"编译无错误"、"无 import 错误"、"无类型不匹配警告"等由延迟编译阶段统一检查
 
 ## 落盘前自检（必须执行）
 
@@ -473,7 +475,19 @@ Master index updated: docs/plans/<task>/<commitid>/index.md
 
 > **路径传递**：调用执行 skill 时，必须传递当前版本目录确切路径 + `PROJECT_ROOT`。执行 skill 不应重新发现这些路径。
 
-Offer execution choice (详见 CLAUDE.md §1 执行模式选择):
+**Execution mode selection is a hard gate.**
 
-1. **Subagent-Driven (this session, default if CLAUDE.md says so)** → `superpowers:subagent-driven-development`
-2. **Parallel Session (separate)** → `superpowers:executing-plans`
+- If the user has already explicitly chosen the execution mode in the current session, reuse that choice.
+- Otherwise, you **MUST** call `AskUserQuestion` and wait for the answer before invoking any execution skill.
+- Do **NOT** silently default to `subagent-driven-development` or `executing-plans`.
+
+Use this exact choice set:
+
+1. **Subagent-Driven (current session)** → `superpowers:subagent-driven-development`
+2. **Parallel Session (new session)** → `superpowers:executing-plans`
+
+After the user chooses:
+
+- Pass the exact current version directory path + `PROJECT_ROOT` to the chosen execution skill
+- Announce which execution mode was selected
+- Invoke only the chosen execution skill

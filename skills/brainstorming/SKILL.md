@@ -258,8 +258,13 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务目录
    - 项目规范唯一来源规则
    - 保存前必须通过自检清单（前端 18 项 / 后端 12 项）
 7. **路径上下文**：传入 `DOC_ROOT`（CWD 绝对路径），子代理用此路径读取 `spec/` 和 `docs/plans/` 下的文件。如果涉及读取代码文件，传入 `PROJECT_ROOT`
+8. **变更文件清单**（commit-diff 驱动的精准读取）：
+   - 主代理在启动子代理前，根据 diff 文档中的 Git 基线（旧 Commit → 当前 Commit）执行 `git diff --name-only <old-commit> <new-commit>` 获取本次变更的文件列表
+   - 将变更文件的**绝对路径列表**嵌入子代理 prompt，标注为"本次需关注的已修改文件"
+   - 子代理只需读取这些变更文件（而非整个项目），结合 `spec/CODING_STANDARDS.md` 和 diff 文档编写设计
+   - 如果无 Git 基线（无 commit 场景），此项跳过，子代理按 diff 文档中的页面描述编写设计，不读取项目代码
 
-8. **完成回报约束**：
+9. **完成回报约束**：
    - 子代理最终回复必须明确列出本页实际写入的文件绝对路径
    - 仅当本页范围内要求的文件都已落盘时，子代理才可声明该页完成
    - 若缺少 `frontend-detail-design.md` 或 `backend-detail-design.md` 中任一必需文件，子代理必须显式报告缺失，不得说“已完成”

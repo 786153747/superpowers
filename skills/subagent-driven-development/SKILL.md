@@ -1,399 +1,418 @@
 ---
 name: subagent-driven-development
-description: Use when executing implementation plans with independent tasks in the current session
+description: Use when executing implementation plans in the current session. Runs the `shared-plan.md` phase first, then executes page plans with page-parallel / task-serial waves using a fresh implementer subagent per task. Shared tasks may run in parallel when safe. Compilation and reviews are deferred until all tasks complete.
 ---
 
 # Subagent-Driven Development
 
-Execute plan by dispatching fresh subagent per task. Compilation and review are **deferred** to after all tasks complete (CLAUDE.md Rule 6/7).
+Execute saved plans in the current session with a staged scheduler:
 
-**Core principle:** Fresh subagent per task + 无依赖 task 自动并行 + deferred compilation (Rule 6) + deferred review (Rule 7) = high quality, fast iteration
+- Run the `shared-plan.md` phase first.
+- Inside the shared phase, run ready shared tasks in parallel when their write sets are disjoint.
+- After shared work completes, run page plans in parallel.
+- Inside each page, execute tasks serially.
+- Dispatch a fresh implementer subagent per task.
+- Defer compilation and review until all implementation tasks are complete.
 
-## When to Use
+This skill is the same-session executor. It is optimized for steady progress with strong controller discipline and low context pollution.
 
-```dot
-digraph when_to_use {
-    "Have implementation plan?" [shape=diamond];
-    "Tasks mostly independent?" [shape=diamond];
-    "Stay in this session?" [shape=diamond];
-    "subagent-driven-development" [shape=box];
-    "executing-plans" [shape=box];
-    "Manual execution or brainstorm first" [shape=box];
+## When To Use
 
-    "Have implementation plan?" -> "Tasks mostly independent?" [label="yes"];
-    "Have implementation plan?" -> "Manual execution or brainstorm first" [label="no"];
-    "Tasks mostly independent?" -> "Stay in this session?" [label="yes"];
-    "Tasks mostly independent?" -> "Manual execution or brainstorm first" [label="no - tightly coupled"];
-    "Stay in this session?" -> "subagent-driven-development" [label="yes"];
-    "Stay in this session?" -> "executing-plans" [label="no - parallel session"];
-}
-```
+Use this skill when:
 
-**vs. Executing Plans (parallel session):**
-- Same session (no context switch)
-- Fresh subagent per task (no context pollution)
-- Faster iteration (no human-in-loop between tasks)
+- `writing-plans` has already created `shared-plan.md`, page `plan.md` files, and `index.md`
+- You want to execute the plan in the current conversation
+- The work can benefit from safe page-level parallelism
+
+Prefer `executing-plans` when you want a separate parallel execution session instead of continuing in the current one.
+
+## Core Principle
+
+`shared-plan.md` phase first + shared-task parallelism when safe + page-parallel / task-serial waves + fresh subagent per task + deferred compilation + deferred review = fast execution with clearer ownership and fewer missed pages.
 
 ## Controller Role Boundaries
 
-CRITICAL: The controller (you) is an orchestrator, NOT an implementer.
+CRITICAL: The controller is an orchestrator, not an implementer.
 
-### Controller MUST:
-- Read plan, extract tasks, analyze dependencies, create TodoWrite
-- Dispatch implementer subagent per task (serial) or per wave (parallel for independent tasks) via Agent tool
-- Answer subagent questions
-- Track the exact source worktree path and pass that same absolute path to every implementer subagent and verification command
-- Update plan.md task status and index.md progress after each task/wave, but only after explicit completion evidence
-- After ALL tasks: run compilation, dispatch reviewers, output final gate evidence
+### Controller MUST
 
-### Controller MUST NOT:
-- Write implementation code (that's the implementer subagent's job)
-- Run compilation between tasks (CLAUDE.md Rule 6: defer until all tasks done)
-- Dispatch reviewers between tasks (CLAUDE.md Rule 7: defer until compilation passes)
-- Treat timeout, missing exit code, missing agent handle, or "No task found with ID" as success
+- Read `index.md`, `shared-plan.md`, and page `plan.md` files
+- Treat `[DOC_ROOT]/spec/CODING_STANDARDS.md` as the only source for project-wide module layout, package conventions, controller placement, entity placement, and coding standards
+- Create a TodoWrite plan for the execution session
+- Execute the `shared-plan.md` phase to completion before starting any page lane
+- Parallelize ready shared tasks when their write sets are disjoint
+- Dispatch a fresh implementer subagent per task
+- Keep at most one active task per page at any time
+- Answer subagent questions before the subagent proceeds
+- Track and pass the same absolute `SOURCE_ROOT` to every implementer and verification command
+- Track and use the same absolute `DOC_ROOT` for all design and plan reads plus status write-backs
+- Update `plan.md` and `index.md` after each completed task or wave
+- Run compilation and review only after all implementation tasks are complete
+
+### Controller MUST NOT
+
+- Write implementation code directly
+- Scan the repository to rediscover Maven/module structure, controller package layout, entity locations, or other project-wide conventions already defined in `CODING_STANDARDS.md`
+- Start any page task before `shared-plan.md` is complete
+- Dispatch two tasks from the same page in the same wave
+- Compile between tasks
+- Dispatch reviewers between tasks
+- Treat timeout, missing exit code, missing agent handle, or `No task found with ID` as success
 - Batch-mark multiple `未开始` tasks as `已完成`
-- Mix source edits between the main repository root and the worktree after a worktree has been selected
-- Mark the feature as complete without passing all final gates
+- Mix source edits between the main repository root and the selected worktree after a worktree is chosen
+- Declare completion before all final gates pass
 
-If you catch yourself writing implementation code instead of dispatching a subagent, STOP. You are violating the controller role boundary.
+If you catch yourself writing implementation code instead of dispatching a subagent, stop and dispatch the appropriate task.
 
-## The Process (Two Phases)
+## Required Inputs
 
-```dot
-digraph process {
-    rankdir=TB;
+Before Phase 1, the controller must have:
 
-    subgraph cluster_phase1 {
-        label="Phase 1: Implementation (wave-based — NO compilation, NO review)";
-        style=dashed;
-        "Analyze deps, build ready queue" [shape=box];
-        "Ready queue?" [shape=diamond];
-        "Dispatch 1 implementer (serial)" [shape=box];
-        "Dispatch N implementers (parallel)" [shape=box];
-        "Wait for wave subagent(s)" [shape=box];
-        "Mark completed, update plan.md + index.md" [shape=box];
-    }
-
-    subgraph cluster_phase2 {
-        label="Phase 2: Verification (ONCE after all tasks)";
-        style=dashed;
-        "Backend: mvn compile" [shape=box style=filled fillcolor=lightyellow];
-        "Backend passes?" [shape=diamond];
-        "Fix subagent fixes backend" [shape=box];
-        "Frontend: npm run build" [shape=box style=filled fillcolor=lightyellow];
-        "Frontend passes?" [shape=diamond];
-        "Fix subagent fixes frontend" [shape=box];
-        "Dispatch spec reviewer (./spec-reviewer-prompt.md)" [shape=box];
-        "Spec passes?" [shape=diamond];
-        "Fix subagent fixes spec gaps" [shape=box];
-        "Ask user: run spec review?" [shape=diamond style=filled fillcolor=lightblue];
-        "Ask user: run quality review?" [shape=diamond style=filled fillcolor=lightblue];
-        "Dispatch quality reviewer (./code-quality-reviewer-prompt.md)" [shape=box];
-        "Quality passes?" [shape=diamond];
-        "Fix subagent fixes quality" [shape=box];
-        "Coding standards feedback?" [shape=diamond style=filled fillcolor=lightblue];
-        "Present to user + update spec docs" [shape=box style=filled fillcolor=lightblue];
-        "Output final gate evidence" [shape=box];
-    }
-
-    "Read plan, extract tasks, analyze deps" [shape=box];
-    "Use superpowers:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
-
-    "Read plan, extract tasks, analyze deps" -> "Analyze deps, build ready queue";
-    "Analyze deps, build ready queue" -> "Ready queue?";
-    "Ready queue?" -> "Dispatch 1 implementer (serial)" [label="1 task"];
-    "Ready queue?" -> "Dispatch N implementers (parallel)" [label="2+ tasks"];
-    "Ready queue?" -> "Backend: mvn compile" [label="0 — all done, Phase 2"];
-    "Dispatch 1 implementer (serial)" -> "Wait for wave subagent(s)";
-    "Dispatch N implementers (parallel)" -> "Wait for wave subagent(s)";
-    "Wait for wave subagent(s)" -> "Mark completed, update plan.md + index.md";
-    "Mark completed, update plan.md + index.md" -> "Analyze deps, build ready queue";
-
-    "Backend: mvn compile" -> "Backend passes?";
-    "Backend passes?" -> "Fix subagent fixes backend" [label="no"];
-    "Fix subagent fixes backend" -> "Backend: mvn compile";
-    "Backend passes?" -> "Frontend: npm run build" [label="yes"];
-    "Frontend: npm run build" -> "Frontend passes?";
-    "Frontend passes?" -> "Fix subagent fixes frontend" [label="no"];
-    "Fix subagent fixes frontend" -> "Frontend: npm run build";
-    "Frontend passes?" -> "Ask user: run spec review?" [label="yes"];
-    "Ask user: run spec review?" -> "Dispatch spec reviewer (./spec-reviewer-prompt.md)" [label="yes (default)"];
-    "Ask user: run spec review?" -> "Ask user: run quality review?" [label="skip"];
-    "Dispatch spec reviewer (./spec-reviewer-prompt.md)" -> "Spec passes?";
-    "Spec passes?" -> "Fix subagent fixes spec gaps" [label="no"];
-    "Fix subagent fixes spec gaps" -> "Dispatch spec reviewer (./spec-reviewer-prompt.md)";
-    "Spec passes?" -> "Ask user: run quality review?" [label="yes"];
-    "Ask user: run quality review?" -> "Dispatch quality reviewer (./code-quality-reviewer-prompt.md)" [label="yes (default)"];
-    "Ask user: run quality review?" -> "Coding standards feedback?" [label="skip"];
-    "Dispatch quality reviewer (./code-quality-reviewer-prompt.md)" -> "Quality passes?";
-    "Quality passes?" -> "Fix subagent fixes quality" [label="no"];
-    "Fix subagent fixes quality" -> "Dispatch quality reviewer (./code-quality-reviewer-prompt.md)";
-    "Quality passes?" -> "Coding standards feedback?" [label="yes"];
-    "Coding standards feedback?" -> "Present to user + update spec docs" [label="yes — conventions found"];
-    "Present to user + update spec docs" -> "Output final gate evidence";
-    "Coding standards feedback?" -> "Output final gate evidence" [label="no — skip"];
-    "Output final gate evidence" -> "Use superpowers:finishing-a-development-branch";
-}
-```
+- `DOC_ROOT`: absolute path to the docs workspace
+- `PROJECT_ROOT`: absolute path to the main source repository
+- `SOURCE_ROOT`: absolute path to the selected worktree
+- Current version directory under `DOC_ROOT`
+- `index.md`
+- `shared-plan.md` when it exists
+- Every page `plan.md` referenced by `index.md`
 
 ## Prompt Templates
 
-- `./implementer-prompt.md` - Dispatch implementer subagent
-- `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent (Phase 2 only)
-- `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent (Phase 2 only)
-
----
+- `./implementer-prompt.md`: implementer subagent
+- `./spec-reviewer-prompt.md`: spec compliance reviewer in Phase 2
+- `./code-quality-reviewer-prompt.md`: code quality reviewer in Phase 2
 
 ## Phase 1: Implementation
 
-### Per-task flow (wave-based: 默认串行，无依赖自动并行)
+### Scheduler Model
 
-**Step 0 — 依赖分析（进入 Phase 1 前一次性完成）：**
-1. 扫描 plan.md 每个 Task 的依赖声明（`依赖: Task N`、`前置条件: ...`、`blockedBy: ...`）
-2. **无显式依赖声明**的 Task → 视为仅依赖排在它前面的 Task（保守串行）
-3. 构建依赖图，识别可并行的 Task 分组（wave）
+This skill uses a staged scheduler. That scheduler is authoritative and replaces a global ready-queue model.
 
-**执行循环：**
-1. **构建 ready queue**：所有依赖已满足（被依赖 Task 均 `已完成`）的待执行 Task
-2. **判断 ready queue 大小**：
-   - **0 个** → 全部完成，进入 Phase 2
-   - **1 个** → 串行派发（与原流程相同）
-   - **2+ 个** → 并行派发：单条消息中多个 Agent tool 调用同时派发
-3. 每个 subagent：提供完整 task 文本 + 上下文 + worktree 绝对路径 → 回答提问 → 等待完成报告
-4. 并行模式下等待当前 wave **全部** subagent 返回后再统一更新状态
-5. **Mark task(s) complete** only after explicit implementation-complete evidence → 更新 plan.md + index.md → 回到步骤 1
+1. Execute the `shared-plan.md` phase first.
+2. Inside the shared phase, dispatch one or more ready shared tasks in parallel when they do not touch the same files.
+3. Do not start any page task until the entire shared phase is complete.
+4. After shared work completes, treat each page `plan.md` as one execution lane.
+5. In each wave, pick at most one next ready task from each ready page.
+6. Dispatch those per-page next tasks in parallel.
+7. Wait for the whole wave to finish.
+8. Update task status and progress tracking.
+9. Advance each page lane to its next ready task.
+10. Repeat until all page lanes are complete.
 
-**并行安全约束：**
-- 仅当 Task 为垂直切片（Rule 5）且不修改相同文件时才可并行
-- 2 个 ready task 描述中提到修改相同文件 → 降级为串行
-- 任何 subagent 返回 NOT COMPLETE → 单独处理后再推进下一 wave
+The unit of parallelism is not "all ready tasks everywhere". It is "the next ready task from each ready page".
 
-### What controller does NOT do in Phase 1
+### Shared Work First
 
-- ❌ Run `mvn compile` or `npm run build` (Rule 6: defer)
-- ❌ Dispatch spec reviewer or code quality reviewer (Rule 7: defer)
-- ❌ Output gate evidence blocks per task
-- ❌ Wait for human review between tasks
+`shared-plan.md` owns all cross-page bootstrap work, including examples such as:
 
-### Phase 1 完成的含义
+- shared tables
+- shared entities or DTOs
+- menu and route bootstrap
+- one-time infrastructure
 
-- Phase 1 中的 `Task 已完成` 指的是**实现完成**，不是**最终验证通过**
-- 每个 Task 在 Phase 1 只要求：实现代码、返回修改文件和剩余风险
-- 项目级验证（如 `mvn compile`、`npm run build`、统一代码审查）全部延迟到 Phase 2
-- 不得因为单个 Task 未跑编译而阻止正常推进；编译是否通过由 Phase 2 统一裁决
+If `shared-plan.md` exists:
 
-### Status updates after each task
+- its tasks may run in parallel when their write sets are disjoint
+- conflicting shared tasks must downgrade to serial
+- the shared phase must fully finish before any page lane starts
 
-1. Update `<page>/plan.md` 任务状态 table: set status to `已完成`
-2. Update `index.md` 执行进度 table: increment `已完成` count
-3. On first task of a page: update `index.md` page `实施状态` to `进行中`
-4. When all tasks of a page complete: update `index.md` page `实施状态` to `已完成`
+### Page Lanes
 
-> **注意**：状态回写目标是 CWD 下的 docs/plans（即 `DOC_ROOT`），不是 worktree 目录。
+After shared work:
 
-### 强制状态一致性规则
+- Each page listed in `index.md` becomes one lane
+- Only one task in a page lane may be active at a time
+- A page lane advances only after its current task is explicitly completed
+- Different pages may progress in the same wave
 
-- 只有在以下条件全部满足时，Task 才能标记为 `已完成`:
-  1. implementer subagent 已明确返回 `STATUS: COMPLETE`
-  2. 返回结果包含实际修改文件清单
-  3. 返回结果明确说明该 Task 已实现完成，且没有未处理 blocker
-  4. `<page>/plan.md` 与 `index.md` 的状态更新都成功
-- 以下情况一律不得标记 `已完成`:
-  - Agent 句柄丢失或出现 `No task found with ID`
-  - 任意命令超时
-  - `Error editing file`
-  - 仅凭文件存在性猜测任务可能完成
-  - 该 Task 尚未实际派发
-- 禁止批量预标记:
-  - 不得将多个 `未开始` Task 一次性改为 `已完成`
-  - 每个 Task 必须独立完成、独立更新状态
-- 若状态更新失败:
-  - Task 状态保持原状或标记为 `进行中`
-  - 不得继续推进下一个 Task，必须先修复 `plan.md` / `index.md`
+### Determining The Next Ready Task
 
-### Worktree 目录绑定
+For each page lane:
 
-- 创建 worktree 后，记录其绝对路径为 `SOURCE_ROOT`（在 `PROJECT_ROOT` 下创建）
-- 记录 CWD 绝对路径为 `DOC_ROOT`
-- **`SOURCE_ROOT`**：所有源码修改、验证命令、子代理工作目录
-- **`DOC_ROOT`**：所有文档读取（spec、设计文档）、计划进度回写（index.md、plan.md）
-- Controller 自己读文档用 CWD 相对路径，派发 subagent 时传 `DOC_ROOT` 绝对路径
-- 不得在未说明的情况下在主仓库和 worktree 之间来回切换源码路径
+1. Read its `plan.md` task table and task dependency declarations
+2. Find the first unfinished task whose dependencies are satisfied
+3. Select only that single task for the current wave
 
----
+If no task in a page is ready, that page does not participate in the current wave.
 
-## Phase 2: Verification (after ALL tasks complete)
+### Page-Wave Safety Rules
 
-→ See [`shared/phase2-verification.md`](../shared/phase2-verification.md) for the complete Phase 2 verification process (Gates 1-5 + Final Gate Evidence).
+Two pages may run in the same wave only when all of the following are true:
 
-**Entry condition:** All tasks in all page plans are marked `已完成`.
+- Their selected tasks do not modify the same files
+- Their selected tasks do not compete for shared API ownership
+- Their selected tasks do not depend on each other
+- `index.md` execution order does not require one page to wait for the other
 
----
+Downgrade to serial when any of the following are true:
+
+- The selected tasks touch the same file
+- One page reuses a shared controller/service/mapper that is still being created by another page
+- A page-level dependency or execution-order prerequisite is not yet satisfied
+- The controller cannot prove the write sets are disjoint
+
+Conservative serialization is correct behavior.
+
+### Shared-Phase Safety Rules
+
+Two shared tasks may run in the same shared wave only when all of the following are true:
+
+- They do not modify the same files
+- They do not compete for shared ownership of the same controller, service, mapper, entity, DTO, route, or menu seed
+- They do not depend on each other
+
+Downgrade shared work to serial when the controller cannot prove the shared write sets are disjoint.
+
+### Per-Task Dispatch
+
+Even though the scheduler is page-oriented, the implementer unit is still task-oriented:
+
+- Dispatch a fresh implementer subagent per task
+- Provide the full task text, required context, `SOURCE_ROOT`, and `DOC_ROOT`
+- Answer clarifying questions
+- Wait for an explicit completion report
+
+Do not dispatch one long-running implementer for the entire page. Fresh subagent per task remains the default.
+
+### Phase 1 Loop
+
+Repeat the following loop:
+
+1. If `shared-plan.md` has unfinished work, build a shared-task wave from all ready shared tasks with disjoint write sets
+2. Dispatch the shared wave and wait for every shared subagent
+3. Update `shared-plan.md` and the `shared` row in `index.md`
+4. Repeat shared waves until the shared phase is complete
+5. Then build the page wave by selecting at most one next ready task per ready page
+6. Dispatch the page wave
+7. Wait for every subagent in the page wave
+8. For each successful task, update status and progress
+9. For any failed or incomplete task, keep that page in place and do not advance it
+10. Recompute the next wave
+11. When no shared task and no page task remain, enter Phase 2
+
+### Status Updates After Each Task
+
+After each completed task:
+
+1. Update the relevant task row in `<page>/plan.md` or `shared-plan.md` to `已完成`
+2. Update the `index.md` execution progress table
+3. On the first completed task of a page, set that page's `实施状态` to `进行中`
+4. When all tasks of a page are complete, set that page's `实施状态` to `已完成`
+5. For `shared-plan.md`, update only the `shared` row in execution progress; do not mark any page `进行中` or `已完成` because of shared work alone
+
+Status write-backs always target the docs workspace under `DOC_ROOT`, never the worktree.
+
+### Hard Rules For Marking Completion
+
+A task may be marked `已完成` only when all of the following are true:
+
+1. The implementer subagent explicitly returns `STATUS: COMPLETE`
+2. The result includes the actual modified file list
+3. The result clearly says the task is implemented with no unhandled blocker
+4. The `plan.md` and `index.md` write-backs both succeed
+
+**不在单个 Task 中检查编译**：编译错误（import 缺失、类型不匹配等）统一由 Phase 2 Gate 1/2 检查，不作为 Task 完成条件。
+
+Never mark `已完成` when any of the following happens:
+
+- agent handle lost
+- `No task found with ID`
+- command timeout
+- `Error editing file`
+- completion inferred only from file existence
+- task was never actually dispatched
+
+If a status update fails:
+
+- Keep the task in its prior state or mark it `进行中`
+- Do not advance that page to the next task until the write-back problem is fixed
+
+## Worktree Binding
+
+After creating a worktree:
+
+- Record its absolute path as `SOURCE_ROOT`
+- Record the docs workspace absolute path as `DOC_ROOT`
+- Use `SOURCE_ROOT` for all code edits, build commands, and implementer working directories
+- Use `DOC_ROOT` for spec reads, design reads, `index.md`, and `plan.md` writes
+
+Do not switch source editing back and forth between the main repository and the worktree without an explicit reason.
+
+## Phase 2: Verification
+
+Entry condition:
+
+- all tasks in `shared-plan.md` are complete, if `shared-plan.md` exists
+- all tasks in all page `plan.md` files are complete
+
+Then run the normal deferred verification flow:
+
+1. Backend compilation
+2. Frontend compilation
+3. Spec review
+4. Code quality review
+5. Final gate evidence
+
+Use [`shared/phase2-verification.md`](../shared/phase2-verification.md) for the full verification process.
+
+If a Phase 2 gate fails:
+
+- dispatch a fresh fix subagent for the failing issue
+- rerun the failed gate
+- repeat until the gate passes or a real blocker remains
 
 ## Example Workflow
 
-```
+```text
 You: I'm using Subagent-Driven Development to execute this plan.
 
-[Read index.md → find execution order]
-[Read first page plan → extract all tasks with full text]
-[Analyze dependencies → Task 1: no deps; Task 2,3: depend on Task 1; Task 4: depends on Task 2+3]
+[Read index.md -> find execution order]
+[Read shared-plan.md -> extract shared tasks]
+[Read page plans -> build page lanes: my-order, delivery-record, consignment-inventory, order-ledger]
 
---- Phase 1: Implementation (wave-based) ---
+--- Phase 1: Implementation ---
 
-Wave 1 (ready: Task 1 → serial):
-  Task 1: Database tables
-  [Dispatch implementer subagent]
-  Implementer: Implemented.
-  [Update plan.md: Task 1 已完成, update index.md]
+Wave 0a: shared phase
+  shared Task 1
+  shared Task 2
+  [Dispatch 2 implementer subagents in parallel]
+  [All returned]
+  [Update shared-plan.md + shared row in index.md]
 
-Wave 2 (ready: Task 2, Task 3 → no shared files → parallel):
-  [Dispatch Task 2 + Task 3 in parallel (2 Agent calls in one message)]
-  Task 2 Implementer: "Should the date range be inclusive or exclusive?"
-  You: "Inclusive on both ends."
-  Task 3 Implementer: Implemented.
-  Task 2 Implementer: Implemented.
-  [All returned → Update plan.md: Task 2,3 已完成, update index.md]
+Wave 0b: remaining shared work
+  [Detect shared Task 3 touches the same bootstrap files]
+  [Run shared Task 3 serially]
+  [Shared phase complete]
 
-Wave 3 (ready: Task 4 → serial):
-  Task 4: Frontend integration
-  [Dispatch implementer subagent]
-  Implementer: Done.
-  [Update plan.md + index.md: all pages 已完成]
+Wave 1: one ready task per page
+  my-order Task 1
+  delivery-record Task 1
+  consignment-inventory Task 1
+  [Dispatch 3 implementer subagents in parallel]
+  [All returned]
+  [Update page plans + index.md]
+
+Wave 2: advance each page by one task
+  my-order Task 2
+  delivery-record Task 2
+  [Detect order-ledger Task 1 touches shared OrderController]
+  [Hold order-ledger for now]
+  [Dispatch my-order + delivery-record]
+  [Update page plans + index.md]
+
+Wave 3:
+  my-order Task 3
+  order-ledger Task 1
+  [Now safe to run together]
+  [Dispatch 2 implementer subagents]
+  [Update page plans + index.md]
+
+[Repeat until shared row and all page rows are complete]
 
 --- Phase 2: Verification ---
 
 [mvn compile]
-Backend compilation: ✅ BUILD SUCCESS
-
 [npm run build]
-Frontend compilation: ❌ TS error in orderLedger.vue
-[Dispatch fix subagent → fix type error]
-[npm run build again]
-Frontend compilation: ✅ Build successful
-
-[Ask user: run spec review?]
-User: "好" → execute
-
-[Dispatch spec reviewer for entire implementation]
-Spec reviewer: ❌ Missing D3 (internalRelatedPartyName filter in delivery-record)
-[Dispatch fix subagent → add missing filter]
-[Dispatch spec reviewer again]
-Spec reviewer: ✅ All requirements met
-
-[Ask user: run quality review?]
-User: "执行" → execute
-
-[Dispatch code quality reviewer]
-Code reviewer: ✅ Approved. Minor: consider extracting shared date formatter.
-
-[Coding Standards Feedback]
-Review found: date formatter pattern should use `@JsonFormat(pattern = "yyyy-MM-dd")`
-→ Present to user: "Should we add this to coding-standards.md?"
-→ User approves → Update spec/backend/java/coding-standards.md
-
-### Final Gate Evidence
-| Gate | Status | Evidence |
-|------|--------|----------|
-| Backend Compilation | ✅ | command: `mvn compile`, exit code: 0 |
-| Frontend Compilation | ✅ | command: `npm run build`, exit code: 0 (1 fix loop) |
-| Spec Review | ✅ | subagent dispatched: yes, verdict: pass (1 fix loop) |
-| Code Quality | ✅ | subagent dispatched: yes, verdict: pass |
-| Coding Standards | ✅ | 1 convention added to backend spec |
-
-All gates ✅ → Implementation COMPLETE
-
-[Use superpowers:finishing-a-development-branch]
-Done!
+[dispatch spec reviewer]
+[dispatch quality reviewer]
+[output final gate evidence]
 ```
 
 ## Advantages
 
-**vs. Per-task compilation + review (old approach):**
-- N tasks: N subagents instead of 3N (implementer + spec + quality per task)
-- 1 compilation instead of N compilations
-- 1 spec review instead of N spec reviews
-- ~3x faster for typical plans
+### Compared To A Global Ready Queue
 
-**Wave-based parallel execution:**
-- Independent tasks execute simultaneously instead of waiting in queue
-- Automatic dependency analysis ensures correctness
-- Falls back to serial when tasks share modified files
+- Easier to reason about progress page by page
+- Shared bootstrap still gets useful parallelism before page work starts
+- Lower chance of missing a page entirely
+- Lower chance of dispatching two conflicting tasks from the same page
+- Better alignment with `index.md`, per-page `plan.md`, and per-page implementation status
 
-**vs. Manual execution:**
-- Fresh context per task (no confusion)
-- Subagent can ask questions (before AND during work)
+### Compared To Full Page Serialization
 
-**vs. Executing Plans (parallel session):**
-- Same session (no handoff)
-- Continuous progress (no waiting for human between batches)
+- Multiple pages can still make progress in the same wave
+- The controller keeps useful parallelism without losing page ownership clarity
 
-**Efficiency gains:**
-- No file reading overhead (controller provides full text)
-- Controller curates exactly what context is needed
-- No compilation interrupts during coding flow
-- Review covers entire implementation at once (better cross-task consistency checks)
+### Compared To Per-Task Compilation And Review
 
-**Quality gates (Phase 2):**
-- Compilation gate: code must compile before any review
-- Optional two-stage review: spec compliance, then code quality (both default to execute, skip only if user explicitly declines)
-- When executed, spec compliance covers entire implementation (catches cross-task inconsistencies)
-- Review loops ensure fixes actually work
+- One compilation phase instead of compiling between tasks
+- One review phase over the full implementation
+- Better cross-task consistency checks in review
 
 ## Red Flags
 
-**Never:**
-- **Write implementation code as controller** (dispatch a subagent)
-- **Compile or review during Phase 1** (CLAUDE.md Rule 6/7: defer)
-- Start implementation on main/master branch without explicit user consent
-- Skip Phase 2 reviews without asking user (must ask, only skip if user explicitly declines)
-- Proceed with unfixed issues in Phase 2
-- Dispatch parallel subagents for tasks that share modified files or have unmet dependencies
-- Make subagent read plan file (provide full text instead)
-- Skip scene-setting context (subagent needs to understand where task fits)
-- Ignore subagent questions (answer before letting them proceed)
+Never:
 
-**If reviewer finds issues in Phase 2:**
-- Dispatch fix subagent with specific instructions
-- Re-dispatch reviewer after fix
-- Repeat until approved
-- Don't skip the re-review
-- Don't try to fix manually (context pollution)
+- start page tasks before `shared-plan.md` completes
+- run unsafe shared tasks in parallel when they touch the same shared files
+- dispatch two tasks from the same page at once
+- run two pages in parallel when their next tasks share write targets
+- compile or review during Phase 1
+- skip status write-backs
+- ignore subagent questions
+- let a page advance after a `NOT COMPLETE` task
+- fix implementation code manually as controller
 
-### Known Failure Modes (from real incidents)
+## Known Failure Modes
 
-**Failure Mode 1: Controller becomes implementer**
-The controller read existing code, fixed compilation errors, wrote new files, and declared all tasks complete. NO subagents were dispatched.
+### Failure Mode 1: Controller Becomes Implementer
 
-How to detect: If you're writing implementation code (not build commands), you've become the implementer. STOP and dispatch a subagent instead.
+The controller reads code, edits source files, fixes build errors, and declares tasks complete without dispatching implementers.
 
-**Failure Mode 2: Per-task compilation/review (old pattern)**
-The controller compiled and reviewed after every single task, making execution 3x slower than necessary.
+Detection:
 
-How to detect: If you're running `mvn compile` or dispatching reviewers before all tasks are done, you're in the old pattern. STOP — continue to next task, defer to Phase 2.
+- If you are writing implementation code instead of dispatching a subagent, you have violated the controller role.
 
-**Failure Mode 3: No plan status updates**
-The controller completed work but never updated `plan.md` task status table or `index.md` progress table.
+### Failure Mode 2: Shared Work Is Bypassed
 
-How to detect: After completing a task, if you haven't written to plan.md and index.md, the task tracking is broken.
+The controller starts page work before the cross-page bootstrap is done.
+
+Detection:
+
+- A page task is running while `shared-plan.md` still contains unfinished tasks.
+
+### Failure Mode 3: Unsafe Shared Parallelism
+
+The controller runs two shared tasks in parallel even though they modify the same shared files or compete for the same shared ownership.
+
+Detection:
+
+- Two in-flight shared tasks touch the same bootstrap file, shared controller, shared service, shared mapper, shared entity, shared DTO, route, or menu seed.
+
+### Failure Mode 4: Two Tasks From The Same Page Run Together
+
+The controller dispatches parallel tasks that both belong to the same page.
+
+Detection:
+
+- More than one in-flight subagent is working on the same page lane in the same wave.
+
+### Failure Mode 5: No Status Updates
+
+Implementation finishes, but `plan.md` and `index.md` were never updated.
+
+Detection:
+
+- A task result exists, but the corresponding task row and execution progress are stale.
 
 ## Integration
 
-**Required workflow skills:**
-- **superpowers:using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
-- **superpowers:writing-plans** - Creates the plan this skill executes
-- **superpowers:finishing-a-development-branch** - Complete development after all tasks
-- **superpowers:verification-before-completion** - REQUIRED: Evidence before any completion claims
+Required workflow skills:
 
-**Phase 2 审查模板（内置，不需要单独调用 skill）:**
-- `./spec-reviewer-prompt.md` - Spec compliance reviewer
-- `./code-quality-reviewer-prompt.md` - Code quality reviewer
+- `superpowers:using-git-worktrees`
+- `superpowers:writing-plans`
+- `superpowers:finishing-a-development-branch`
+- `superpowers:verification-before-completion`
 
-**Ad-hoc（仅用于非 SDD 场景）:**
-- **superpowers:requesting-code-review** - 独立代码审查（SDD Phase 2 已内置审查，不要重复调用）
+Phase 2 reviewer prompts:
 
-**Subagents should use:**
-- **superpowers:test-driven-development** - Subagents follow TDD for each task
+- `./spec-reviewer-prompt.md`
+- `./code-quality-reviewer-prompt.md`
 
-**Alternative workflow:**
-- **superpowers:executing-plans** - Use for parallel session instead of same-session execution
+Subagents should use:
+
+- `superpowers:test-driven-development`
+
+Alternative workflow:
+
+- `superpowers:executing-plans` for a separate parallel execution session

@@ -33,6 +33,13 @@ Task tool (general-purpose):
     These are mandatory conventions — your implementation MUST conform to them.
     Treat `[DOC_ROOT]/spec/CODING_STANDARDS.md` as the ONLY source for project-wide技术栈、架构和代码规范.
 
+    **以下规范全部从 CODING_STANDARDS.md 直接获取，禁止通过检索代码库推断**：
+    - SQL 风格规范（命名、语法、格式）
+    - MyBatis Mapper XML 规范（resultMap、SQL 片段、命名约定）
+    - 若依 Entity 风格（字段注解、继承关系、命名规则）
+    - Controller / Service / Mapper 分层约定
+    - DTO / VO 命名与结构约定
+
     ### 禁止扫描代码库
 
     - Do NOT scan the repository (`src/`, `com/`, etc.) to infer conventions, coding patterns, or project structure
@@ -40,6 +47,7 @@ Task tool (general-purpose):
     - Do NOT use Glob/Grep to explore project code for learning purposes
     - You may ONLY read the specific files listed in the task's "参考文件" and "创建/修改文件" sections
     - If CODING_STANDARDS.md says to extend `BaseEntity`, just extend it — don't go read `BaseEntity.java` first
+    - If CODING_STANDARDS.md already defines Controller package layout, module structure, or entity location, use it directly rather than scanning existing Controllers or entities to confirm
     - If you're unsure about a convention, **ask the controller** rather than scanning code
 
     ## Before You Begin
@@ -57,7 +65,7 @@ Task tool (general-purpose):
     Once you're clear on requirements:
     1. Implement exactly what the task specifies
     2. Write tests (following TDD if task says to)
-    3. Do not run project-level compilation/build in Phase 1 unless the task explicitly requires a lightweight local check or you are diagnosing a blocker
+    3. Do NOT run project-level compilation/build — compilation is deferred to Phase 2 after all tasks complete. Do not treat "编译无错误" or "无 import 错误" as your completion condition
     4. Do NOT commit — the controller handles commits after all tasks complete
     5. Report back
 
