@@ -1,6 +1,6 @@
 ---
 name: subagent-driven-development
-description: Use when executing implementation plans in the current session. Runs the `shared-plan.md` phase first, then immediately starts all page plans as parallel streaming lanes. Tasks remain serial within each page lane. Any cross-page dependency must be split into an explicit later task instead of blocking a whole page. A fresh implementer subagent is dispatched per task. Concurrency is capped by max_concurrency (default 3). Shared tasks may run in parallel when safe. Compilation and reviews are deferred until all tasks complete.
+description: Use when executing implementation plans in the current session. Runs the `shared-plan.md` phase first, then immediately starts all page plans as parallel streaming lanes. Tasks remain serial within each page lane. Any cross-page dependency must be split into an explicit later task instead of blocking a whole page. A fresh implementer subagent is dispatched per task. Concurrency is capped by `max_concurrency` (default 5 for the whole run; do not rewrite it to the current dispatch size). Shared tasks may run in parallel when safe. Compilation and reviews are deferred until all tasks complete.
 ---
 
 # Subagent-Driven Development
@@ -12,7 +12,7 @@ Execute saved plans in the current session with a streaming lane scheduler:
 - Page lanes advance independently — no waiting for other lanes
 - Tasks stay serial within a page lane
 - Cross-page dependency work must be split into explicit later tasks, not page-level gating
-- Concurrency capped by `max_concurrency` (default 3)
+- Concurrency capped by `max_concurrency` (default 5)
 - One active task per page lane; fresh implementer subagent per task
 - Compilation and review deferred until all tasks complete
 
@@ -27,6 +27,7 @@ CRITICAL: The controller is an orchestrator, not an implementer.
 - Read `index.md`, `shared-plan.md`, and all page `plan.md` files before starting
 - Treat `[DOC_ROOT]/spec/CODING_STANDARDS.md` as the sole source for project conventions and embed its full content into every implementer prompt
 - Complete all `shared-plan.md` tasks before starting any page lane
+- Establish the run's effective `max_concurrency` before the first dispatch. Default is `5`; only change it when the user explicitly requests a lower cap or the runtime limitation fallback forces `1`
 - Parallelize ready shared tasks when write sets are disjoint — do NOT serially drain safe-to-parallelize tasks
 - Before starting page phase, sanity-check multi-page plans: each page should have page-local work that can start immediately after `shared-plan.md`; if a page is blocked from `Task 1` by another page, stop and fix the plan decomposition instead of serializing whole pages
 - On any subagent completion, immediately scan ALL lanes and dispatch every safe next task within `max_concurrency` — do NOT wait for other in-flight subagents (no wave regression)
@@ -50,6 +51,8 @@ CRITICAL: The controller is an orchestrator, not an implementer.
 - Start any page task before `shared-plan.md` is complete
 - Dispatch two tasks from the same page concurrently
 - Exceed `max_concurrency` limit
+- Arbitrarily downgrade `max_concurrency` to `2` / `3` / `4` just because only that many tasks are currently ready
+- Rewrite `max_concurrency` in tickets to equal the current dispatch count; dispatch size and concurrency cap are different values
 - Wait for all in-flight subagents before dispatching new tasks (wave regression)
 - Serially drain ready shared tasks after proving they are safe to parallelize
 - Block a ready lane from advancing when concurrency allows and no safety conflict exists (lane starvation)
@@ -132,6 +135,17 @@ Two tasks (shared or page) may run concurrently only when **all** are true:
 
 When the controller cannot prove write sets are disjoint → downgrade to serial.
 
+### Concurrency Semantics
+
+- `max_concurrency` means the actual cap in force for the current run, not the number of tasks selected in one ticket
+- Default run cap is `5`
+- Valid overrides are intentionally narrow:
+  - User explicitly asks for a lower cap before or during Phase 1
+  - Runtime limitation fallback forces `max_concurrency = 1`
+- If only 3 tasks are ready/safe while the run cap is still 5, the dispatch size is 3 but `max_concurrency` remains 5
+- Tickets must keep the real cap visible in `In-flight` / `Open slots`; explain unused slots via lane scan rows such as `not ready`, `unsafe`, or `no more lanes`
+- There is no ad-hoc downgrade path to `2`, `3`, or `4`
+
 ## Page Lane Contract
 
 For multi-page plans, the page phase assumes the following contract:
@@ -166,7 +180,12 @@ The controller executes the good version by launching `Task 1` for every page in
 ### Algorithm
 
 ```
-max_concurrency = 3
+max_concurrency = 5   # default run cap
+# Only valid overrides:
+# - user explicitly requests a lower cap
+# - runtime limitation fallback forces 1
+# Dispatch size may be smaller than max_concurrency when fewer tasks are ready/safe.
+# Never rewrite max_concurrency to match the number of tasks in the current batch.
 
 # ── Shared Phase (wave sync) ──────────────────────────────
 while shared-plan has unfinished tasks:
@@ -248,6 +267,7 @@ Ticket construction rules:
 - **Page phase**: one row per page lane, including blocked / in-flight / done lanes; do not show only the page that just completed
 - **Page phase dispatch**: if `my-order` already has an in-flight task, `my-order` must show `in-flight` and cannot receive another dispatch in the same ticket
 - **Blocked page rows**: if a page has finished its local tasks and the next task is an extracted cross-page dependency task, mark that row as `blocked` with the exact upstream task name; do not retroactively block the whole page from the start
+- **Ticket denominator**: the denominator in `M / max_concurrency` is the true cap in force for the run. Do not replace it with the number of tasks chosen for this ticket
 
 ### Common Misfires
 
@@ -257,6 +277,7 @@ Wrong:
 - `order-ledger` has local `Task 1` / `Task 2`, but controller holds the whole page because `Task 3` depends on `my-order`
 - `my-order:Task1` finishes and controller dispatches `my-order:Task2` + `my-order:Task3` together
 - **Ghost in-flight**: Ticket says dispatch 3 tasks, but only 1 `Agent(...)` call is made in that response; next turn claims the other 2 are "in-flight"
+- **Fake downgrade**: run cap is still 5, but the ticket rewrites it to `3` just because 3 tasks are ready
 
 Right:
 - Shared phase dispatches the full ready safe wave — all `Agent(...)` calls in one response
@@ -302,6 +323,7 @@ Response 1: Ticket says dispatch 3 → Agent(my-order Task 1) + Agent(delivery-r
 - **Same response, same message**: all N `Agent(...)` calls from one ticket go in one response. No splitting across turns.
 - **Never list a task in `In-flight` unless you have truly started it** — you must have an agent handle/ID or explicit “agent started” record.
 - **Runtime limitation fallback**: if your environment cannot keep multiple subagents running concurrently (e.g., the subagent call blocks until completion), then set `max_concurrency = 1` and run strictly serial — and the ticket must reflect that (no fake in-flight lanes).
+- **No silent cap shrink**: absent an explicit user override or the runtime limitation fallback, `max_concurrency` stays at 5 for the whole run even when a given dispatch contains fewer tasks.
 
 #### Post-Dispatch Self-Check (mandatory)
 
@@ -321,31 +343,32 @@ If the counts do not match → **STOP**. Do not proceed. Launch the missing agen
 ### Compact Example
 
 ```
-Shared phase (max_concurrency=3):
+Shared phase (max_concurrency=5):
   shared deps:
-    T1 = no deps
-    T5 = no deps
-    T2/T3/T4 = depend on T1
-  Wave 1 ticket rows: shared:T1, shared:T5
-    → ONE response with: Agent(shared:T1) + Agent(shared:T5)   ← 2 Agent calls in same message
-    → Self-Check: dispatched=2, launched=2, match ✅
-  Wave 2 ticket rows: shared:T2, shared:T3, shared:T4
-    → ONE response with: Agent(shared:T2) + Agent(shared:T3) + Agent(shared:T4)
-    → Self-Check: dispatched=3, launched=3, match ✅
+    T1 = no deps (create SQL DDL)
+    T2 = no deps (create Entity — reads design doc, not T1's output)
+    T3 = no deps (create DTO — reads design doc, not T1's output)
+    T4 = no deps (create menu SQL — independent file)
+    T5 = no deps (configure routes)
+  Wave 1 ticket rows: shared:T1, shared:T2, shared:T3, shared:T4, shared:T5
+    → ONE response with: Agent(shared:T1) + Agent(shared:T2) + Agent(shared:T3) + Agent(shared:T4) + Agent(shared:T5)
+    → Self-Check: dispatched=5, launched=5, match ✅
+  NOTE: T1-T5 all read from the same design doc but create independent files
+        → no execution dependency → maximize parallelism
 
-Page phase (max_concurrency=3, pages: my-order, delivery-record, consignment-inventory, order-ledger):
+Page phase (max_concurrency=5, pages: my-order, delivery-record, consignment-inventory, order-ledger):
   order-ledger plan:
     T1 = frontend diff fix                     # no cross-page deps
     T2 = page-local interaction wiring         # no cross-page deps
     T3 = reuse order list response fields      # depends on my-order:T2
 
   Ticket #1 [shared complete]:
-    → ONE response with: Agent(my-order:T1) + Agent(delivery-record:T1) + Agent(order-ledger:T1)
-    → Self-Check: dispatched=3, launched=3, match ✅
-    hold consignment-inventory only because no slot is open
+    → ONE response with: Agent(my-order:T1) + Agent(delivery-record:T1) + Agent(consignment-inventory:T1) + Agent(order-ledger:T1)
+    → Self-Check: dispatched=4, launched=4, match ✅
+    note: only 4 page lanes exist, so 1 slot remains unused even though max_concurrency is 5
 
-  Ticket #2 [order-ledger:T1 done while other two still running]:
-    → ONE response with: Agent(order-ledger:T2) only     ← only 1 slot open
+  Ticket #2 [order-ledger:T1 done while other three still running]:
+    → ONE response with: Agent(order-ledger:T2) only     ← 2 slots are open, but order-ledger is the only idle ready lane
     → Self-Check: dispatched=1, launched=1, match ✅
     do NOT dispatch order-ledger:T3 yet
 
@@ -409,7 +432,7 @@ If status write-back fails → keep prior state, do not advance the lane.
 
 Entry: all tasks in `shared-plan.md` + all page `plan.md` files complete.
 
-**Phase 2 = 5 sequential Gates. 编译通过 ≠ 完成。必须走完全部 Gate + 输出 Final Gate Evidence 才能宣布完成。**
+**Phase 2 = 5 sequential Gates. 编译通过 ≠ 完成。必须走完全部 Gate + 输出 Final Gate Evidence 才能宣布完成，也才能进入 `finishing-a-development-branch`。**
 
 | Gate | Action | On failure |
 |------|--------|------------|
@@ -419,7 +442,7 @@ Entry: all tasks in `shared-plan.md` + all page `plan.md` files complete.
 | 4 | Code Quality — `AskUserQuestion` → dispatch `code-quality-reviewer-prompt.md` | fix → re-review |
 | 5 | Coding Standards Feedback → propose updates to `CODING_STANDARDS.md` | user confirms |
 
-Gate 3/4 only skipped when user explicitly says "跳过". All gates done → output **Final Gate Evidence** table.
+Gate 3/4 only skipped when user explicitly says "跳过". Gate 5 is still a required terminal gate even when it results in `no conventions to add`. All gates done → output **Final Gate Evidence** table, then and only then continue to the finishing skill.
 
 详见 [`shared/phase2-verification.md`](../shared/phase2-verification.md)。
 

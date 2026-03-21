@@ -28,6 +28,7 @@
 | 12 | **DTO 文件路径**：4.3 中每个 DTO 都标注了 Java 文件路径（放哪个包、叫什么名字） | |
 | 13 | **逻辑删除**：6.2 已写明逻辑删除约定；3.2 DELETE 接口的业务逻辑是 `UPDATE SET del_flag` 而非物理 DELETE；7 中所有伪 SQL 都有 `del_flag='0'` | |
 | 14 | **无具体代码**：文档中不含任何 Java 代码块（无 `class`/`@`/`public` 等 Java 语法）、DDL SQL、MyBatis XML（无 `<select>`/`<if>` 等标签）；Section 4.2/4.3 只有字段表格，Section 5.1 只有字段表格，Section 7 只有伪 SQL 纯文本 | |
+| 15 | **API 契约来源明确**：3.1 / 3.2 / 9.2 / 9.3 中的接口 path、入参、出参与 `frontend-detail-design.md` Section 5 / Section 6 一致；若当前页面已有 UI 实现，则这些契约项最终都能追溯到精确 UI 文件或明确 diff 决议，不能由后端文档独立发明 | |
 
 ## 1. 背景与目标
 
@@ -64,6 +65,7 @@
 > 写操作接口（POST/PUT/DELETE）还必须写「业务逻辑」，用有序步骤描述完整实现：
 > 校验 → 前置状态检查 → 核心操作（含涉及的表和关键字段）→ 异常分支 → 返回值。
 > 禁止只写结论不写过程。
+> 若当前页面已有 UI 实现，接口 path / 请求参数 / 响应结构必须与前端详细设计中记录的 UI 契约一致；如存在冲突且 diff 未明确要求改契约，写成 blocker / 待确认，不得擅自定稿。
 
 #### GET `/{{module}}/{{resource}}/list`
 
@@ -283,15 +285,15 @@ SELECT * FROM {{table}} WHERE id = #{id} AND del_flag='0'
 
 ### 9.2 请求参数对齐
 
-| 前端字段 | 后端参数 | 类型是否一致 | 备注 |
-| --- | --- | --- | --- |
-| `queryParams.materialNo` | `OrderQuery.materialNo` | ✅ | — |
+| 前端字段 | 后端参数 | 类型是否一致 | 来源文件/证据 | 备注 |
+| --- | --- | --- | --- | --- |
+| `queryParams.materialNo` | `OrderQuery.materialNo` | ✅ | `frontend-detail-design.md` Section 6 | — |
 
 ### 9.3 响应字段对齐
 
-| 前端字段 | 后端实体字段 | 类型映射 | 备注 |
-| --- | --- | --- | --- |
-| `order.status: string` | `Order.status: String` | ✅ | — |
+| 前端字段 | 后端实体字段 | 类型映射 | 来源文件/证据 | 备注 |
+| --- | --- | --- | --- | --- |
+| `order.status: string` | `Order.status: String` | ✅ | `frontend-detail-design.md` Section 6 | — |
 
 ### 9.4 枚举值对齐
 

@@ -12,9 +12,8 @@ Dispatch superpowers:code-reviewer subagent to catch issues before they cascade.
 ## When to Request Review
 
 **Mandatory:**
-- After Phase 2 compilation passes (subagent-driven-development)
-- After all tasks complete and compilation passes (executing-plans)
-- Before merge to main
+- Before merge to main when no equivalent Phase 2 review has already occurred
+- For ad-hoc development flows that do not already include a full-module review gate
 
 **Optional but valuable:**
 - When stuck (fresh perspective)
@@ -77,11 +76,11 @@ You: [Fix progress indicators]
 ## Integration with Workflows
 
 **Subagent-Driven Development:**
-- Review once in Phase 2 (after all tasks complete and compilation passes)
+- Review once in Phase 2 (after all tasks complete, all verification gates finish, and Final Gate Evidence is emitted)
 - SDD Phase 2 already dispatches spec-reviewer + code-quality-reviewer — do NOT add a separate requesting-code-review on top
 
 **Executing Plans:**
-- Review once after all tasks complete and compilation passes
+- Review once in Phase 2 (after all tasks complete, all verification gates finish, and Final Gate Evidence is emitted)
 - One-shot review for entire feature module
 
 **Ad-Hoc Development:**

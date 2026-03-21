@@ -31,6 +31,7 @@ Shared verification process used by both `subagent-driven-development` and `exec
 - Controller reviewing code itself does NOT satisfy this gate
 - Use `subagent-driven-development/spec-reviewer-prompt.md` template
 - Failure → dispatch fix subagent → re-dispatch spec reviewer → loop until pass
+- Controller must not patch source files directly to satisfy this gate; fixes must be delegated to a fix subagent, then re-reviewed
 - 跳过时：Final Gate Evidence 中标记为 ⏭️ Skipped
 
 ## Gate 4: Code Quality (可选，默认执行)
@@ -42,11 +43,12 @@ Shared verification process used by both `subagent-driven-development` and `exec
 - Controller reviewing code itself does NOT satisfy this gate
 - Use `subagent-driven-development/code-quality-reviewer-prompt.md` template
 - Failure → dispatch fix subagent → re-dispatch quality reviewer → loop until pass
+- Controller must not patch source files directly to satisfy this gate; fixes must be delegated to a fix subagent, then re-reviewed
 - 跳过时：Final Gate Evidence 中标记为 ⏭️ Skipped
 
 ## Gate 5: Coding Standards Feedback
 
-After Gate 4 passes or is skipped, review all issues found during Gates 3-4 (if executed) and check if any relate to coding conventions/patterns that should be captured in the coding standards docs. If both Gate 3 and Gate 4 were skipped, skip Gate 5 silently.
+After Gate 4 passes or is skipped, Gate 5 is the **required terminal gate**. Review all issues found during Gates 3-4 (if executed) and check if any relate to coding conventions/patterns that should be captured in the coding standards docs.
 
 **Controller does this directly (no subagent):**
 
@@ -71,11 +73,14 @@ Would you like to update the coding standards doc (`spec/CODING_STANDARDS.md`，
 
 4. Wait for user confirmation
 5. If approved, update `spec/CODING_STANDARDS.md`（CWD 下）
-6. If no convention-related issues found, skip this gate silently
+6. If the user declines, record that decision and continue
+7. If no convention-related issues found, explicitly record `no conventions to add` for Gate 5
+
+**Hard rule:** Do not declare Phase 2 complete after Gate 4. Gate 5 must be processed explicitly, even when the result is a no-op.
 
 ## Final Gate Evidence Block (Mandatory)
 
-After all gates pass, output this block once:
+After all five gates are complete (or explicitly skipped where allowed), output this block once:
 
 ```
 ### Final Gate Evidence
@@ -90,3 +95,8 @@ After all gates pass, output this block once:
 All gates ✅ → Implementation COMPLETE
 Any gate ❌ → Fix and re-verify
 ```
+
+Do not enter `finishing-a-development-branch`, declare implementation complete, or summarize Phase 2 as passed until:
+
+1. Gate 5 has been processed
+2. Final Gate Evidence has been emitted

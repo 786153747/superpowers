@@ -20,6 +20,15 @@ Plan 的目标是让一个**有开发能力但不了解项目**的模型，通�
 - 注意：`spec/CODING_STANDARDS.md` 在 CWD 下（主代理用相对路径读取）；Task 中引用的源码文件路径应指向 `PROJECT_ROOT` 或 `SOURCE_ROOT`
 - 参考文件只允许列出当前 Task **明确要修改、调用、继承或对齐**的具体文件，不得作为“扫描项目学习风格”的手段
 
+## API Contract Gate（HARD-GATE）
+
+对于**已有 UI 实现或原型实现**的页面：
+
+- API path / method / request params / response fields 的真相来源是该页面的精确 UI 文件：页面 `.vue` + API 文件 + 类型文件 + 直接相关的 mock 文件（若有）
+- `spec/CODING_STANDARDS.md` 只约束项目风格，不负责定义业务 API 契约
+- `frontend-detail-design.md` / `backend-detail-design.md` 中的 API 契约如果与 UI 实现不一致，且 `diff.md` 没有明确决议要求改契约，**不得继续生成 plan**
+- 此时必须停止并回退到 `brainstorming` 修正文档，而不是带着漂移的接口契约继续写 plan
+
 ## 当前版本目录契约
 
 - `diff.md`、`index.md`、`frontend-detail-design.md`、`backend-detail-design.md`、`shared-plan.md`、`plan.md` 必须来自**同一个当前版本目录**
@@ -64,6 +73,12 @@ Q5: 确定范围：
 ```
 
 If all checks pass, read design document(s), current diff document (`diff.md`), index.md, and `spec/CODING_STANDARDS.md` as input. `diff / index / 设计文档` must all come from the same current version directory.
+
+Before writing any plan, also verify:
+
+- Frontend / backend detailed design API path + request params + response fields are mutually consistent
+- If the page has existing UI implementation, those API definitions are traceable to the exact UI page/API/type files or an explicit confirmed diff decision
+- Any unresolved `待确认` API contract item = STOP; do not generate plan on top of it
 
 Never treat a generic `继续` as approval to bypass the design gate.
 
@@ -373,6 +388,12 @@ Do not hard-code a default execution skill in generated plans. Execution mode mu
 
 **依赖**: Task X, Task Y（必须先完成；优先引用本页前置 Task。跨页面依赖仅允许用于显式拆出的后置 Task，不得让 `Task 1` 依赖其他页面）
 
+> **执行依赖 vs 设计参考**：`依赖` 字段只写**执行依赖**——即 Task B 必须读取或修改 Task A 创建的文件才能工作。如果 Task B 只是参照了与 Task A 相同的设计文档（如 Entity 参照表结构定义），但两者各自独立创建不同文件，则**不构成执行依赖**。设计文档是共享输入，不是上游产物。
+>
+> 典型误判：建表 SQL（Task A）和 Entity Java 类（Task B）都从 `backend-detail-design.md` 读取表结构定义，各自输出独立文件（`.sql` vs `.java`）→ 无执行依赖，可并行。
+>
+> 真正的执行依赖示例：Service 层（Task B）需要 import 并调用 Mapper 接口（Task A 创建）→ Task B 依赖 Task A。
+
 > **路径占位符**：`[SOURCE_ROOT]` 和 `[DOC_ROOT]` 在 plan 中是占位符。实际值在执行阶段由 `using-git-worktrees` 创建 worktree 后确定，controller 负责替换为绝对路径传给 subagent。
 
 **参考文件**（实现前必须先用 Read 工具读取；仅限当前 Task 明确涉及的具体文件）:
@@ -380,6 +401,7 @@ Do not hard-code a default execution skill in generated plans. Execution mode mu
 - Dependency/Base: `[SOURCE_ROOT]/path/to/base/BaseEntity.java` — 对齐继承关系或调用方式
 - Standards: `[DOC_ROOT]/spec/CODING_STANDARDS.md` — 项目级技术栈 / 架构 / 代码规范唯一来源
 - Design: `[DOC_ROOT]/docs/plans/xxx-detail-design.md` Section 4.2 — 字段定义
+- For API-related frontend/backend tasks on existing UI pages: include the exact page `.vue`, API file, type file, and related mock file (if any) as reference files so the implementer aligns to the real UI contract instead of only the prose design
 
 **创建/修改文件**:
 - Create: `[SOURCE_ROOT]/exact/path/to/NewFile.java`
@@ -511,6 +533,8 @@ Plan 保存前必须逐项自检：
 | 9 | **共享接口去重**：index.md API 映射中标记"是否共享=是"的接口，后续页面 plan 不得重复创建 Controller/Service/Mapper | ✅/❌ |
 | 10 | **多页面并行友好**：不得出现"整页依赖另一页"的结构；跨页面依赖已拆成显式后置 Task，页面在 shared 后可直接并行启动 | ✅/❌ |
 | 11 | **无编译验证条件**：全文搜索 `mvn compile`、`npm run build`、`编译无错误`、`无 import 错误`、`无类型不匹配` — Task 中不得出现任何此类内容（CLAUDE.md Rule 6） | ✅/❌ |
+| 12 | **依赖最小化**：每个 `依赖` 字段仅声明执行依赖（Task B 必须读取/修改 Task A 创建的文件），不含设计参考依赖（两个 Task 参照同一设计文档但各自创建独立文件）。特别检查 shared-plan 中建表 SQL、Entity、DTO、菜单 SQL、路由等互不引用的 Task 是否被错误串联 | ✅/❌ |
+| 13 | **API 契约一致性**：frontend-detail-design / backend-detail-design 中的 API path、入参、出参与当前页面真实 UI 契约一致；若页面已有 UI 实现，plan 的 API Task 已引用精确的页面/API/类型文件，而不是只引用设计文档散文描述 | ✅/❌ |
 
 任一项为 ❌ → 补全后再保存。
 
@@ -520,7 +544,7 @@ Plan 保存前必须逐项自检：
 ## 自检总裁定: [PASS / FAIL]
 ```
 
-- 11 项全部 ✅ → `PASS`，可以落盘
+- 13 项全部 ✅ → `PASS`，可以落盘
 - 任何一项 ❌ → `FAIL`，**绝对不得落盘**。必须定位失败项、修复后重新执行完整自检，直到 `PASS` 才能保存
 - **禁止绕过**：不得在 FAIL 时以"后续补充"等理由保存半成品 plan
 

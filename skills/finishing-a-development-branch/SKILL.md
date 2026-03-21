@@ -25,7 +25,7 @@ Git checkout / merge / push 在 `PROJECT_ROOT` 执行。worktree 清理（`git w
 
 ### Step 1: Verify Compilation Status
 
-**If coming from subagent-driven-development Phase 2 or executing-plans (compilation already passed):** Skip re-testing. The code was just compiled and reviewed — running tests again on unchanged code is redundant.
+**If coming from subagent-driven-development Phase 2 or executing-plans and Final Gate Evidence has already been emitted:** Skip re-testing. The code was just compiled and reviewed — running tests again on unchanged code is redundant.
 
 **If called independently (no prior compilation):** Run the project's build/test command:
 
@@ -193,8 +193,8 @@ git worktree remove <worktree-path>
 ## Integration
 
 **Called by:**
-- **subagent-driven-development** (Step 7) - After all tasks complete
-- **executing-plans** (Step 5) - After all batches complete
+- **subagent-driven-development** (Step 7) - After all Phase 2 gates complete and Final Gate Evidence is emitted
+- **executing-plans** (Step 5) - After all Phase 2 gates complete and Final Gate Evidence is emitted
 
 **Pairs with:**
 - **using-git-worktrees** - Cleans up worktree created by that skill

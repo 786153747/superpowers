@@ -216,9 +216,10 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务目录
 
 **上下文管理**：当写到第 4 个页面且前后端都有时（≥ 8 份文档），主动建议用户在新对话中继续，避免输出截断。也可建议用户切换到并行模式。
 
-- Determine scope before writing:
-  - Frontend in scope → use `spec/frontend/vue/detail-design-template.md`
-  - Backend in scope → use `spec/backend/java/detail-design-template.md`
+- **模板前置读取（硬性要求）**：在写任何设计文档之前，必须先用 Read 工具读取对应模板：
+  - Frontend in scope → **Read** `spec/frontend/vue/detail-design-template.md`，按模板的章节结构和格式逐节生成
+  - Backend in scope → **Read** `spec/backend/java/detail-design-template.md`，按模板的章节结构和格式逐节生成
+  - **违反后果**：未读取模板就开始写设计文档 = 该文档无效，必须删除后重新读取模板再写
 
 **每轮只处理一个页面。** 对当前页面：
 
@@ -246,10 +247,14 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务目录
 
 **启动方式**：在同一轮中，为所有页面并行发起 Agent 调用（单条消息中多个 Agent tool call）。**禁止**先启动部分 Agent 等其完成后再启动剩余 Agent——所有 Agent 必须在同一条消息中一次性全部发出。
 
+**模板读取要求**：模板文件路径必须加入 `ALLOWED_READ_PATHS` 白名单，由子代理在编写设计文档前自行 Read：
+- Frontend in scope → `spec/frontend/vue/detail-design-template.md`
+- Backend in scope → `spec/backend/java/detail-design-template.md`
+
 每个 Agent 的 prompt 必须包含：
 1. **任务说明**：为页面 `<page-slug>` 编写前端和/或后端详细设计文档
 2. **输出路径**：`<version-root>/<page-slug>/frontend-detail-design.md` 和 `backend-detail-design.md`（使用 Step 2 确定的确切版本目录的**绝对路径**，不得让子代理自行 glob 查找）
-3. **模板内容**：将 `spec/frontend/vue/detail-design-template.md` 和/或 `spec/backend/java/detail-design-template.md` 的完整内容嵌入 prompt
+3. **模板路径与读取指令（关键 — 不得省略）**：在 prompt 中给出模板文件的**绝对路径**，并明确指令子代理：「编写前端/后端详细设计前，必须先用 Read 工具读取对应模板文件，严格按模板的章节结构、表格格式、自检清单逐节生成设计文档，不得省略任何章节或自创结构。」模板路径须同时加入 `ALLOWED_READ_PATHS`
 4. **项目规范输入**：`spec/CODING_STANDARDS.md` 的内容或摘要，作为技术栈、架构、代码规范和基类/继承约定的唯一来源
 5. **需求上下文**：该页面在当前 diff 文档（`diff.md`）中的差异描述和确认决议，以及 Step 5 确认的设计方案中与该页面相关的部分。若需要补充需求材料，主代理必须在 prompt 中显式给出这些材料的**绝对路径**（如 `DIFF_PATH`、`PRD_PATHS`、`26 个字段定义.md` 路径），不得让子代理自行发现
 6. **规则约束**：
