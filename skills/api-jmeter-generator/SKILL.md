@@ -128,6 +128,7 @@ docs/plans/YYYY-MM-DD-<topic>/<commitid>/
   "projectName": "项目名称",
   "generatedAt": "2026-03-19T10:00:00",
   "baseUrl": "http://localhost:8080",
+  "groupBy": "page",
   "auth": {
     "loginPath": "/login",
     "method": "POST",
@@ -152,6 +153,7 @@ docs/plans/YYYY-MM-DD-<topic>/<commitid>/
       "scenarioType": "query-positive",
       "method": "GET",
       "path": "/aftermarket/order/list",
+      "page": "订单列表",
       "controller": "OrderController",
       "params": {
         "type": "query",
@@ -211,6 +213,13 @@ docs/plans/YYYY-MM-DD-<topic>/<commitid>/
   ]
 }
 ```
+
+分组与命名规则：
+- `postman.json` 默认按 `controller` 分组。
+- 如需按页面分组，在顶层设置 `"groupBy": "page"`，并在每个接口上补 `"page": "页面中文名"`。
+- 也可直接为单个接口指定 `"group": "自定义分组名"`；它的优先级高于 `groupBy`。
+- `page`、`group`、`name` 都支持中文，Postman Collection/Folder 会按原样输出。
+- 当 `groupBy=page` 但未显式提供 `page` 时，脚本会回退到 `name` 中 ` - ` 前的首段，再回退到 `controller`。
 
 ### 场景与断言生成规则
 

@@ -37,6 +37,87 @@ function normalizeAuth(auth) {
   };
 }
 
+function tryParseJsonValue(value) {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return value;
+  }
+
+  try {
+    return JSON.parse(trimmed);
+  } catch (error) {
+    return value;
+  }
+}
+
+function buildBodyPayload(params) {
+  if (!params || params.type !== 'body') {
+    return {};
+  }
+
+  if (Object.prototype.hasOwnProperty.call(params, 'json')) {
+    return params.json;
+  }
+
+  if (!Array.isArray(params.fields)) {
+    return {};
+  }
+
+  const payload = {};
+  for (const field of params.fields) {
+    payload[formatValue(field.name)] = tryParseJsonValue(field.value);
+  }
+
+  return payload;
+}
+
+function extractGroupFromName(name) {
+  const source = formatValue(name).trim();
+  if (!source) {
+    return '';
+  }
+
+  const segments = source
+    .split(/\s+-\s+/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  return segments[0] || '';
+}
+
+function normalizeGroupBy(data) {
+  const rawValue = data && data.postman && typeof data.postman === 'object'
+    ? (data.postman.groupBy ?? data.groupBy)
+    : (data && data.groupBy);
+  const normalized = formatValue(rawValue).trim().toLowerCase();
+
+  if (normalized === 'page' || normalized === 'name' || normalized === 'name-prefix') {
+    return normalized;
+  }
+
+  return 'controller';
+}
+
+function resolveGroupName(api, groupBy) {
+  if (api.group) {
+    return formatValue(api.group);
+  }
+
+  if (groupBy === 'page') {
+    return formatValue(api.page || extractGroupFromName(api.name) || api.controller || 'Requests');
+  }
+
+  if (groupBy === 'name' || groupBy === 'name-prefix') {
+    return formatValue(extractGroupFromName(api.name) || api.page || api.controller || 'Requests');
+  }
+
+  return formatValue(api.controller || api.page || extractGroupFromName(api.name) || 'Requests');
+}
+
 function buildCollectionId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
 }
@@ -454,6 +535,19 @@ function buildRequestItem(name, request, event, description) {
   };
 }
 
+function buildRequestDescription(api) {
+  const lines = [];
+
+  if (api.page) {
+    lines.push(`Page: ${api.page}`);
+  }
+  if (api.controller) {
+    lines.push(`Controller: ${api.controller}`);
+  }
+
+  return lines.join('\n');
+}
+
 function buildLoginItem(auth, baseUrlMeta) {
   return buildRequestItem(
     'Login',
@@ -477,11 +571,11 @@ function buildApiRequest(api, auth, baseUrlMeta) {
     method: api.method || 'GET',
     header: buildHeaders(api, auth, hasBody),
     url: buildUrlObject(baseUrlMeta.rawBaseUrl, api.path, api.params, baseUrlMeta),
-    description: api.controller ? `Controller: ${api.controller}` : '',
+    description: buildRequestDescription(api),
   };
 
   if (hasBody) {
-    request.body = buildRequestBody(api.contentType || 'application/json', api.params.json);
+    request.body = buildRequestBody(api.contentType || 'application/json', buildBodyPayload(api.params));
   }
 
   return buildRequestItem(
@@ -504,6 +598,7 @@ function buildPostmanCollection(data) {
   const auth = normalizeAuth(data.auth);
   const baseUrl = data.baseUrl || 'http://localhost:8080';
   const baseUrlMeta = parseBaseUrlMeta(baseUrl);
+  const groupBy = normalizeGroupBy(data);
   const groupedItems = new Map();
 
   function pushToGroup(groupName, item) {
@@ -517,7 +612,7 @@ function buildPostmanCollection(data) {
   pushToGroup('Authentication', buildLoginItem(auth, baseUrlMeta));
 
   for (const api of data.apis || []) {
-    pushToGroup(api.controller || 'Requests', buildApiRequest(api, auth, baseUrlMeta));
+    pushToGroup(resolveGroupName(api, groupBy), buildApiRequest(api, auth, baseUrlMeta));
   }
 
   return {

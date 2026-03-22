@@ -23,6 +23,38 @@ function escapeXml(str) {
     .replace(/'/g, '&apos;');
 }
 
+function tryParseJsonValue(value) {
+  if (typeof value !== 'string') return value;
+
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+
+  try {
+    return JSON.parse(trimmed);
+  } catch (error) {
+    return value;
+  }
+}
+
+function buildBodyPayload(params) {
+  if (!params || params.type !== 'body') return {};
+
+  if (Object.prototype.hasOwnProperty.call(params, 'json')) {
+    return params.json;
+  }
+
+  if (!Array.isArray(params.fields)) {
+    return {};
+  }
+
+  const payload = {};
+  for (const field of params.fields) {
+    payload[field.name] = tryParseJsonValue(field.value);
+  }
+
+  return payload;
+}
+
 // ── 生成 HTTP Header Manager ─────────────────────────────
 
 function genHeaderManager(name, headers) {
@@ -126,7 +158,7 @@ function genHttpSampler(api, baseUrl) {
           </elementProp>`;
   } else if (api.params?.type === 'body') {
     isRawBody = true;
-    const bodyStr = JSON.stringify(api.params.json, null, 2);
+    const bodyStr = JSON.stringify(buildBodyPayload(api.params), null, 2);
     argsXml = `
           <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
