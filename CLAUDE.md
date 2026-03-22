@@ -17,6 +17,8 @@
 
 未明确选择前，不得默认进入任一执行 skill。
 
+**跳过选择的条件**：如果用户在提示词中已明确指定了具体的执行 skill（如 `请调用 superpowers:executing-plans` 或 `请调用 superpowers:subagent-driven-development`），视为已做出选择，直接执行该 skill，不再弹框询问。
+
 ---
 
 ## 路径变量
