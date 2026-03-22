@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "validate-test-cases": "node validate-test-cases.js",
+    "generate-excel": "node generate-excel.js"
+  },
   "dependencies": {
     "exceljs": "^4.4.0"
   }

@@ -5,3 +5,4 @@
 prd/
 ruoyi-ui/
 tests/
+skills/*/scripts/node_modules/

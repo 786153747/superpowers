@@ -1,9 +1,9 @@
 {
-  "projectName": "后市场订单管理",
+  "projectName": "后市场订单库存功能",
   "generatedAt": "2026-03-19T10:00:00",
   "source": {
     "prd": "docs/prd/aftermarket-order.md",
-    "diff": "docs/plans/2026-03-16-后市场订单库存功能/abc123/diff_abc123.md"
+    "diff": "docs/plans/2026-03-16-后市场订单库存功能/abc123/diff.md"
   },
   "pages": [
     {
@@ -14,7 +14,7 @@
           "id": "TC-MO-01",
           "priority": "P0",
           "category": "正向主流程",
-          "scenario": "查询订单列表-默认加载",
+          "scenario": "查询订单列表 - 默认加载",
           "precondition": "用户已登录且有页面访问权限，数据库中存在订单数据",
           "steps": [
             {
@@ -24,13 +24,13 @@
             },
             {
               "stepNo": 2,
-              "action": "观察表格数据",
-              "expected": "表格显示订单数据，列头包含：订单编号、订单日期、供应商、状态、金额"
+              "action": "观察页面标题和工具栏按钮",
+              "expected": "页面标题正确显示，工具栏展示当前版本应有的业务按钮"
             },
             {
               "stepNo": 3,
-              "action": "观察分页组件",
-              "expected": "分页组件显示总条数，默认每页 10 条"
+              "action": "观察表格列头和分页组件",
+              "expected": "表格列头与 PRD 一致，分页组件默认每页 10 条"
             }
           ],
           "testData": "至少 15 条订单数据（超过一页）",
@@ -38,171 +38,108 @@
         },
         {
           "id": "TC-MO-02",
-          "priority": "P0",
-          "category": "正向主流程",
-          "scenario": "按订单编号搜索",
-          "precondition": "用户已登录，数据库中存在编号为 ORD-20260301 的订单",
+          "priority": "P1",
+          "category": "反向校验 - 业务规则",
+          "scenario": "订单确认 - 选中非待确认状态订单时按钮保持置灰",
+          "precondition": "用户已登录，列表中存在已确认状态订单",
           "steps": [
             {
               "stepNo": 1,
-              "action": "在「订单编号」输入框中输入 ORD-20260301",
-              "expected": "输入框显示输入的编号"
+              "action": "勾选状态为「已确认」的订单行项目",
+              "expected": "订单确认按钮保持置灰，不可点击"
             },
             {
               "stepNo": 2,
-              "action": "点击「搜索」按钮",
-              "expected": "表格刷新，仅显示包含该编号的订单"
-            },
-            {
-              "stepNo": 3,
-              "action": "观察分页组件",
-              "expected": "分页组件显示筛选后的总条数"
+              "action": "观察页面提示和订单状态",
+              "expected": "页面不进入确认弹窗，订单状态不发生变化"
             }
           ],
-          "testData": "订单编号: ORD-20260301",
+          "testData": "至少 1 条已确认订单",
           "relatedDiff": "D2"
         },
         {
           "id": "TC-MO-03",
-          "priority": "P0",
-          "category": "正向主流程",
-          "scenario": "新增订单-正常流程",
-          "precondition": "用户已登录且有新增权限，供应商“测试供应商A”为启用状态",
+          "priority": "P1",
+          "category": "反向校验 - 状态流转",
+          "scenario": "订单发货 - 已完结订单不可再次发货",
+          "precondition": "用户已登录，列表中存在状态为「已完结」的订单",
           "steps": [
             {
               "stepNo": 1,
-              "action": "点击「新增」按钮",
-              "expected": "弹出新增订单对话框"
+              "action": "勾选状态为「已完结」的订单",
+              "expected": "订单发货按钮保持置灰，不可点击"
             },
             {
               "stepNo": 2,
-              "action": "填写订单编号: ORD-TEST-001，选择供应商: 测试供应商A，填写金额: 1000.00",
-              "expected": "表单各字段正常显示"
-            },
-            {
-              "stepNo": 3,
-              "action": "点击「确定」按钮",
-              "expected": "弹窗关闭，提示「新增成功」，列表中可查到新订单，状态默认为“草稿”"
+              "action": "检查订单当前状态和可操作项",
+              "expected": "订单状态保持为「已完结」，页面不进入发货流程"
             }
           ],
-          "testData": "订单编号: ORD-TEST-001, 供应商: 测试供应商A, 金额: 1000.00",
+          "testData": "至少 1 条已完结订单",
           "relatedDiff": "D3"
         },
         {
           "id": "TC-MO-04",
           "priority": "P1",
-          "category": "反向校验",
-          "scenario": "新增订单-订单编号重复不允许提交",
-          "precondition": "用户已登录且有新增权限，数据库中已存在订单编号 ORD-EXIST-001",
+          "category": "权限控制",
+          "scenario": "供应商仅查看所属订单数据",
+          "precondition": "使用供应商账号登录",
           "steps": [
             {
               "stepNo": 1,
-              "action": "点击「新增」按钮并填写订单编号 ORD-EXIST-001、供应商、金额等必填信息",
-              "expected": "表单允许正常填写"
+              "action": "导航到「我的订单」页面并执行查询",
+              "expected": "页面正常加载，仅返回当前供应商所属订单"
             },
             {
               "stepNo": 2,
-              "action": "点击「确定」按钮",
-              "expected": "系统提示“订单编号已存在”或同等业务提示，表单不提交，列表数据不新增"
+              "action": "对比其他供应商订单编号",
+              "expected": "结果中不出现无权限订单数据"
             }
           ],
-          "testData": "已存在订单编号: ORD-EXIST-001",
-          "relatedDiff": "D3"
+          "testData": "供应商账号与多供应商订单数据",
+          "relatedDiff": "D4"
         },
         {
           "id": "TC-MO-05",
-          "priority": "P1",
-          "category": "反向校验",
-          "scenario": "已提交订单不允许删除",
-          "precondition": "用户已登录且有删除权限，列表中存在状态为“已提交”的订单 ORD-SUB-001",
+          "priority": "P2",
+          "category": "边界场景",
+          "scenario": "列表无数据时显示空状态",
+          "precondition": "用户已登录，当前查询条件下无匹配订单",
           "steps": [
             {
               "stepNo": 1,
-              "action": "在列表中定位订单 ORD-SUB-001 并点击「删除」",
-              "expected": "弹出删除确认或直接发起删除校验"
+              "action": "输入一个不存在的订单编号并点击查询",
+              "expected": "列表刷新后显示空状态"
             },
             {
               "stepNo": 2,
-              "action": "确认删除操作",
-              "expected": "系统提示“当前状态不允许删除”或同等业务提示，订单仍保留在列表中，状态不变"
+              "action": "观察分页组件和工具栏",
+              "expected": "分页总条数为 0，页面其他可用按钮状态符合 PRD"
             }
           ],
-          "testData": "订单编号: ORD-SUB-001, 状态: 已提交",
-          "relatedDiff": "D4"
+          "testData": "不存在的订单编号：NOT-EXIST-001",
+          "relatedDiff": "D5"
         },
         {
           "id": "TC-MO-06",
           "priority": "P2",
-          "category": "边界场景",
-          "scenario": "空数据状态展示",
-          "precondition": "用户已登录，数据库中无订单数据或筛选结果为空",
+          "category": "异常场景",
+          "scenario": "SAP 接口调用失败时给出提示且不更新状态",
+          "precondition": "用户已登录，存在可执行确认操作的订单，后端返回 SAP 失败响应",
           "steps": [
             {
               "stepNo": 1,
-              "action": "在搜索框输入不存在的订单编号 NOT-EXIST-999",
-              "expected": "输入框正常显示"
+              "action": "执行订单确认操作",
+              "expected": "页面弹出错误提示，提示内容来自接口返回"
             },
             {
               "stepNo": 2,
-              "action": "点击「搜索」按钮",
-              "expected": "表格显示“暂无数据”，分页总条数为 0"
-            },
-            {
-              "stepNo": 3,
-              "action": "观察页面控件状态",
-              "expected": "「新增」「导出」按钮仍可用，「搜索」「重置」按钮仍可用"
+              "action": "刷新列表并检查订单状态",
+              "expected": "订单状态保持原值，列表数据未被误更新"
             }
           ],
-          "testData": "不存在的订单编号: NOT-EXIST-999",
+          "testData": "SAP 失败响应样例",
           "relatedDiff": "D6"
-        },
-        {
-          "id": "TC-MO-07",
-          "priority": "P1",
-          "category": "权限控制",
-          "scenario": "无新增权限用户不显示新增按钮",
-          "precondition": "使用无新增权限的用户登录",
-          "steps": [
-            {
-              "stepNo": 1,
-              "action": "导航到「我的订单」页面",
-              "expected": "页面正常加载"
-            },
-            {
-              "stepNo": 2,
-              "action": "观察工具栏按钮",
-              "expected": "「新增」按钮不显示或禁用，「查询」「导出」按钮正常显示"
-            }
-          ],
-          "testData": "使用角色: 只读用户",
-          "relatedDiff": "D5"
-        }
-      ]
-    },
-    {
-      "pageSlug": "delivery-record",
-      "pageName": "发货记录",
-      "testCases": [
-        {
-          "id": "TC-DR-01",
-          "priority": "P0",
-          "category": "正向主流程",
-          "scenario": "查询发货记录列表",
-          "precondition": "用户已登录，数据库中存在发货记录",
-          "steps": [
-            {
-              "stepNo": 1,
-              "action": "导航到「发货记录」页面",
-              "expected": "页面正常加载，显示发货记录列表"
-            },
-            {
-              "stepNo": 2,
-              "action": "观察表格列头",
-              "expected": "列头包含：发货单号、订单编号、发货日期、物流单号、状态"
-            }
-          ],
-          "testData": "至少 5 条发货记录",
-          "relatedDiff": "D7"
         }
       ]
     }
