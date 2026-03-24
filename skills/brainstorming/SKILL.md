@@ -231,7 +231,7 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务目录
 
 **Step 6b：后端详细设计**（Backend in scope 时执行，必须在 6a 之后）
 5. 写入并保存 `<version-root>/<page-slug>/backend-detail-design.md`
-6. **保存前必须通过模板头部自检清单**（12 项全部 ✅ 才可保存）
+6. **保存前必须通过模板头部自检清单**（16 项全部 ✅ 才可保存）
 7. 后端文档必须在「需求输入」中引用同目录下的前端详细设计路径
 
 **页面完成**
@@ -261,7 +261,7 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务目录
    - 页面内先写前端再写后端，后端必须引用同目录前端设计
    - 文档独立性：禁止跨页面引用，内容必须完整自包含
    - 项目规范唯一来源规则
-   - 保存前必须通过自检清单（前端 18 项 / 后端 12 项）
+   - 保存前必须通过自检清单（前端 18 项 / 后端 16 项）
 7. **路径上下文**：传入 `WORKSPACE_ROOT`（CWD 绝对路径）和 `PROJECT_ROOT`。除此之外，必须额外传入 `ALLOWED_READ_PATHS`（允许读取的绝对路径白名单）；子代理不得把 `WORKSPACE_ROOT` / `PROJECT_ROOT` 当作扫描根目录
 8. **精准读取白名单**（主代理负责收敛上下文，子代理不得自行发现）：
    - `ALLOWED_READ_PATHS` 至少包含：`spec/CODING_STANDARDS.md`、当前页面输出所依赖的 `DIFF_PATH`、以及模板/需求明确需要的补充材料路径
