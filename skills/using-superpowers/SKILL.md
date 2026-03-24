@@ -154,10 +154,10 @@ Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
 
 确认后记录：
 - `PROJECT_ROOT` = 用户确认的实际代码项目路径
-- `DOC_ROOT` = CWD 绝对路径（传给 subagent 用）
+- `WORKSPACE_ROOT` = CWD 绝对路径（传给 subagent 用）
 
 后续所有 skill 中：
-- 文档操作（`docs/plans/`、`spec/`）→ CWD 相对路径（主代理）或 `DOC_ROOT` 绝对路径（subagent）
+- 文档操作（`docs/plans/`、`spec/`）→ CWD 相对路径（主代理）或 `WORKSPACE_ROOT` 绝对路径（subagent）
 - 代码操作 → `PROJECT_ROOT` 或 `SOURCE_ROOT`（worktree 创建后）
 
 ### 第一步：创建合规检查任务

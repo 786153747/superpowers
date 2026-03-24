@@ -25,7 +25,7 @@ CRITICAL: The controller is an orchestrator, not an implementer.
 ### MUST
 
 - Read `index.md`, `shared-plan.md`, and all page `plan.md` files before starting
-- Treat `[DOC_ROOT]/spec/CODING_STANDARDS.md` as the sole source for project conventions and embed its full content into every implementer prompt
+- Treat `[WORKSPACE_ROOT]/spec/CODING_STANDARDS.md` as the sole source for project conventions and embed its full content into every implementer prompt
 - Complete all `shared-plan.md` tasks before starting any page lane
 - Establish the run's effective `max_concurrency` before the first dispatch. Default is `5`; only change it when the user explicitly requests a lower cap or the runtime limitation fallback forces `1`
 - Parallelize ready shared tasks when write sets are disjoint — do NOT serially drain safe-to-parallelize tasks
@@ -37,7 +37,8 @@ CRITICAL: The controller is an orchestrator, not an implementer.
 - In shared phase, enumerate every ready shared task in the ticket and dispatch the full safe wave up to `max_concurrency`
 - In page phase, fill open slots from different ready pages in `index.md` order before waiting again
 - Treat cross-page dependencies as explicit later tasks only; launch each page's independent tasks first
-- Pass the same absolute `SOURCE_ROOT`, `DOC_ROOT`, and `VERSION_DIR` to every implementer
+- Pass the same absolute `SOURCE_ROOT`, `WORKSPACE_ROOT`, and `VERSION_DIR` to every implementer
+- Before the first dispatch, explicitly print a path binding block to the user containing absolute `SOURCE_ROOT`, `WORKSPACE_ROOT`, and `VERSION_DIR`
 - Update `plan.md` and `index.md` after each completed task
 - Answer subagent questions before the subagent proceeds
 
@@ -80,21 +81,35 @@ Before Phase 1, **all** of the following must exist. Any missing = STOP.
 
 | Input | Description |
 |-------|-------------|
-| `DOC_ROOT` | Absolute path to docs workspace (= CWD) |
+| `WORKSPACE_ROOT` | Absolute path to workspace root (= CWD, contains `spec/` and `docs/plans/`) |
 | `PROJECT_ROOT` | Absolute path to main source repository |
 | `SOURCE_ROOT` | Absolute path to worktree — **must** be created via `using-git-worktrees` (CLAUDE.md Rule 9). Must ≠ `PROJECT_ROOT`. |
-| `VERSION_DIR` | Absolute path to current version directory (e.g., `[DOC_ROOT]/docs/plans/2026-03-20-xxx/abc123/`) |
-| `CODING_STANDARDS` | Content of `[DOC_ROOT]/spec/CODING_STANDARDS.md`, read once and cached |
+| `VERSION_DIR` | Absolute path to current version directory (e.g., `[WORKSPACE_ROOT]/docs/plans/2026-03-20-xxx/abc123/`) |
+| `CODING_STANDARDS` | Content of `[WORKSPACE_ROOT]/spec/CODING_STANDARDS.md`, read once and cached |
 | Plan files | `index.md`, `shared-plan.md` (if exists), all page `plan.md` |
 
 ### Pre-Phase-1 Checklist
 
 ```
 ☐ Worktree created? → SOURCE_ROOT recorded, SOURCE_ROOT ≠ PROJECT_ROOT
-☐ DOC_ROOT, VERSION_DIR set?
+☐ WORKSPACE_ROOT, VERSION_DIR set?
 ☐ CODING_STANDARDS.md read and cached?
 ☐ index.md + all plan.md files read?
 ```
+
+Before Phase 1 starts, the controller **must** output:
+
+```text
+当前执行路径绑定：
+- SOURCE_ROOT = <绝对路径>
+- WORKSPACE_ROOT = <绝对路径>
+- VERSION_DIR = <绝对路径>
+```
+
+Hard rule:
+- `VERSION_DIR` must be the exact current version directory, not merely `WORKSPACE_ROOT`
+- Invalid example: only showing `WORKSPACE_ROOT = /Users/.../test20260311`
+- Valid example: `VERSION_DIR = D:\workspace\test-superpowers\docs\plans\2026-03-24-后市场订单库存\1f7e3877845ae0c9fb57e1290d150404e07f1c1c`
 
 ## Frontend Execution Mode (前端执行模式)
 
@@ -385,7 +400,7 @@ Page phase (max_concurrency=5, pages: my-order, delivery-record, consignment-inv
 ## Per-Task Dispatch
 
 - Dispatch a fresh implementer subagent per task (never one agent for the whole page)
-- Provide: task text, `SOURCE_ROOT`, `DOC_ROOT`, `VERSION_DIR`, embedded `CODING_STANDARDS` content
+- Provide: task text, `SOURCE_ROOT`, `WORKSPACE_ROOT`, `VERSION_DIR`, embedded `CODING_STANDARDS` content
 - Replace design doc references in task text with `VERSION_DIR`-based absolute paths
 - Make the task's file ownership explicit so the implementer knows its expected write set
 - Tell every implementer it is not alone in the worktree: do not revert unrelated edits, and raise conflicts instead of silently overwriting them
@@ -406,7 +421,7 @@ After each completed task:
 4. All tasks of a page complete → set `实施状态` to `已完成`
 5. Shared tasks only update the `shared` row — not any page
 
-Status write-backs always target `DOC_ROOT`, never the worktree.
+Status write-backs always target `WORKSPACE_ROOT`, never the worktree.
 
 ### Completion Rules
 
@@ -425,14 +440,14 @@ If status write-back fails → keep prior state, do not advance the lane.
 ## Worktree Binding
 
 - `SOURCE_ROOT` = worktree path → all code edits, builds, implementer working dirs
-- `DOC_ROOT` = docs workspace → spec reads, design reads, `index.md`/`plan.md` writes
+- `WORKSPACE_ROOT` = workspace root → spec reads, design reads, `index.md`/`plan.md` writes
 - Do not switch editing between main repo and worktree without explicit reason
 
 ## Phase 2: Verification
 
 Entry: all tasks in `shared-plan.md` + all page `plan.md` files complete.
 
-**Phase 2 = 5 sequential Gates. 编译通过 ≠ 完成。必须走完全部 Gate + 输出 Final Gate Evidence 才能宣布完成，也才能进入 `finishing-a-development-branch`。**
+**Phase 2 = 7 sequential Gates. 编译通过 ≠ 完成。必须走完全部 Gate + 输出 Final Gate Evidence 才能宣布完成，也才能进入 `finishing-a-development-branch`。**
 
 | Gate | Action | On failure |
 |------|--------|------------|
@@ -441,8 +456,16 @@ Entry: all tasks in `shared-plan.md` + all page `plan.md` files complete.
 | 3 | Spec Compliance — `AskUserQuestion` → dispatch `spec-reviewer-prompt.md` | fix → re-review |
 | 4 | Code Quality — `AskUserQuestion` → dispatch `code-quality-reviewer-prompt.md` | fix → re-review |
 | 5 | Coding Standards Feedback → propose updates to `CODING_STANDARDS.md` | user confirms |
+| 6 | PRD Diff Scan Tail — `AskUserQuestion` → use `superpowers:prd-diff-scan` | resolve inputs → rerun skill |
+| 7 | API JMeter Artifact Generation — `AskUserQuestion` → use `superpowers:api-jmeter-generator` | resolve inputs → rerun skill |
 
-Gate 3/4 only skipped when user explicitly says "跳过". Gate 5 is still a required terminal gate even when it results in `no conventions to add`. All gates done → output **Final Gate Evidence** table, then and only then continue to the finishing skill.
+Gate 3/4/6/7 only skipped when user explicitly chooses "跳过" via `AskUserQuestion`. Gate 5 is always required. For Gate 6/7, once the user chooses `不跳过` / `执行`, the controller must actually run the corresponding skill before Phase 2 can complete. All gates done → output **Final Gate Evidence** table, then and only then continue to the finishing skill.
+
+For Gate 3/4 reviewer dispatches, path binding is strict:
+- `SOURCE_ROOT` → implementation code
+- `VERSION_DIR` → current version directory's `diff.md` + page design docs
+- `WORKSPACE_ROOT` → `spec/CODING_STANDARDS.md`
+- Do not let reviewers rediscover design docs by scanning `WORKSPACE_ROOT/docs/plans/**`
 
 详见 [`shared/phase2-verification.md`](../shared/phase2-verification.md)。
 

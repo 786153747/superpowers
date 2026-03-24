@@ -394,13 +394,13 @@ Do not hard-code a default execution skill in generated plans. Execution mode mu
 >
 > 真正的执行依赖示例：Service 层（Task B）需要 import 并调用 Mapper 接口（Task A 创建）→ Task B 依赖 Task A。
 
-> **路径占位符**：`[SOURCE_ROOT]` 和 `[DOC_ROOT]` 在 plan 中是占位符。实际值在执行阶段由 `using-git-worktrees` 创建 worktree 后确定，controller 负责替换为绝对路径传给 subagent。
+> **路径占位符**：`[SOURCE_ROOT]` 和 `[WORKSPACE_ROOT]` 在 plan 中是占位符。实际值在执行阶段由 `using-git-worktrees` 创建 worktree 后确定，controller 负责替换为绝对路径传给 subagent。
 
 **参考文件**（实现前必须先用 Read 工具读取；仅限当前 Task 明确涉及的具体文件）:
 - Modify Target: `[SOURCE_ROOT]/path/to/existing/file.java` — 读取当前内容，避免覆盖已有改动
 - Dependency/Base: `[SOURCE_ROOT]/path/to/base/BaseEntity.java` — 对齐继承关系或调用方式
-- Standards: `[DOC_ROOT]/spec/CODING_STANDARDS.md` — 项目级技术栈 / 架构 / 代码规范唯一来源
-- Design: `[DOC_ROOT]/docs/plans/xxx-detail-design.md` Section 4.2 — 字段定义
+- Standards: `[WORKSPACE_ROOT]/spec/CODING_STANDARDS.md` — 项目级技术栈 / 架构 / 代码规范唯一来源
+- Design: `[WORKSPACE_ROOT]/docs/plans/xxx-detail-design.md` Section 4.2 — 字段定义
 - For API-related frontend/backend tasks on existing UI pages: include the exact page `.vue`, API file, type file, and related mock file (if any) as reference files so the implementer aligns to the real UI contract instead of only the prose design
 
 **创建/修改文件**:

@@ -19,7 +19,7 @@ Guide completion of development work by presenting clear options and handling ch
 
 - **SOURCE_ROOT**：worktree 路径（开发分支所在目录）
 - **PROJECT_ROOT**：主仓库目录（merge / push 操作在此执行）
-- **DOC_ROOT**：CWD 绝对路径（文档目录）
+- **WORKSPACE_ROOT**：CWD 绝对路径（工作区根，包含 `spec/` 和 `docs/plans/`）
 
 Git checkout / merge / push 在 `PROJECT_ROOT` 执行。worktree 清理（`git worktree remove`）也在 `PROJECT_ROOT` 执行，移除 `SOURCE_ROOT`。
 

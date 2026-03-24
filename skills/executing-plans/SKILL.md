@@ -45,18 +45,19 @@ Load plan, review critically, execute tasks in batches, report for review betwee
 | 阶段 | 技能 | 用途 |
 |------|------|------|
 | **开始前** | `superpowers:using-git-worktrees` | 创建隔离工作区（仅针对用户指定的**源码目录**） |
-| **所有页面编码完成后** | [`shared/phase2-verification.md`](../shared/phase2-verification.md) | Phase 2 验证流程（Gate 1-5 + Final Gate Evidence） |
+| **所有页面编码完成后** | [`shared/phase2-verification.md`](../shared/phase2-verification.md) | Phase 2 验证流程（Gate 1-7 + Final Gate Evidence） |
 | **Phase 2 通过后** | `superpowers:finishing-a-development-branch` | 完成分支 |
 
-> **注意**：Phase 2 验证流程已统一到 [`shared/phase2-verification.md`](../shared/phase2-verification.md)，包含编译、Spec Compliance、Code Quality、Coding Standards Feedback 等 Gate。
+> **注意**：Phase 2 验证流程已统一到 [`shared/phase2-verification.md`](../shared/phase2-verification.md)，包含编译、Spec Compliance、Code Quality、Coding Standards Feedback，以及末尾由 `AskUserQuestion` 控制是否跳过的 `prd-diff-scan` / `api-jmeter-generator` Gate。
 
 ### 注意事项
 
 - **编码阶段不审查** - 按计划逐任务推进，不每页暂停审查，直到所有页面编码完成
-- **统一审查** - 编码完成后进入 Phase 2 验证流程，包含编译 + 分步审查（Gate 1-5）
+- **统一审查** - 编码完成后进入 Phase 2 验证流程，包含编译 + 分步审查 + 末尾技能产物 Gate（Gate 1-7）
 - `using-git-worktrees` 在 `PROJECT_ROOT`（实际代码项目目录）下创建 worktree，产出 `SOURCE_ROOT`
 - 文档目录（`docs/plans/`、`spec/`）在 CWD 下，用 CWD 相对路径读写，不经过 worktree
-- `DOC_ROOT` = CWD 绝对路径，传给 subagent 读取设计文档和 spec
+- `WORKSPACE_ROOT` = CWD 绝对路径，传给 subagent 读取 `spec/` 和 `docs/plans/`
+- `VERSION_DIR` = 当前版本目录绝对路径；这是执行期文档根，不能用 `WORKSPACE_ROOT` 代替
 - 创建 worktree 后，所有源码修改、验证命令、子代理工作目录都使用 `SOURCE_ROOT`
 - 计划进度回写（index.md、plan.md）始终在 CWD 下的 `docs/plans/`
 
@@ -103,7 +104,7 @@ Load plan, review critically, execute tasks in batches, report for review betwee
 - **当前版本目录**：有 commit 时为 `docs/plans/YYYY-MM-DD-<topic>/<commitid>/`；无 commit 时可退化为任务目录本身
 - 本 skill 中提到的 `index.md`、`shared-plan.md`、`<page-slug>/plan.md`，默认都指**当前版本目录**中的文件
 - 当前版本目录必须先确定一次，再在整个执行阶段复用；不得从多个 commit 版本目录混读 `diff / index / plan`
-- 版本目录在 CWD 下的 `docs/plans/` 中（`DOC_ROOT`），不在 worktree（`SOURCE_ROOT`）中
+- 版本目录在 `WORKSPACE_ROOT` 下的 `docs/plans/` 中，不在 worktree（`SOURCE_ROOT`）中
 - 如果存在多个版本目录且无法唯一确定当前版本目录，必须停止并向用户确认，不能凭宽泛 Glob 结果自行挑选
 
 ### Step 1: Load and Review Plan (via index.md)
@@ -113,6 +114,17 @@ Load plan, review critically, execute tasks in batches, report for review betwee
    - 如果用户给出了任务目录（如 `docs/plans/2026-03-19-xxx/`）→ 列出子目录找最新 commit 版本目录
    - 如果存在多个候选且无法唯一确定 → **STOP**，用 `AskUserQuestion` 让用户选择
    - 确定后记录：`当前版本目录 = <确切路径>`，后续所有 index.md / plan.md / diff.md 引用均使用此路径
+   - **必须立刻向用户显式输出以下路径绑定块，且三项都必须是绝对路径：**
+
+```text
+当前执行路径绑定：
+- SOURCE_ROOT = <绝对路径>
+- WORKSPACE_ROOT = <绝对路径>
+- VERSION_DIR = <绝对路径>
+```
+
+   - **禁止**只输出 `WORKSPACE_ROOT` 或只输出任务目录；`VERSION_DIR` 必须精确到当前 commit 版本目录，例如：
+     `D:\workspace\test-superpowers\docs\plans\2026-03-24-后市场订单库存\1f7e3877845ae0c9fb57e1290d150404e07f1c1c`
 2. 用 Read 直接读取 `<当前版本目录>/index.md`
 3. **验证内容**：确认 index.md 的功能名称、页面清单与当前任务一致（防止读错版本目录）
 4. Check the **执行顺序** section to determine execution order
@@ -191,7 +203,7 @@ Do NOT assume a fresh start. Always check existing progress first.
 
 ### Step 5: Phase 2 Verification + Complete Development
 
-After all pages' tasks complete,进入 Phase 2。**Phase 2 是 5 个 Gate 的顺序流水线，编译通过不等于 Phase 2 完成。必须走完全部 Gate 并输出 Final Gate Evidence 才能宣布完成。**
+After all pages' tasks complete,进入 Phase 2。**Phase 2 是 7 个 Gate 的顺序流水线，编译通过不等于 Phase 2 完成。必须走完全部 Gate 并输出 Final Gate Evidence 才能宣布完成。**
 
 详见 [`shared/phase2-verification.md`](../shared/phase2-verification.md)。
 
@@ -202,12 +214,16 @@ After all pages' tasks complete,进入 Phase 2。**Phase 2 是 5 个 Gate 的顺
 3. **Gate 3: Spec Compliance** — 编译通过后，用 `AskUserQuestion` 询问用户是否执行（默认执行）。执行时 dispatch spec-reviewer subagent，审查**全部已实现代码**
 4. **Gate 4: Code Quality** — Gate 3 完成后，用 `AskUserQuestion` 询问用户是否执行（默认执行）。执行时 dispatch code-quality-reviewer subagent，审查**全部已实现代码**
 5. **Gate 5: Coding Standards Feedback** — 收集 Gate 3/4 发现的规范类问题，呈现给用户确认是否更新 `spec/CODING_STANDARDS.md`
-6. **Final Gate Evidence** — 输出 5 Gate 结果表格
+6. **Gate 6: PRD Diff Scan Tail** — 必须用 `AskUserQuestion` 询问用户是否跳过；如果不跳过，必须执行 `superpowers:prd-diff-scan`
+7. **Gate 7: API JMeter Artifact Generation** — 必须用 `AskUserQuestion` 询问用户是否跳过；如果不跳过，必须执行 `superpowers:api-jmeter-generator`
+8. **Final Gate Evidence** — 输出 7 Gate 结果表格
 
 #### Hard Gate Rules
 
-- **编译通过 ≠ Phase 2 完成**。Gate 1/2 通过后必须继续 Gate 3/4/5
-- **不得跳过 Final Gate Evidence**。5 个 Gate 全部执行（或用户明确跳过）后，必须输出 Final Gate Evidence 表格
+- **编译通过 ≠ Phase 2 完成**。Gate 1/2 通过后必须继续 Gate 3-7
+- **Gate 3/4 reviewer 路径绑定固定**。实现代码从 `SOURCE_ROOT` 读；设计文档和 `diff.md` 从 `VERSION_DIR` 读；规范从 `[WORKSPACE_ROOT]/spec/CODING_STANDARDS.md` 读
+- **Gate 6/7 必须通过 `AskUserQuestion` 决定是否跳过**。如果用户选择不跳过，则对应 skill 必须真的执行完成
+- **不得跳过 Final Gate Evidence**。7 个 Gate 全部执行（或用户明确跳过允许跳过的 Gate）后，必须输出 Final Gate Evidence 表格
 - **不得在 Final Gate Evidence 输出前宣布"实施完成"或"可以部署"**
 
 #### After all gates pass:
@@ -309,12 +325,12 @@ After all pages' tasks complete,进入 Phase 2。**Phase 2 是 5 个 Gate 的顺
 - Between batches: just report and wait
 - Stop when blocked, don't guess
 - Never start implementation on main/master branch without explicit user consent
-- **编译通过 ≠ 完成**：Phase 2 有 5 个 Gate，必须走完全部并输出 Final Gate Evidence 才能宣布完成
+- **编译通过 ≠ 完成**：Phase 2 有 7 个 Gate，必须走完全部并输出 Final Gate Evidence 才能宣布完成
 
 ## Integration
 
 **Required workflow skills:**
 - **superpowers:using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
 - **superpowers:writing-plans** - Creates the plan this skill executes
-- **[`shared/phase2-verification.md`](../shared/phase2-verification.md)** - Phase 2 verification (Gates 1-5), shared with subagent-driven-development
+- **[`shared/phase2-verification.md`](../shared/phase2-verification.md)** - Phase 2 verification (Gates 1-7), shared with subagent-driven-development
 - **superpowers:finishing-a-development-branch** - Complete development after all gates pass

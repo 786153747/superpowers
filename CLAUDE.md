@@ -27,18 +27,19 @@ CLI 工作目录（CWD）与实际代码项目目录可能不同。以下变量�
 
 | 变量 | 含义 | 确定时机 |
 |------|------|---------|
-| `WORK_ROOT` | CWD（CLI 工作目录） | 自动（即 CWD） |
+| `WORKSPACE_ROOT` | CWD（CLI 工作目录 / 工作区根，包含 `spec/` 和 `docs/plans/`） | 自动（即 CWD） |
 | `PROJECT_ROOT` | 实际代码项目根目录 | 会话启动时由 `using-superpowers` 确认 |
-| `DOC_ROOT` | = CWD 绝对路径（别名） | 传给 subagent 时使用 |
 | `SOURCE_ROOT` | worktree 路径 | worktree 创建后才确定 |
+| `VERSION_DIR` | 当前版本目录（精确到 `docs/plans/<topic>/<commitid>/`） | 当前版本目录确定后 |
 
 ### 职责分离
 
-- **CWD 管文档**：`docs/plans/`、`spec/` 在 CWD 下，主代理用相对路径读写
+- **`WORKSPACE_ROOT` 管文档**：`docs/plans/`、`spec/` 在 CWD 下，主代理用相对路径读写
 - **`PROJECT_ROOT` 管代码**：源码、worktree 在此目录下
 - **`SOURCE_ROOT` 管隔离源码**：worktree 内做源码修改、构建、测试
-- **subagent 传绝对路径**：`DOC_ROOT`（CWD 绝对路径）+ `SOURCE_ROOT`（worktree 路径）
-- **进度回写到 CWD**：index.md / plan.md 始终在 CWD 下的 `docs/plans/`
+- **`VERSION_DIR` 管当前任务版本文档**：当前任务绑定的 `diff.md`、`index.md`、设计文档、`plan.md` 都来自同一个版本目录
+- **subagent 传绝对路径**：`WORKSPACE_ROOT`（CWD 绝对路径）+ `SOURCE_ROOT`（worktree 路径）+ `VERSION_DIR`（当前版本目录，已知时必须传）
+- **进度回写到 `WORKSPACE_ROOT`**：index.md / plan.md 始终在 CWD 下的 `docs/plans/`
 
 ### PROJECT_ROOT 确认规则
 
@@ -71,7 +72,7 @@ PRD/需求 → prd-diff-scan → brainstorming → writing-plans → 选择执�
 5. **按接口维度切 Task**：每个 Task 是垂直切片（Entity→Mapper→Service→Controller），禁止按技术层横切
 6. **延迟编译**：编码阶段不编译，所有后端任务完成后再 `mvn compile`
 7. **延迟审查**：编译通过后（后端 + 前端）再请求一次性审查，不每任务审查
-8. **代码规范**：implementer 编码前必须读取 `spec/CODING_STANDARDS.md`（CWD 下），并将其作为技术栈、架构、代码规范的唯一来源；Phase 2 审查后收集规范类问题反馈给用户确认是否更新规范文档
+8. **代码规范**：implementer 编码前必须读取 `[WORKSPACE_ROOT]/spec/CODING_STANDARDS.md`，并将其作为技术栈、架构、代码规范的唯一来源；Phase 2 审查后收集规范类问题反馈给用户确认是否更新规范文档
 9. **Git Worktree**：执行计划前必须调用 `using-git-worktrees` 在 `PROJECT_ROOT` 下创建隔离工作区
 10. **子代理执行**：执行 plan 用 `subagent-driven-development`，每任务 fresh subagent（仅实现，编译和审查延迟到 Phase 2）
 11. **验证优先**：声称完成前必须调用 `verification-before-completion` 跑验证命令

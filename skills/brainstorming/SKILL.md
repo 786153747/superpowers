@@ -262,7 +262,7 @@ docs/plans/YYYY-MM-DD-<topic>/           # 任务目录
    - 文档独立性：禁止跨页面引用，内容必须完整自包含
    - 项目规范唯一来源规则
    - 保存前必须通过自检清单（前端 18 项 / 后端 12 项）
-7. **路径上下文**：传入 `DOC_ROOT`（CWD 绝对路径）和 `PROJECT_ROOT`。除此之外，必须额外传入 `ALLOWED_READ_PATHS`（允许读取的绝对路径白名单）；子代理不得把 `DOC_ROOT` / `PROJECT_ROOT` 当作扫描根目录
+7. **路径上下文**：传入 `WORKSPACE_ROOT`（CWD 绝对路径）和 `PROJECT_ROOT`。除此之外，必须额外传入 `ALLOWED_READ_PATHS`（允许读取的绝对路径白名单）；子代理不得把 `WORKSPACE_ROOT` / `PROJECT_ROOT` 当作扫描根目录
 8. **精准读取白名单**（主代理负责收敛上下文，子代理不得自行发现）：
    - `ALLOWED_READ_PATHS` 至少包含：`spec/CODING_STANDARDS.md`、当前页面输出所依赖的 `DIFF_PATH`、以及模板/需求明确需要的补充材料路径
    - 如果需要读取现有代码来理解当前实现，只能传入与本页直接相关的**精确文件路径**；优先传本页页面/API/类型文件，以及最多 1-3 个后端代表性样例文件

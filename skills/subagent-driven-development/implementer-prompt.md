@@ -147,9 +147,9 @@ Task tool (general-purpose):
 
 Controller 在构建 implementer prompt 前必须完成：
 
-1. **嵌入 CODING_STANDARDS.md** — 读取 `[DOC_ROOT]/spec/CODING_STANDARDS.md` 完整内容，嵌入 prompt 的 `## Coding Standards` 节
+1. **嵌入 CODING_STANDARDS.md** — 读取 `[WORKSPACE_ROOT]/spec/CODING_STANDARDS.md` 完整内容，嵌入 prompt 的 `## Coding Standards` 节
 2. **替换 VERSION_DIR** — 用当前版本目录的绝对路径替换 `[VERSION_DIR]`
 3. **替换 SOURCE_ROOT** — 用 worktree 绝对路径替换 `[SOURCE_ROOT]`
-4. **替换设计文档路径** — Task 参考文件中的 `[DOC_ROOT]/docs/plans/.../xxx-detail-design.md` 替换为 `[VERSION_DIR]/xxx-detail-design.md` 的绝对路径
+4. **替换设计文档路径** — Task 参考文件中的 `[WORKSPACE_ROOT]/docs/plans/.../xxx-detail-design.md` 替换为 `[VERSION_DIR]/xxx-detail-design.md` 的绝对路径
 5. **删除遗留验证段** — 如果 plan.md 的 Task 中仍有 `验证:` / `**验证**:` 子节，controller 必须先删除该子节，再构建 implementer prompt
 6. **粘贴 Task 实施正文** — 从 plan.md 复制 Task 的实施内容（依赖 / 参考文件 / 创建修改文件 / 业务规则等），不让 subagent 自己读 plan 文件

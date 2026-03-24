@@ -13,7 +13,7 @@ Git worktrees create isolated workspaces sharing the same repository, allowing w
 
 Worktree creation is an isolation step, not a repository-discovery step.
 Do not scan application code to infer project structure before creating the worktree.
-If project-type context is needed, use `[DOC_ROOT]/spec/CODING_STANDARDS.md` when available; otherwise use only minimal root indicators such as `pom.xml`, `package.json`, or other top-level build files.
+If project-type context is needed, use `[WORKSPACE_ROOT]/spec/CODING_STANDARDS.md` when available; otherwise use only minimal root indicators such as `pom.xml`, `package.json`, or other top-level build files.
 
 **Announce at start:** "I'm using the using-git-worktrees skill to set up an isolated workspace."
 
@@ -106,7 +106,7 @@ cd "$path"
 
 ### 3. Run Project Setup (Optional — Skip for Java/Maven Projects)
 
-Auto-detect and run appropriate setup **only if necessary**. Determine the project type from `[DOC_ROOT]/spec/CODING_STANDARDS.md` first when available; otherwise use only minimal root indicators. Do **not** inspect controller packages, entity classes, or other application code to decide this. For Java/Maven projects, worktree shares the same `.m2` repository cache — skip this step. For frontend projects, `node_modules` is usually gitignored and won't be in the worktree, but `npm install` should be deferred to when it's actually needed (e.g., before `npm run build` in Phase 2).
+Auto-detect and run appropriate setup **only if necessary**. Determine the project type from `[WORKSPACE_ROOT]/spec/CODING_STANDARDS.md` first when available; otherwise use only minimal root indicators. Do **not** inspect controller packages, entity classes, or other application code to decide this. For Java/Maven projects, worktree shares the same `.m2` repository cache — skip this step. For frontend projects, `node_modules` is usually gitignored and won't be in the worktree, but `npm install` should be deferred to when it's actually needed (e.g., before `npm run build` in Phase 2).
 
 ```bash
 # Only run if the project requires local dependency installation AND
@@ -138,14 +138,30 @@ Worktree ready at <full-path>
 Ready to implement <feature-name>
 ```
 
+如果当前 session 已经明确了执行所需的文档根和版本目录，则优先输出下面这个**路径绑定块**，不要只输出泛化描述：
+
+```text
+Worktree 已创建成功。当前路径绑定如下：
+- SOURCE_ROOT = <worktree 绝对路径>
+- WORKSPACE_ROOT = <workspace root 绝对路径>
+- VERSION_DIR = <当前版本目录绝对路径>    # 仅当当前 session 已明确时输出
+```
+
+硬规则：
+- **不要写“现在路径已确定”却只给出 `SOURCE_ROOT` / `WORKSPACE_ROOT` 而省略 `VERSION_DIR`**
+- 如果 `VERSION_DIR` 尚未确定，只能说“worktree 路径已确定”，不能冒充为完整执行路径已确定
+- 一旦上游或用户已经给出当前版本目录，后续任何执行 skill 都必须继续沿用这个绝对路径，不得退化成仅显示 `WORKSPACE_ROOT`
+
 ## Path Handoff Contract
 
 After creating the worktree, downstream execution skills must receive and preserve the exact paths.
 
 - Record the worktree absolute path as `SOURCE_ROOT`（在 `PROJECT_ROOT` 下创建）
-- Record CWD absolute path as `DOC_ROOT`（`docs/plans/`、`spec/` 所在目录）
+- Record CWD absolute path as `WORKSPACE_ROOT`（工作区根；`docs/plans/`、`spec/` 所在目录）
+- If the session already has a resolved current version directory, record and pass its absolute path as `VERSION_DIR`
 - `SOURCE_ROOT`：所有源码编辑、subagent 工作目录、验证命令
-- `DOC_ROOT`：设计文档、spec、计划进度（index.md / plan.md）的读写
+- `WORKSPACE_ROOT`：设计文档、spec、计划进度（index.md / plan.md）的读写
+- `VERSION_DIR`：当前任务使用的确切版本目录（如 `D:\workspace\test-superpowers\docs\plans\2026-03-24-后市场订单库存\1f7e3877845ae0c9fb57e1290d150404e07f1c1c`）
 - Do not silently fall back to the main repository root once a worktree has been selected
 - worktree 创建在 `PROJECT_ROOT` 下，不是 CWD（如果两者不同）
 
