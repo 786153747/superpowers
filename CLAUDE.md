@@ -13,7 +13,7 @@
 
 **执行模式选择补充**：`writing-plans` 落盘后，若用户尚未明确选择执行方式，必须使用 `AskUserQuestion` 让用户二选一：
 1. **Subagent-Driven (当前会话)** — 使用 `superpowers:subagent-driven-development` 在当前会话中逐任务执行
-2. **Parallel Session (独立会话)** — 使用 `superpowers:executing-plans` 在独立会话中执行
+2. **Separate Session (独立会话)** — 使用 `superpowers:executing-plans` 在独立会话中执行
 
 未明确选择前，不得默认进入任一执行 skill。
 

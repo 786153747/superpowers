@@ -253,7 +253,39 @@ while in_flight or any_lane_has_remaining_tasks:
         in_flight[page] = task
 
 # All lanes complete → enter Phase 2
-```
+
+### Phase 1 → Phase 2 Transition (MANDATORY)
+
+**When the last task completes, the controller MUST immediately:**
+
+1. **Output a Phase Transition Notice:**
+   ```
+   === Phase 1 实施完成 ===
+   所有任务已完成。现在进入 Phase 2 验证流程。
+
+   Phase 2 Gate 检查清单：
+   □ Gate 1: mvn compile
+   □ Gate 2: npm run build
+   □ Gate 3: Spec Compliance Review
+   □ Gate 4: Code Quality Review
+   □ Gate 5: Coding Standards Feedback
+   □ Gate 6: PRD Test Cases Generation
+   □ Gate 7: API JMeter Artifact Generation
+
+   是否开始执行 Phase 2？(是/否)
+   ```
+
+2. **Create a Phase 2 tracking task:**
+   ```
+   TaskCreate {
+     subject: "Phase 2 Verification",
+     description: "Execute all 7 gates of Phase 2 verification"
+   }
+   ```
+
+3. **NOT dispatch any more implementer subagents until Phase 2 gates pass.**
+
+**⚠️ FAILURE TO OUTPUT PHASE TRANSITION NOTICE = FLOW VIOLATION**
 
 ### Dispatch Ticket (mandatory before every dispatch)
 
@@ -420,6 +452,10 @@ After each completed task:
 3. First completed task of a page → set `实施状态` to `进行中`
 4. All tasks of a page complete → set `实施状态` to `已完成`
 5. Shared tasks only update the `shared` row — not any page
+6. **When ALL pages' `实施状态` become `已完成`:**
+   - **IMMEDIATELY trigger Phase 2 transition** (see "Phase 1 → Phase 2 Transition" section)
+   - **Output Phase Transition Notice** and **create Phase 2 tracking task**
+   - **STOP dispatching implementer subagents** until Phase 2 gates pass
 
 Status write-backs always target `WORKSPACE_ROOT`, never the worktree.
 
@@ -445,9 +481,19 @@ If status write-back fails → keep prior state, do not advance the lane.
 
 ## Phase 2: Verification
 
-Entry: all tasks in `shared-plan.md` + all page `plan.md` files complete.
+**Entry:** all tasks in `shared-plan.md` + all page `plan.md` files complete.
+
+**⚠️ PHASE 2 IS MANDATORY - DO NOT SKIP:**
+
+When Phase 1 completes (all tasks done), the controller **MUST**:
+1. Output the **Phase Transition Notice** (see Algorithm section)
+2. Create a **Phase 2 tracking task**
+3. **STOP** dispatching implementer subagents
+4. **Execute all 7 gates in order** - no skipping allowed unless user explicitly confirms
 
 **Phase 2 = 7 sequential Gates. 编译通过 ≠ 完成。必须走完全部 Gate + 输出 Final Gate Evidence 才能宣布完成，也才能进入 `finishing-a-development-branch`。**
+
+**⚠️ 最常见违规：Gate 1/2 编译通过后直接跳到 Final Gate Evidence 或 finishing skill，跳过了 Gate 3-7。编译通过只是 Phase 2 的 2/7，必须继续。每个 Gate 必须输出 Entry/Exit 块（见 phase2-verification.md Gate Progress Tracker）。**
 
 | Gate | Action | On failure |
 |------|--------|------------|
@@ -456,7 +502,7 @@ Entry: all tasks in `shared-plan.md` + all page `plan.md` files complete.
 | 3 | Spec Compliance — `AskUserQuestion` → dispatch `spec-reviewer-prompt.md` | fix → re-review |
 | 4 | Code Quality — `AskUserQuestion` → dispatch `code-quality-reviewer-prompt.md` | fix → re-review |
 | 5 | Coding Standards Feedback → propose updates to `CODING_STANDARDS.md` | user confirms |
-| 6 | PRD Diff Scan Tail — `AskUserQuestion` → use `superpowers:prd-diff-scan` | resolve inputs → rerun skill |
+| 6 | PRD Test Cases Generation — `AskUserQuestion` → use `superpowers:prd-test-cases` | resolve inputs → rerun skill |
 | 7 | API JMeter Artifact Generation — `AskUserQuestion` → use `superpowers:api-jmeter-generator` | resolve inputs → rerun skill |
 
 Gate 3/4/6/7 only skipped when user explicitly chooses "跳过" via `AskUserQuestion`. Gate 5 is always required. For Gate 6/7, once the user chooses `不跳过` / `执行`, the controller must actually run the corresponding skill before Phase 2 can complete. All gates done → output **Final Gate Evidence** table, then and only then continue to the finishing skill.

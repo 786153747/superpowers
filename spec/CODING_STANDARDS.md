@@ -227,13 +227,13 @@ public class OrderQueryDTO
 **位置**: `ruoyi-system/src/main/java/com/ruoyi/system/mapper/`
 
 **规范**:
-- 接口命名：`I{模块}Mapper` 或 `{实体}Mapper`
-- 继承 `BaseMapper` (若依封装的通用 Mapper)
+- 接口命名：`{实体}Mapper`（如 `OrderMapper`, `SysUserMapper`）
+- **直接定义接口，不继承 BaseMapper**（若依简化版本）
 - XML 映射文件位置：`ruoyi-system/src/main/resources/mapper/{模块}/{实体}Mapper.xml`
 
 **示例**:
 ```java
-public interface SysConfigMapper extends BaseMapper<SysConfig>
+public interface SysConfigMapper
 {
     List<SysConfig> selectConfigList(SysConfig config);
     int checkConfigKeyUnique(SysConfig config);
@@ -280,6 +280,35 @@ public class SysConfigServiceImpl implements ISysConfigService
 - 操作日志使用 `@Log(title = "xxx", businessType = BusinessType.XXX)`
 - 新增/修改接口参数使用 `@Validated @RequestBody`
 - 统一返回 `AjaxResult` 或 `TableDataInfo`
+
+**@Log 注解使用规范**:
+
+BusinessType 枚举可用值：
+- `OTHER` - 其他操作（**查询操作使用此值**）
+- `INSERT` - 新增操作
+- `UPDATE` - 修改操作
+- `DELETE` - 删除操作
+- `GRANT` - 授权操作
+- `EXPORT` - 导出操作
+- `IMPORT` - 导入操作
+- `FORCE` - 强退操作
+- `GENCODE` - 生成代码操作
+- `CLEAN` - 清空数据操作
+
+**注意**：查询操作使用 `BusinessType.OTHER`，因为枚举中没有 `SELECT` 值。
+
+示例：
+```java
+// 查询操作
+@Log(title = "订单查询", businessType = BusinessType.OTHER)
+@GetMapping("/list")
+public TableDataInfo list(OrderQueryDTO queryDTO) { ... }
+
+// 导出操作
+@Log(title = "订单导出", businessType = BusinessType.EXPORT)
+@PostMapping("/export")
+public void export(...) { ... }
+```
 
 **标准接口**:
 | 方法 | 路径 | 说明 | 权限标识 |
@@ -344,6 +373,36 @@ export function getConfig(configId: number) {
 }
 ```
 
+#### 1.1 API 错误处理规范
+
+所有 API 调用必须有完善的错误处理：
+
+**正确示例**:
+```typescript
+listOrder(queryParams)
+  .then((res) => {
+    loading.value = false
+    orderList.value = res.rows
+    total.value = res.total
+  })
+  .catch((error) => {
+    console.error('查询订单失败:', error)
+    ElMessage.error('查询失败，请稍后重试')
+  })
+```
+
+**错误示例** - 仅捕获不提示：
+```typescript
+.catch(() => {
+  loading.value = false
+})
+```
+
+**要求**:
+1. catch 块必须向用户显示错误信息（`ElMessage.error`）
+2. 同时记录 `console.error` 供调试使用
+3. 不得仅捕获异常而不做任何处理
+
 #### 2. 页面组件 (CRUD 标准模板)
 
 **位置**: `ruoyi-ui/src/views/{模块}/`
@@ -353,6 +412,20 @@ export function getConfig(configId: number) {
 - 使用 TypeScript 类型定义
 - 使用 Composition API (`ref`, `reactive`, `computed`)
 - 全局组件：`Pagination`, `RightToolbar`, `Editor`, `FileUpload`, `ImageUpload`, `DictTag`
+
+**文件命名**: 使用**单文件模式**（非文件夹模式）：
+- ✅ `src/views/order/myOrder.vue`
+- ❌ `src/views/order/myOrder/index.vue`
+
+**路由配置对应**:
+```typescript
+{
+  path: 'myOrder',
+  component: () => import('@/views/order/myOrder.vue'),
+  name: 'MyOrder',
+  meta: { title: '我的订单', icon: 'form' }
+}
+```
 
 **标准结构**:
 ```vue
@@ -475,6 +548,71 @@ getList()
 </script>
 ```
 
+#### 2.1 TypeScript 类型使用规范
+
+**禁止滥用 `any` 类型**：
+
+```typescript
+// ❌ 错误 - 使用 any
+const dataList = ref<any[]>([])
+
+// ✅ 正确 - 使用定义的类型
+const dataList = ref<YourEntityType[]>([])
+
+// 如果类型尚未确定，使用 unknown 而非 any
+const data = ref<unknown>(null)
+```
+
+**类型定义位置**：
+- 类型定义文件位于 `src/types/api/{模块}.ts`，根据实际业务模块动态创建
+- 每个业务模块的类型定义文件应包含：
+  - `{Entity}` - 实体类型
+  - `{Entity}QueryParams` - 查询参数类型
+  - `{Entity}DTO` - 数据传输对象类型
+  - 其他业务相关类型（如 VO、Record 等）
+
+**示例**（以订单模块为例）：
+```typescript
+// src/types/api/order.ts
+export interface Order {
+  id: number
+  orderNo: string
+  materialNo: string
+  quantity: number
+  orderDate: string
+}
+
+export interface OrderQueryParams {
+  pageNum: number
+  pageSize: number
+  orderNo?: string
+  materialNo?: string
+}
+```
+
+#### 2.2 调试代码清理
+
+提交前必须移除所有调试语句：
+
+```typescript
+// ❌ 错误 - 调试语句
+console.log('getList called with params:', queryParams)
+console.log('API response:', res)
+console.log('deliveryList:', deliveryList.value)
+
+// ✅ 正确 - 生产代码
+function getList() {
+  // 业务逻辑，无调试输出
+}
+
+// ✅ 允许 - 错误日志
+console.error('查询失败:', error)
+```
+
+**要求**:
+1. 移除所有 `console.log` 调试语句
+2. 保留错误日志 `console.error` 用于问题排查
+
 #### 3. 字典使用
 
 ```typescript
@@ -520,7 +658,7 @@ const { sys_normal_disable } = proxy.useDict('sys_normal_disable')
 | 类型 | 规范 | 示例 |
 |------|------|------|
 | API 文件 | 小驼峰 | `config.ts`, `user.ts` |
-| 页面组件 | 小写 + 连字符 | `user/index.vue`, `config/index.vue` |
+| 页面组件 | 小写 + 连字符（**单文件模式**） | `user/index.vue` → `user.vue`, `order/myOrder.vue` |
 | 组件 name | 大驼峰 (PascalCase) | `UserManage`, `ConfigList` |
 | 变量/函数 | 小驼峰 | `dataList`, `handleAdd` |
 | 类型接口 | 大驼峰 | `UserQuery`, `ConfigVO` |
@@ -1111,7 +1249,7 @@ mvn clean compile
 
 **Mapper 层 (ruoyi-system/src/main/java/com/ruoyi/system/mapper/)**:
 - [ ] 接口命名 `{Entity}Mapper`
-- [ ] 继承 `BaseMapper`
+- [ ] **直接定义接口，不继承 BaseMapper**（若依简化版本）
 - [ ] XML 文件路径：`src/main/resources/mapper/{模块}/{Entity}Mapper.xml`
 
 **Service 层 (ruoyi-system/src/main/java/com/ruoyi/system/service/)**:

@@ -12,6 +12,50 @@ Shared verification process used by both `subagent-driven-development` and `exec
 
 ---
 
+## Gate Progress Tracker（强制门控追踪）
+
+**每个 Gate 开始前**，必须输出 Gate Entry 块；**每个 Gate 完成后**，必须输出 Gate Exit 块。缺少任一块 = 流程违规。
+
+### Gate Entry 块（每个 Gate 开始前必须输出）
+
+```markdown
+═══════════════════════════════════════
+PHASE 2 GATE PROGRESS: [N/7]
+Entering Gate N: <Gate Name>
+Previous gates: Gate 1 ✅, Gate 2 ✅, ... Gate N-1 ✅
+═══════════════════════════════════════
+```
+
+### Gate Exit 块（每个 Gate 完成后必须输出）
+
+```markdown
+───────────────────────────────────────
+Gate N: <Gate Name> → ✅ Passed / ⏭️ Skipped / ❌ Failed (fixing...)
+Next: Gate N+1: <Next Gate Name>
+Remaining gates: [N+1, N+2, ..., 7]
+───────────────────────────────────────
+```
+
+### 反跳跃规则（Anti-Skip Rules）
+
+1. **禁止从 Gate 2 直接跳到 Final Gate Evidence** — Gate 2 的 Exit 块必须显示 `Next: Gate 3`，不得显示 `Next: Final Gate Evidence` 或 `Next: finishing`
+2. **禁止从任何 Gate N 跳到 Gate N+2 或更后** — Exit 块的 `Next` 必须是 N+1
+3. **编译通过（Gate 1/2）后必须立即输出 Gate 3 Entry 块** — 如果 Gate 2 Exit 后的下一个输出不是 Gate 3 Entry，则流程违规
+4. **Final Gate Evidence 只能在 Gate 7 Exit 块之后输出** — 如果 Gate 7 Exit 块不存在，Final Gate Evidence 无效
+5. **Gate 3/4 的 `AskUserQuestion` 是 Gate 的一部分**，不是可选前置步骤 — 进入 Gate 3 后，第一个动作必须是 `AskUserQuestion`
+6. **Gate 5 不可跳过** — 没有 `AskUserQuestion` 跳过选项，必须执行
+7. **Gate 5 完成后必须进入 Gate 6** — Gate 5 Exit 块必须显示 `Next: Gate 6`，不得跳到 Final Gate Evidence 或 finishing
+8. **Gate 6 必须使用 `AskUserQuestion`** — 进入 Gate 6 后，第一个动作必须是 `AskUserQuestion` 询问是否跳过；禁止自行决定跳过或默认跳过
+9. **Gate 6 完成后必须进入 Gate 7** — Gate 6 Exit 块（无论 ✅ 还是 ⏭️）必须显示 `Next: Gate 7`，不得跳到 Final Gate Evidence
+10. **Gate 7 必须使用 `AskUserQuestion`** — 进入 Gate 7 后，第一个动作必须是 `AskUserQuestion` 询问是否跳过；禁止自行决定跳过或默认跳过
+11. **Gate 7 是最后一个 Gate** — Gate 7 Exit 块必须显示 `Next: Final Gate Evidence`，这是唯一允许出现 `Next: Final Gate Evidence` 的位置
+
+### 违规自检
+
+如果你发现自己在 Gate 2 完成后准备输出 Final Gate Evidence 或准备调用 `finishing-a-development-branch`，**立即停止**，回退到 Gate 3 Entry 块继续。这是最常见的违规模式。
+
+---
+
 ## Gate 1: Backend Compilation
 
 - Controller runs `mvn compile` in `SOURCE_ROOT` directory (no subagent)
@@ -80,16 +124,20 @@ Would you like to update the coding standards doc (`spec/CODING_STANDARDS.md`，
 6. If the user declines, record that decision and continue
 7. If no convention-related issues found, explicitly record `no conventions to add` for Gate 5
 
-## Gate 6: PRD Diff Scan Tail (可选，是否跳过必须用 AskUserQuestion 决定)
+## Gate 6: PRD Test Cases Generation (可选，是否跳过必须用 AskUserQuestion 决定)
 
 - **必须使用 `AskUserQuestion` 工具**询问用户，禁止仅发普通文本后自行继续
-- 问题：`是否跳过 PRD 差异复扫（superpowers:prd-diff-scan）？`
+- 问题：`是否跳过 PRD 测试用例生成（superpowers:prd-test-cases）？`
 - 选项至少包含：`不跳过，立即执行` / `跳过`
 - 用户明确选择 `跳过` / `skip` / `不执行` 才可跳过；否则视为不跳过
-- 如果用户选择不跳过，controller **MUST** 立即调用 `Skill("superpowers:prd-diff-scan")`
-- 手工重新阅读 PRD、手写 diff 总结、或口头说明“已经核对过”都**不能**替代该 Gate
-- 优先复用当前流程里已经确认过的 PRD 路径、`PROJECT_ROOT`、原型目录、上一次 diff 文档；如仍有歧义，继续遵循 `prd-diff-scan` 自身的 `AskUserQuestion` 规则
-- Gate 完成条件：`prd-diff-scan` 正常完成，并返回本次 diff 产物的确切路径
+- 如果用户选择不跳过，controller 需先判断上下文中是否已有 `diff.md`（检查 `VERSION_DIR` 下是否存在 `diff.md` 或 `diff_<commitid>.md`）：
+  - **有 `diff.md`**：直接调用 `Skill(“superpowers:prd-test-cases”)`，将已有的 diff 路径作为输入
+  - **没有 `diff.md`**：使用 `AskUserQuestion` 询问用户如何获取 diff 文档，选项包含：
+    1. `提供 diff.md 路径` — 用户手动指定已有的 diff 文档路径
+    2. `执行 prd-diff-scan 生成` — 调用 `Skill(“superpowers:prd-diff-scan”)` 生成 diff.md，完成后再调用 `prd-test-cases`
+    3. `直接从 PRD 生成测试用例` — 跳过 diff.md，直接调用 `Skill(“superpowers:prd-test-cases”)`，由该 skill 自行处理无 diff 的情况
+- 手工编写测试用例 JSON 或 Excel 不能替代该 Gate；必须走 `prd-test-cases` skill 的完整流程
+- Gate 完成条件：`prd-test-cases` 正常完成，`test-cases.json` 和 `test-cases.xlsx` 已实际生成到磁盘
 - 失败 → 解决阻塞后重新执行该 skill；在 Gate 6 完成前不得继续 Gate 7，也不得进入 finishing skill
 - 跳过时：Final Gate Evidence 中标记为 ⏭️ Skipped
 
@@ -111,6 +159,24 @@ Would you like to update the coding standards doc (`spec/CODING_STANDARDS.md`，
 
 ## Final Gate Evidence Block (Mandatory)
 
+**Pre-check（输出 Final Gate Evidence 前的强制自检）：**
+
+在输出 Final Gate Evidence 表格之前，必须先输出以下自检块。如果任何一项为 ❌，**禁止输出 Final Gate Evidence**，必须回退执行缺失的 Gate。
+
+```markdown
+### Final Gate Pre-Check
+- [ ] Gate 1 Exit 块已输出？ [✅/❌]
+- [ ] Gate 2 Exit 块已输出？ [✅/❌]
+- [ ] Gate 3 Entry 块已输出？ [✅/❌] ← 最常遗漏的 Gate
+- [ ] Gate 3 Exit 块已输出？ [✅/❌]
+- [ ] Gate 4 Entry 块已输出？ [✅/❌]
+- [ ] Gate 4 Exit 块已输出？ [✅/❌]
+- [ ] Gate 5 Exit 块已输出？ [✅/❌]
+- [ ] Gate 6 Exit 块已输出？ [✅/❌]
+- [ ] Gate 7 Exit 块已输出？ [✅/❌]
+Any ❌ above → STOP, go back and execute the missing gate.
+```
+
 After all seven gates are complete (or explicitly skipped where allowed), output this block once:
 
 ```
@@ -122,7 +188,7 @@ After all seven gates are complete (or explicitly skipped where allowed), output
 | Spec Review | ✅/❌/⏭️ | subagent dispatched: yes/skipped, verdict: [pass/fail/skipped] |
 | Code Quality | ✅/❌/⏭️ | subagent dispatched: yes/skipped, verdict: [pass/fail/skipped] |
 | Coding Standards Feedback | ✅/⏭️ | [N conventions proposed / no conventions to add / skipped] |
-| PRD Diff Scan | ✅/❌/⏭️ | skill invoked: yes/skipped, output: [diff path/skipped], verdict: [completed/failed/skipped] |
+| PRD Test Cases | ✅/❌/⏭️ | skill invoked: yes/skipped, diff.md: [found/user-provided/generated/skipped], outputs: [test-cases.json + test-cases.xlsx/skipped], verdict: [completed/failed/skipped] |
 | API JMeter Generation | ✅/❌/⏭️ | skill invoked: yes/skipped, outputs: [api.json + postman.json + jmx/skipped], verdict: [completed/failed/skipped] |
 
 All gates ✅ → Implementation COMPLETE

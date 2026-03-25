@@ -48,7 +48,7 @@ Load plan, review critically, execute tasks in batches, report for review betwee
 | **所有页面编码完成后** | [`shared/phase2-verification.md`](../shared/phase2-verification.md) | Phase 2 验证流程（Gate 1-7 + Final Gate Evidence） |
 | **Phase 2 通过后** | `superpowers:finishing-a-development-branch` | 完成分支 |
 
-> **注意**：Phase 2 验证流程已统一到 [`shared/phase2-verification.md`](../shared/phase2-verification.md)，包含编译、Spec Compliance、Code Quality、Coding Standards Feedback，以及末尾由 `AskUserQuestion` 控制是否跳过的 `prd-diff-scan` / `api-jmeter-generator` Gate。
+> **注意**：Phase 2 验证流程已统一到 [`shared/phase2-verification.md`](../shared/phase2-verification.md)，包含编译、Spec Compliance、Code Quality、Coding Standards Feedback，以及末尾由 `AskUserQuestion` 控制是否跳过的 `prd-test-cases` / `api-jmeter-generator` Gate。
 
 ### 注意事项
 
@@ -209,12 +209,14 @@ After all pages' tasks complete,进入 Phase 2。**Phase 2 是 7 个 Gate 的顺
 
 #### Gate 流程（严格按序执行）
 
+**⚠️ 最常见违规：Gate 1/2 编译通过后直接跳到 Final Gate Evidence 或 finishing skill，跳过了 Gate 3-7。编译通过只是 Phase 2 的 2/7，必须继续。每个 Gate 必须输出 Entry/Exit 块（见 phase2-verification.md Gate Progress Tracker）。**
+
 1. **Gate 1: Backend Compilation** — `mvn compile`，失败则 fix → 重编 → 循环
 2. **Gate 2: Frontend Compilation** — `npm run build`，失败则 fix → 重编 → 循环
 3. **Gate 3: Spec Compliance** — 编译通过后，用 `AskUserQuestion` 询问用户是否执行（默认执行）。执行时 dispatch spec-reviewer subagent，审查**全部已实现代码**
 4. **Gate 4: Code Quality** — Gate 3 完成后，用 `AskUserQuestion` 询问用户是否执行（默认执行）。执行时 dispatch code-quality-reviewer subagent，审查**全部已实现代码**
 5. **Gate 5: Coding Standards Feedback** — 收集 Gate 3/4 发现的规范类问题，呈现给用户确认是否更新 `spec/CODING_STANDARDS.md`
-6. **Gate 6: PRD Diff Scan Tail** — 必须用 `AskUserQuestion` 询问用户是否跳过；如果不跳过，必须执行 `superpowers:prd-diff-scan`
+6. **Gate 6: PRD Test Cases Generation** — 必须用 `AskUserQuestion` 询问用户是否跳过；如果不跳过，判断上下文是否有 `diff.md`，有则直接调用 `superpowers:prd-test-cases`，没有则询问用户提供路径、执行 `prd-diff-scan` 生成、或直接从 PRD 生成
 7. **Gate 7: API JMeter Artifact Generation** — 必须用 `AskUserQuestion` 询问用户是否跳过；如果不跳过，必须执行 `superpowers:api-jmeter-generator`
 8. **Final Gate Evidence** — 输出 7 Gate 结果表格
 
