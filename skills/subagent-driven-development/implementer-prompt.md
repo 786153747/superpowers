@@ -23,7 +23,7 @@ Task tool (general-purpose):
     本 Task 的前端文件采用复制原型模式。按以下步骤执行：
 
     1. 读取原型源文件（路径见下方映射表）
-    2. 按嵌入的 CODING_STANDARDS 做最小适配：
+    2. 按嵌入的相关规范文件做最小适配：
        - import 路径前缀（如原型用 `@/` 而项目用 `@/modules/xxx/`）
        - API 调用方式（如 request 封装、前缀适配）
        - 组件注册方式
@@ -48,10 +48,10 @@ Task tool (general-purpose):
 
     ## Coding Standards (由 controller 嵌入，无需自行读取)
 
-    以下是项目代码规范的完整内容，直接遵照执行：
+    以下是本任务所需规范文件的完整内容，直接遵照执行：
 
     ```
-    [CONTROLLER 在此嵌入 spec/CODING_STANDARDS.md 的完整内容]
+    [CONTROLLER 在此嵌入按任务范围选择的规范文件完整内容，可包含 1-3 份]
     ```
 
     This is the ONLY source for project-wide 技术栈、架构和代码规范.
@@ -67,12 +67,12 @@ Task tool (general-purpose):
     ### 禁止扫描代码库
 
     - Do NOT scan the repository (`src/`, `com/`, etc.) to infer conventions, coding patterns, or project structure
-    - Do NOT read base classes, parent classes, or utility classes to "verify they exist" — trust the design doc and the embedded CODING_STANDARDS
+    - Do NOT read base classes, parent classes, or utility classes to "verify they exist" — trust the design doc and the embedded standards docs
     - Do NOT use Glob/Grep to explore project code for learning purposes
-    - Do NOT read directories (e.g., `domain/`, `mapper/`, `controller/`) to "了解风格" — the embedded CODING_STANDARDS is the sole style reference
+    - Do NOT read directories (e.g., `domain/`, `mapper/`, `controller/`) to "了解风格" — the embedded standards docs are the sole style reference
     - You may ONLY read the specific files listed in the task's "参考文件" and "创建/修改文件" sections
-    - If CODING_STANDARDS says to extend `BaseEntity`, just extend it — don't go read `BaseEntity.java` first
-    - If CODING_STANDARDS already defines Controller package layout, module structure, or entity location, use it directly rather than scanning existing Controllers or entities to confirm
+    - If the embedded standards say to extend `BaseEntity`, just extend it — don't go read `BaseEntity.java` first
+    - If the embedded standards already define Controller package layout, module structure, or entity location, use it directly rather than scanning existing Controllers or entities to confirm
     - If you're unsure about a convention, **ask the controller** rather than scanning code
 
     ## Paths
@@ -147,7 +147,7 @@ Task tool (general-purpose):
 
 Controller 在构建 implementer prompt 前必须完成：
 
-1. **嵌入 CODING_STANDARDS.md** — 读取 `[WORKSPACE_ROOT]/spec/CODING_STANDARDS.md` 完整内容，嵌入 prompt 的 `## Coding Standards` 节
+1. **嵌入相关规范文件** — 先读取 `[WORKSPACE_ROOT]/spec/standards-index.md` 作为索引，再按任务范围读取相关规范文件（前端 / 后端 Java / DB），把这些完整内容嵌入 prompt 的 `## Coding Standards` 节
 2. **替换 VERSION_DIR** — 用当前版本目录的绝对路径替换 `[VERSION_DIR]`
 3. **替换 SOURCE_ROOT** — 用 worktree 绝对路径替换 `[SOURCE_ROOT]`
 4. **替换设计文档路径** — Task 参考文件中的 `[WORKSPACE_ROOT]/docs/plans/.../xxx-detail-design.md` 替换为 `[VERSION_DIR]/xxx-detail-design.md` 的绝对路径

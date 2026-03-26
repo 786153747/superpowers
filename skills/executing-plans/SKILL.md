@@ -88,12 +88,12 @@ Load plan, review critically, execute tasks in batches, report for review betwee
 当 plan 中包含前端 Task 时，执行开始前必须用 `AskUserQuestion` 询问用户：
 
 - 问题：`前端 Task 的执行模式：`
-- 选项 1：**复制原型 + 适配**（推荐） — 直接从原型目录复制前端文件到项目，按 CODING_STANDARDS 做最小适配（import 路径、API 调用等）。速度快，适合原型可直接使用的场景
+- 选项 1：**复制原型 + 适配**（推荐） — 直接从原型目录复制前端文件到项目，按当前任务范围选择的规范文件做最小适配（import 路径、API 调用等）。速度快，适合原型可直接使用的场景
 - 选项 2：**根据设计文档生成** — 基于前端详细设计文档全新生成代码。完整但较慢，适合原型与实际需求差异较大的场景
 
 **复制原型模式**：
 1. 从当前版本目录的 `diff.md`「比对基线」节提取 `原型目录` 路径和 `开发项目路径前缀`
-2. 执行前端 Task 时，读取原型源文件 → 按 CODING_STANDARDS 适配（import 路径、API 前缀、组件注册方式等）→ 写入目标路径
+2. 执行前端 Task 时，读取原型源文件 → 按当前任务范围选择的规范文件适配（import 路径、API 前缀、组件注册方式等）→ 写入目标路径
 3. 不从设计文档重新生成前端代码
 
 **设计文档生成模式**：按正常流程执行，根据前端详细设计文档编写代码。
@@ -215,7 +215,7 @@ After all pages' tasks complete,进入 Phase 2。**Phase 2 是 7 个 Gate 的顺
 2. **Gate 2: Frontend Compilation** — `npm run build`，失败则 fix → 重编 → 循环
 3. **Gate 3: Spec Compliance** — 编译通过后，用 `AskUserQuestion` 询问用户是否执行（默认执行）。执行时 dispatch spec-reviewer subagent，审查**全部已实现代码**
 4. **Gate 4: Code Quality** — Gate 3 完成后，用 `AskUserQuestion` 询问用户是否执行（默认执行）。执行时 dispatch code-quality-reviewer subagent，审查**全部已实现代码**
-5. **Gate 5: Coding Standards Feedback** — 收集 Gate 3/4 发现的规范类问题，呈现给用户确认是否更新 `spec/CODING_STANDARDS.md`
+5. **Gate 5: Coding Standards Feedback** — 收集 Gate 3/4 发现的规范类问题，呈现给用户确认是否更新对应的规范文件（`spec/backend/java/coding-standards.md`、`spec/frontend/vue/coding-standards.md`、`spec/backend/db/coding-standards.md`）
 6. **Gate 6: PRD Test Cases Generation** — 必须用 `AskUserQuestion` 询问用户是否跳过；如果不跳过，判断上下文是否有 `diff.md`，有则直接调用 `superpowers:prd-test-cases`，没有则询问用户提供路径、执行 `prd-diff-scan` 生成、或直接从 PRD 生成
 7. **Gate 7: API JMeter Artifact Generation** — 必须用 `AskUserQuestion` 询问用户是否跳过；如果不跳过，必须执行 `superpowers:api-jmeter-generator`
 8. **Final Gate Evidence** — 输出 7 Gate 结果表格
@@ -223,7 +223,7 @@ After all pages' tasks complete,进入 Phase 2。**Phase 2 是 7 个 Gate 的顺
 #### Hard Gate Rules
 
 - **编译通过 ≠ Phase 2 完成**。Gate 1/2 通过后必须继续 Gate 3-7
-- **Gate 3/4 reviewer 路径绑定固定**。实现代码从 `SOURCE_ROOT` 读；设计文档和 `diff.md` 从 `VERSION_DIR` 读；规范从 `[WORKSPACE_ROOT]/spec/CODING_STANDARDS.md` 读
+- **Gate 3/4 reviewer 路径绑定固定**。实现代码从 `SOURCE_ROOT` 读；设计文档和 `diff.md` 从 `VERSION_DIR` 读；规范从 `[WORKSPACE_ROOT]/spec/` 下按任务范围选择的标准文件读取
 - **Gate 6/7 必须通过 `AskUserQuestion` 决定是否跳过**。如果用户选择不跳过，则对应 skill 必须真的执行完成
 - **不得跳过 Final Gate Evidence**。7 个 Gate 全部执行（或用户明确跳过允许跳过的 Gate）后，必须输出 Final Gate Evidence 表格
 - **不得在 Final Gate Evidence 输出前宣布"实施完成"或"可以部署"**
@@ -239,7 +239,7 @@ After all pages' tasks complete,进入 Phase 2。**Phase 2 是 7 个 Gate 的顺
 当 Task 的「创建/修改文件」标注了合并策略（Copy / Overwrite / Merge）时，按以下方式执行。合并策略和 diff 编号（Fx）由 writing-plans 根据当前 diff 文档（`diff.md`）中的变更文件清单生成。
 
 在执行任何 Task 前：
-1. 先读取 `spec/CODING_STANDARDS.md`，将其作为技术栈、架构、代码规范的唯一来源
+1. 先读取 `spec/standards-index.md` 作为规范索引，再按任务范围读取相关规范文件，并将这些文件作为技术栈、架构、代码规范的唯一来源
 2. 仅在需要编辑、合并、验证某个具体文件时读取该文件当前内容
 3. 禁止为了“探测规范”而扫描 `src/views/**`、`src/api/**`、`src/types/**` 或其他项目代码目录
 
@@ -255,7 +255,7 @@ After all pages' tasks complete,进入 Phase 2。**Phase 2 是 7 个 Gate 的顺
 适用于：原型新增的文件，开发项目中不存在。
 
 1. 读取原型文件完整内容
-2. 读取 `spec/CODING_STANDARDS.md`，按其中规范适配 import 路径、组件注册方式、API 调用方式、路由配置等
+2. 读取与该文件范围匹配的规范文件，按其中规范适配 import 路径、组件注册方式、API 调用方式、路由配置等
 3. 适配后写入开发项目对应路径
 
 ### Overwrite（直接覆盖）

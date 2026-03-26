@@ -7,8 +7,8 @@
 
 - **需求差异**: `[diff.md 路径]`
 - **PRD（可选）**: `[主代理传入的 PRD 文档路径；若未传入则写“无（以 diff.md 为准）”]`
-- **项目规范**: `@spec/CODING_STANDARDS.md`
-- **项目级事实来源**：技术栈、模块架构、代码规范、基类/继承约定统一以 `@spec/CODING_STANDARDS.md` 为准，禁止从项目代码扫描推断
+- **项目规范**: `@spec/frontend/vue/coding-standards.md`
+- **项目级事实来源**：技术栈、模块架构、代码规范、前端约定统一以 `@spec/frontend/vue/coding-standards.md` 为准，禁止从项目代码扫描推断
 - **业务目标**：
 - **入口路径**：
 - **涉及角色 / 权限**：

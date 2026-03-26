@@ -25,7 +25,7 @@ CRITICAL: The controller is an orchestrator, not an implementer.
 ### MUST
 
 - Read `index.md`, `shared-plan.md`, and all page `plan.md` files before starting
-- Treat `[WORKSPACE_ROOT]/spec/CODING_STANDARDS.md` as the sole source for project conventions and embed its full content into every implementer prompt
+- Treat `[WORKSPACE_ROOT]/spec/standards-index.md` as the navigation index, then load only the relevant standards files under `spec/` for the current task scope and embed those selected contents into every implementer prompt
 - Complete all `shared-plan.md` tasks before starting any page lane
 - Establish the run's effective `max_concurrency` before the first dispatch. Default is `5`; only change it when the user explicitly requests a lower cap or the runtime limitation fallback forces `1`
 - Parallelize ready shared tasks when write sets are disjoint — do NOT serially drain safe-to-parallelize tasks
@@ -46,7 +46,7 @@ CRITICAL: The controller is an orchestrator, not an implementer.
 
 **Role boundaries:**
 - Write implementation code directly — if you catch yourself doing this, stop and dispatch a subagent
-- Scan the repository to rediscover conventions already in `CODING_STANDARDS.md`
+- Scan the repository to rediscover conventions already documented in the selected standards files
 
 **Scheduling discipline:**
 - Start any page task before `shared-plan.md` is complete
@@ -85,7 +85,7 @@ Before Phase 1, **all** of the following must exist. Any missing = STOP.
 | `PROJECT_ROOT` | Absolute path to main source repository |
 | `SOURCE_ROOT` | Absolute path to worktree — **must** be created via `using-git-worktrees` (CLAUDE.md Rule 9). Must ≠ `PROJECT_ROOT`. |
 | `VERSION_DIR` | Absolute path to current version directory (e.g., `[WORKSPACE_ROOT]/docs/plans/2026-03-20-xxx/abc123/`) |
-| `CODING_STANDARDS` | Content of `[WORKSPACE_ROOT]/spec/CODING_STANDARDS.md`, read once and cached |
+| `CODING_STANDARDS_SET` | Content of the standards files selected by task scope under `[WORKSPACE_ROOT]/spec/`, read via the index file and cached |
 | Plan files | `index.md`, `shared-plan.md` (if exists), all page `plan.md` |
 
 ### Pre-Phase-1 Checklist
@@ -93,7 +93,7 @@ Before Phase 1, **all** of the following must exist. Any missing = STOP.
 ```
 ☐ Worktree created? → SOURCE_ROOT recorded, SOURCE_ROOT ≠ PROJECT_ROOT
 ☐ WORKSPACE_ROOT, VERSION_DIR set?
-☐ CODING_STANDARDS.md read and cached?
+☐ Relevant standards files read and cached?
 ☐ index.md + all plan.md files read?
 ```
 
@@ -116,7 +116,7 @@ Hard rule:
 当 plan 中包含前端 Task 时，Phase 1 开始前必须用 `AskUserQuestion` 询问用户：
 
 - 问题：`前端 Task 的执行模式：`
-- 选项 1：**复制原型 + 适配**（推荐） — 直接从原型目录复制前端文件到项目，按 CODING_STANDARDS 做最小适配（import 路径、API 调用等）。速度快，适合原型可直接使用的场景
+- 选项 1：**复制原型 + 适配**（推荐） — 直接从原型目录复制前端文件到项目，按当前任务范围选择的规范文件做最小适配（import 路径、API 调用等）。速度快，适合原型可直接使用的场景
 - 选项 2：**根据设计文档生成** — 基于前端详细设计文档全新生成代码。完整但较慢，适合原型与实际需求差异较大的场景
 
 ### 复制原型模式
@@ -129,7 +129,7 @@ Hard rule:
    - `PROTOTYPE_DIR`: 原型目录绝对路径
    - `FRONTEND_MODE: copy` 标记
    - 当前 Task 涉及的原型源文件路径 → 目标文件路径映射
-4. **Implementer 行为**：读取原型文件 → 按 CODING_STANDARDS 适配（import 路径、API 前缀、组件注册方式等）→ 写入目标路径。不从设计文档重新生成
+4. **Implementer 行为**：读取原型文件 → 按当前任务范围选择并嵌入的规范文件适配（import 路径、API 前缀、组件注册方式等）→ 写入目标路径。不从设计文档重新生成
 
 ### 设计文档生成模式
 
@@ -432,7 +432,7 @@ Page phase (max_concurrency=5, pages: my-order, delivery-record, consignment-inv
 ## Per-Task Dispatch
 
 - Dispatch a fresh implementer subagent per task (never one agent for the whole page)
-- Provide: task text, `SOURCE_ROOT`, `WORKSPACE_ROOT`, `VERSION_DIR`, embedded `CODING_STANDARDS` content
+- Provide: task text, `SOURCE_ROOT`, `WORKSPACE_ROOT`, `VERSION_DIR`, and the embedded selected standards content
 - Replace design doc references in task text with `VERSION_DIR`-based absolute paths
 - Make the task's file ownership explicit so the implementer knows its expected write set
 - Tell every implementer it is not alone in the worktree: do not revert unrelated edits, and raise conflicts instead of silently overwriting them
@@ -501,7 +501,7 @@ When Phase 1 completes (all tasks done), the controller **MUST**:
 | 2 | `npm run build` | fix → rebuild → loop |
 | 3 | Spec Compliance — `AskUserQuestion` → dispatch `spec-reviewer-prompt.md` | fix → re-review |
 | 4 | Code Quality — `AskUserQuestion` → dispatch `code-quality-reviewer-prompt.md` | fix → re-review |
-| 5 | Coding Standards Feedback → propose updates to `CODING_STANDARDS.md` | user confirms |
+| 5 | Coding Standards Feedback → propose updates to the relevant standards file(s) | user confirms |
 | 6 | PRD Test Cases Generation — `AskUserQuestion` → use `superpowers:prd-test-cases` | resolve inputs → rerun skill |
 | 7 | API JMeter Artifact Generation — `AskUserQuestion` → use `superpowers:api-jmeter-generator` | resolve inputs → rerun skill |
 
@@ -510,7 +510,7 @@ Gate 3/4/6/7 only skipped when user explicitly chooses "跳过" via `AskUserQues
 For Gate 3/4 reviewer dispatches, path binding is strict:
 - `SOURCE_ROOT` → implementation code
 - `VERSION_DIR` → current version directory's `diff.md` + page design docs
-- `WORKSPACE_ROOT` → `spec/CODING_STANDARDS.md`
+- `WORKSPACE_ROOT` → `spec/standards-index.md` index + the exact standards files selected for this run
 - Do not let reviewers rediscover design docs by scanning `WORKSPACE_ROOT/docs/plans/**`
 
 详见 [`shared/phase2-verification.md`](../shared/phase2-verification.md)。

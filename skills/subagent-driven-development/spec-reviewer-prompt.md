@@ -21,7 +21,7 @@ Task tool (general-purpose):
 
     Read implementation code from [SOURCE_ROOT] (the worktree directory).
     Read design docs and diff docs from [VERSION_DIR] (the exact current version directory).
-    Read coding standards from [WORKSPACE_ROOT]/spec/CODING_STANDARDS.md.
+    Read coding standards from [STANDARD_PATHS] (the exact standards files selected by the controller for this task scope).
 
     ## Diff 决议文档
 
@@ -33,13 +33,13 @@ Task tool (general-purpose):
     你**只允许**读取以下文件，禁止扫描代码库：
     1. **implementer 报告中列出的 changed files**（在 `[SOURCE_ROOT]` 下）
     2. **设计文档**：`[VERSION_DIR]` 下当前页面的 frontend-detail-design.md 和 backend-detail-design.md
-    3. **代码规范**：`[WORKSPACE_ROOT]/spec/CODING_STANDARDS.md`
+    3. **代码规范**：`[STANDARD_PATHS]`
     4. **Task 参考文件中明确列出的文件**
 
     禁止：
     - 用 Glob/Grep 扫描 `src/`、`com/` 等目录
     - 读取 changed files 之外的代码来"验证一致性"
-    - 读取基类、工具类、框架类来检查继承关系是否正确 — 信任 CODING_STANDARDS.md
+    - 读取基类、工具类、框架类来检查继承关系是否正确 — 信任 controller 传入的 standards docs
     - 在 `[WORKSPACE_ROOT]/docs/plans/` 下重新扫描其他 commit 版本目录
 
     ## What Implementer Claims They Built

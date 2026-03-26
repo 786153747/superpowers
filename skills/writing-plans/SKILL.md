@@ -9,15 +9,20 @@ description: "Use ONLY after brainstorming has produced saved design docs (front
 
 写导航图，不写驾驶手册。告诉执行者：去哪里（文件路径）、看什么（参考文件）、做什么（业务规则）。**不要把完整代码写进 plan**——执行者读真实的参考文件比抄 plan 里的代码更可靠。
 
-Plan 的目标是让一个**有开发能力但不了解项目**的模型，通过读 `spec/CODING_STANDARDS.md`、设计文档和当前 Task 明确涉及的具体文件，产出与项目风格一致的代码。
+Plan 的目标是让一个**有开发能力但不了解项目**的模型，通过读按任务范围选择的规范文件、设计文档和当前 Task 明确涉及的具体文件，产出与项目风格一致的代码。
 
 原则：DRY、YAGNI、TDD。
 
 ## 项目规范来源
 
-- `spec/CODING_STANDARDS.md` 是技术栈、架构、代码规范的唯一来源
+- `spec/standards-index.md` 是规范索引页，不再承载完整规范正文
+- 项目级规范按任务范围只读取需要的文件：
+  - 前端 → `spec/frontend/vue/coding-standards.md`
+  - 后端 Java → `spec/backend/java/coding-standards.md`
+  - 表结构 / SQL → `spec/backend/db/coding-standards.md`
+- 上述已选择的规范文件才是技术栈、架构、代码规范的唯一来源
 - 禁止通过扫描仓库代码来推断这些项目级约定
-- 注意：`spec/CODING_STANDARDS.md` 在 CWD 下（主代理用相对路径读取）；Task 中引用的源码文件路径应指向 `PROJECT_ROOT` 或 `SOURCE_ROOT`
+- 注意：`spec/standards-index.md` 在 CWD 下，仅用于定位规范；Task 中引用的源码文件路径应指向 `PROJECT_ROOT` 或 `SOURCE_ROOT`
 - 参考文件只允许列出当前 Task **明确要修改、调用、继承或对齐**的具体文件，不得作为“扫描项目学习风格”的手段
 
 ## API Contract Gate（HARD-GATE）
@@ -25,7 +30,7 @@ Plan 的目标是让一个**有开发能力但不了解项目**的模型，通�
 对于**已有 UI 实现或原型实现**的页面：
 
 - API path / method / request params / response fields 的真相来源是该页面的精确 UI 文件：页面 `.vue` + API 文件 + 类型文件 + 直接相关的 mock 文件（若有）
-- `spec/CODING_STANDARDS.md` 只约束项目风格，不负责定义业务 API 契约
+- 选中的规范文件只约束项目风格，不负责定义业务 API 契约
 - `frontend-detail-design.md` / `backend-detail-design.md` 中的 API 契约如果与 UI 实现不一致，且 `diff.md` 没有明确决议要求改契约，**不得继续生成 plan**
 - 此时必须停止并回退到 `brainstorming` 修正文档，而不是带着漂移的接口契约继续写 plan
 
@@ -72,7 +77,7 @@ Q5: 确定范围：
   - 两侧都在范围内且用户未缩小范围 → 每个页面的 plan.md 中按接口维度切 Task，每个 Task 同时包含后端和前端联调
 ```
 
-If all checks pass, read design document(s), current diff document (`diff.md`), index.md, and `spec/CODING_STANDARDS.md` as input. `diff / index / 设计文档` must all come from the same current version directory.
+If all checks pass, read design document(s), current diff document (`diff.md`), index.md, and the relevant standards files selected from `spec/standards-index.md` as input. `diff / index / 设计文档` must all come from the same current version directory.
 
 Before writing any plan, also verify:
 
@@ -399,7 +404,7 @@ Do not hard-code a default execution skill in generated plans. Execution mode mu
 **参考文件**（实现前必须先用 Read 工具读取；仅限当前 Task 明确涉及的具体文件）:
 - Modify Target: `[SOURCE_ROOT]/path/to/existing/file.java` — 读取当前内容，避免覆盖已有改动
 - Dependency/Base: `[SOURCE_ROOT]/path/to/base/BaseEntity.java` — 对齐继承关系或调用方式
-- Standards: `[WORKSPACE_ROOT]/spec/CODING_STANDARDS.md` — 项目级技术栈 / 架构 / 代码规范唯一来源
+- Standards: selected files under `[WORKSPACE_ROOT]/spec/` — 项目级技术栈 / 架构 / 代码规范唯一来源
 - Design: `[WORKSPACE_ROOT]/docs/plans/xxx-detail-design.md` Section 4.2 — 字段定义
 - For API-related frontend/backend tasks on existing UI pages: include the exact page `.vue`, API file, type file, and related mock file (if any) as reference files so the implementer aligns to the real UI contract instead of only the prose design
 
@@ -425,7 +430,7 @@ Do not hard-code a default execution skill in generated plans. Execution mode mu
 
 | 要素 | 作用 |
 |------|------|
-| **参考文件** | 执行者先读当前 Task 明确涉及的具体文件，理解现状；项目级规范以 `spec/CODING_STANDARDS.md` 为准 |
+| **参考文件** | 执行者先读当前 Task 明确涉及的具体文件，理解现状；项目级规范以按范围选择的标准文件为准 |
 | **设计文档引用** | 字段、接口、规则已在详细设计中，不重复 |
 | **业务规则** | 自然语言描述 WHAT，执行者翻译成 HOW |
 | **创建/修改文件** | 精确路径，不猜测；涉及原型文件时标注合并策略（Copy/Overwrite/Merge）和 diff 编号（Fx） |
@@ -445,7 +450,7 @@ Do not hard-code a default execution skill in generated plans. Execution mode mu
 - 完整的 SQL DDL（设计文档里已有，用 `Design: backend-detail-design.md Section 5.1` 引用）
 - 完整的查询 SQL（设计文档 Section 7 已有，引用即可；Task 中只写关键的 WHERE 条件说明）
 - 完整的 MyBatis XML 映射文件
-- 完整的 import 列表（按 `spec/CODING_STANDARDS.md` 和具体目标文件保持一致）
+- 完整的 import 列表（按相关规范文件和具体目标文件保持一致）
 - 设计文档里已经写明的字段列表（直接引用 Section 编号）
 - **编译相关的完成条件**：不得在 Task 中写"编译无错误"、"无 import 错误"、"无类型不匹配警告"等编译验证条件——编译检查由 CLAUDE.md Rule 6（延迟编译）在所有 Task 完成后统一执行
 - **"同上"**：每个 Task 的参考文件必须列出完整路径，不得写"同上""同 Task 1"。执行者可能单独看某个 Task，看不到"上"是什么

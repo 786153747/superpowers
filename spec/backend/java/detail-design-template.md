@@ -8,7 +8,8 @@
 - **Diff**: `[diff.md 路径]`
 - **PRD**: `[主代理传入的 PRD 文档路径；若未传入则写“无（以 diff.md 为准）”]`
 - **前端详细设计**: `./frontend-detail-design.md`
-- **项目规范**: `@spec/CODING_STANDARDS.md`
+- **后端规范**: `@spec/backend/java/coding-standards.md`
+- **数据库规范**: `@spec/backend/db/coding-standards.md`
 
 ## 自检清单（写之前先看，写完再核）
 
@@ -29,7 +30,7 @@
 | 13 | **逻辑删除**：6.2 已写明逻辑删除约定；3.2 DELETE 接口的业务逻辑是 `UPDATE SET del_flag` 而非物理 DELETE；7 中所有伪 SQL 都有 `del_flag='0'` | |
 | 14 | **无具体代码**：文档中不含任何 Java 代码块（无 `class`/`@`/`public` 等 Java 语法）、DDL SQL、MyBatis XML（无 `<select>`/`<if>` 等标签）；Section 4.2/4.3 只有字段表格，Section 5.1 只有字段表格，Section 7 只有伪 SQL 纯文本 | |
 | 15 | **API 契约来源明确**：3.1 / 3.2 / 9.2 / 9.3 中的接口 path、入参、出参与 `frontend-detail-design.md` Section 5 / Section 6 一致；若当前页面已有 UI 实现，则这些契约项最终都能追溯到精确 UI 文件或明确 diff 决议，不能由后端文档独立发明 | |
-| 16 | **表名规范**：Section 5.1 中所有表名都使用 `tbl_` 前缀（系统表用 `sys_`），与 `CODING_STANDARDS.md` Section 12 一致 | |
+| 16 | **表名规范**：Section 5.1 中所有表名都使用 `tbl_` 前缀（系统表用 `sys_`），与 `spec/backend/db/coding-standards.md` 一致 | |
 
 ## 1. 背景与目标
 

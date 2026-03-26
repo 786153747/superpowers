@@ -24,20 +24,20 @@ Agent tool (general-purpose):
 
     Read implementation code from [SOURCE_ROOT] (the worktree directory).
     Read design docs and diff docs from [VERSION_DIR] (the exact current version directory).
-    Read coding standards from [WORKSPACE_ROOT]/spec/CODING_STANDARDS.md.
+    Read coding standards from [STANDARD_PATHS] (the exact standards files selected by the controller for this task scope).
 
     ## 文件读取范围（严格限制）
 
     你**只允许**读取以下文件，禁止扫描代码库：
     1. **git diff 涉及的文件**：在 `[SOURCE_ROOT]` 下执行 `git diff --name-only [BASE_SHA]..[HEAD_SHA]`
-    2. **代码规范**：`[WORKSPACE_ROOT]/spec/CODING_STANDARDS.md`
+    2. **代码规范**：`[STANDARD_PATHS]`
     3. **设计文档**（如需对照）：`[VERSION_DIR]` 下的相关文件
     4. **差异决议文档**（如需对照）：`[VERSION_DIR]/diff.md`
 
     禁止：
     - 用 Glob/Grep 扫描 `src/`、`com/` 等目录
     - 读取 changed files 之外的代码
-    - 读取基类、工具类、框架类 — 信任 CODING_STANDARDS.md
+    - 读取基类、工具类、框架类 — 信任 controller 传入的 standards docs
     - 在 `[WORKSPACE_ROOT]/docs/plans/` 下重新扫描其他 commit 版本目录
 
     ## Git Range to Review

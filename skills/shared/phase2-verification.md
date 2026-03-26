@@ -76,7 +76,7 @@ Remaining gates: [N+1, N+2, ..., 7]
 - Reviewer covers the **entire implementation** (all tasks, all pages), not just one task
 - Controller reviewing code itself does NOT satisfy this gate
 - Use `subagent-driven-development/spec-reviewer-prompt.md` template
-- Controller must pass `SOURCE_ROOT`, `WORKSPACE_ROOT`, and `VERSION_DIR`; reviewer reads design docs + `diff.md` from `VERSION_DIR`, and coding standards from `[WORKSPACE_ROOT]/spec/CODING_STANDARDS.md`
+- Controller must pass `SOURCE_ROOT`, `WORKSPACE_ROOT`, and `VERSION_DIR`; reviewer reads design docs + `diff.md` from `VERSION_DIR`, and coding standards from the exact standards files selected by scope under `[WORKSPACE_ROOT]/spec/`
 - Failure → dispatch fix subagent → re-dispatch spec reviewer → loop until pass
 - Controller must not patch source files directly to satisfy this gate; fixes must be delegated to a fix subagent, then re-reviewed
 - 跳过时：Final Gate Evidence 中标记为 ⏭️ Skipped
@@ -89,7 +89,7 @@ Remaining gates: [N+1, N+2, ..., 7]
 - Reviewer covers the **entire implementation**
 - Controller reviewing code itself does NOT satisfy this gate
 - Use `subagent-driven-development/code-quality-reviewer-prompt.md` template
-- Controller must pass `SOURCE_ROOT`, `WORKSPACE_ROOT`, and `VERSION_DIR`; reviewer reads design docs + `diff.md` from `VERSION_DIR`, and coding standards from `[WORKSPACE_ROOT]/spec/CODING_STANDARDS.md`
+- Controller must pass `SOURCE_ROOT`, `WORKSPACE_ROOT`, and `VERSION_DIR`; reviewer reads design docs + `diff.md` from `VERSION_DIR`, and coding standards from the exact standards files selected by scope under `[WORKSPACE_ROOT]/spec/`
 - Failure → dispatch fix subagent → re-dispatch quality reviewer → loop until pass
 - Controller must not patch source files directly to satisfy this gate; fixes must be delegated to a fix subagent, then re-reviewed
 - 跳过时：Final Gate Evidence 中标记为 ⏭️ Skipped
@@ -116,11 +116,11 @@ The following issues from code review may indicate missing or unclear coding sta
 1. [Issue description] — suggested addition to [backend/frontend] coding standards
 2. ...
 
-Would you like to update the coding standards doc (`spec/CODING_STANDARDS.md`，位于 WORKSPACE_ROOT/CWD) with these conventions?
+Would you like to update the relevant coding standards file(s) (`spec/backend/java/coding-standards.md` / `spec/frontend/vue/coding-standards.md` / `spec/backend/db/coding-standards.md`，位于 WORKSPACE_ROOT/CWD) with these conventions?
 ```
 
 4. Wait for user confirmation
-5. If approved, update `spec/CODING_STANDARDS.md`（CWD 下）
+5. If approved, update the corresponding coding standards file(s) under `spec/`（CWD 下）
 6. If the user declines, record that decision and continue
 7. If no convention-related issues found, explicitly record `no conventions to add` for Gate 5
 

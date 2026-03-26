@@ -72,7 +72,7 @@ PRD/需求 → prd-diff-scan → brainstorming → writing-plans → 选择执�
 5. **按接口维度切 Task**：每个 Task 是垂直切片（Entity→Mapper→Service→Controller），禁止按技术层横切
 6. **延迟编译**：编码阶段不编译，所有后端任务完成后再 `mvn compile`
 7. **延迟审查**：编译通过后（后端 + 前端）再请求一次性审查，不每任务审查
-8. **代码规范**：implementer 编码前必须读取 `[WORKSPACE_ROOT]/spec/CODING_STANDARDS.md`，并将其作为技术栈、架构、代码规范的唯一来源；Phase 2 审查后收集规范类问题反馈给用户确认是否更新规范文档
+8. **代码规范**：implementer 编码前必须按任务范围读取相关规范文件：前端读 `[WORKSPACE_ROOT]/spec/frontend/vue/coding-standards.md`，后端 Java 读 `[WORKSPACE_ROOT]/spec/backend/java/coding-standards.md`，表结构/SQL 额外读 `[WORKSPACE_ROOT]/spec/backend/db/coding-standards.md`；`[WORKSPACE_ROOT]/spec/standards-index.md` 仅作索引页；Phase 2 审查后收集规范类问题反馈给用户确认是否更新对应规范文档
 9. **Git Worktree**：执行计划前必须调用 `using-git-worktrees` 在 `PROJECT_ROOT` 下创建隔离工作区
 10. **子代理执行**：执行 plan 用 `subagent-driven-development`，每任务 fresh subagent（仅实现，编译和审查延迟到 Phase 2）
 11. **验证优先**：声称完成前必须调用 `verification-before-completion` 跑验证命令
